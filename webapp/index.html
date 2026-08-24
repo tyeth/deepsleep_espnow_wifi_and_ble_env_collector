@@ -91,6 +91,9 @@ a{color:var(--acc)}
    <option value="custom">custom time...</option></select></label>
   <input id="cal-custom" type="datetime-local" hidden>
   <label>window <input id="cal-dur" type="number" min="2" max="360" size="4" placeholder="min"> min</label>
+  <label>mode <select id="cal-mode">
+   <option value="frc">reference (FRC to target, stability-gated)</option>
+   <option value="asc">ASC 48 h (sensor self-calibrates; ventilate every night; USB power)</option></select></label>
   <label><input id="cal-dry" type="checkbox"> dry run (check stability, don't write)</label>
   <button id="btn-cal2">Step 2: schedule</button>
  </div>
@@ -587,7 +590,8 @@ async function calApi(body){
  if(bleIO){
   let cmd=`cal ${body.src} ${body.step}`;
   if(body.step===2){cmd+=" "+(body.when||"4am");
-   if(body.duration_s)cmd+=" "+body.duration_s;if(body.dry)cmd+=" dry";}
+   if(body.duration_s)cmd+=" "+body.duration_s;if(body.dry)cmd+=" dry";
+   if(body.mode==="asc")cmd+=" asc";}
   return bleJSON(cmd);}
  throw new Error("connect to the hub first (HTTP or BLE)");
 }
@@ -600,14 +604,16 @@ function fmtCalStatus(st){
  const out=[];
  for(const [src,p] of Object.entries(st.pending||{})){
   if(p.step===1)out.push(`${src}: step 1 armed - run step 2`);
-  else out.push(`${src}: ${p.dry?"DRY-RUN ":""}scheduled, starts in ${fmtDur(p.starts_in_s||0)}, window ${Math.round(p.dur/60)} min, target ${p.armed} ppm (delivered at the node's next check-in)`);
+  else out.push(`${src}: ${p.asc?"ASC ":p.dry?"DRY-RUN ":""}scheduled, starts in ${fmtDur(p.starts_in_s||0)}, window ${Math.round(p.dur/60)} min, target ${p.armed} ppm (delivered at the node's next check-in)`);
  }
  if(st.local)out.push(`local: ${st.local.dry?"DRY-RUN ":""}${st.local.running?
   `window RUNNING, ${st.local.samples} samples, ${fmtDur(st.local.remaining_s)} left`:
   `scheduled, starts in ${fmtDur(st.local.starts_in_s)}`} (${Math.round(st.local.dur/60)} min, target ${st.local.target} ppm)`);
  for(const [src,r] of Object.entries(st.results||{}))
-  out.push(`${src} result: ${r.ok?(r.dry?"DRY OK":"CALIBRATED"):"FAILED"}`+
-   (r.ref!=null?`, sensor saw ~${Math.round(r.ref)} ppm`:"")+
+  out.push(`${src} result: ${r.ok?(r.mode==="asc"?"ASC WINDOW DONE":r.dry?"DRY OK":"CALIBRATED"):"FAILED"}`+
+   (r.ref_start!=null?`, ${Math.round(r.ref_start)} -> `:(r.ref!=null?", sensor saw ":""))+
+   (r.ref!=null?`~${Math.round(r.ref)} ppm`:"")+
+   (r.shift!=null?` (shift ${r.shift>0?"+":""}${Math.round(r.shift)})`:"")+
    (r.corr!=null?`, correction ${r.corr} ppm`:"")+(r.why?` - ${r.why}`:"")+
    (r.ts?` (${iso(r.ts)})`:""));
  return out.length?out.join("\n"):"nothing armed, scheduled or recorded";
@@ -627,7 +633,7 @@ async function calStep2(){
  if(when==="custom"){const v=$("cal-custom").value;
   if(!v){setStatus("cal-status","pick a custom time first",false,true);return;}
   when=String(Math.round(new Date(v).getTime()/1000));}
- const body={src,step:2,when,dry:$("cal-dry").checked};
+ const body={src,step:2,when,dry:$("cal-dry").checked,mode:$("cal-mode").value};
  const mins=parseInt($("cal-dur").value,10);if(mins>0)body.duration_s=mins*60;
  setStatus("cal-status","scheduling...",true);
  try{const r=await calApi(body);
@@ -880,6 +886,10 @@ $("btn-time").onclick=()=>syncClock(false);
 $("btn-cal1").onclick=calStep1;$("btn-cal2").onclick=calStep2;
 $("btn-calstat").onclick=calRefreshStatus;
 $("cal-when").onchange=()=>{$("cal-custom").hidden=$("cal-when").value!=="custom";};
+$("cal-mode").onchange=()=>{const asc=$("cal-mode").value==="asc";
+ if(asc){$("cal-when").value="now";$("cal-dur").placeholder="2880";$("cal-dry").checked=false;}
+ else{$("cal-when").value="4am";$("cal-dur").placeholder="min";}
+ $("cal-dry").disabled=asc;$("cal-custom").hidden=$("cal-when").value!=="custom";};
 $("btn-sync").onclick=sync;
 $("btn-load").onclick=loadAll;
 $("btn-episodes").onclick=findEpisodes;

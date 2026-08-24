@@ -29,7 +29,9 @@ Config reply (collector -> node, unicast to the node's MAC):
   fields are ONLY present while the user has armed a reference
   calibration: "cal" target ppm, "cat" epoch at which the measurement
   window starts (absent/0 = now), "cdur" window length in seconds,
-  "cdry" 1 = dry run (measure + stability check, never write the FRC).
+  "cdry" 1 = dry run (measure + stability check, never write the FRC),
+  "casc" 1 = ASC mode: enable the sensor's automatic self-calibration for
+  the window (keep measuring), then disable it again -- no FRC written.
 
 Calibration result (node -> collector):
   {"v":1,"k":"cal","n":"kitchen","ok":1,"corr":-23,"ref":431,"why":""}
@@ -128,7 +130,8 @@ def make_data_packet(name, sensor_type, seq, batt_v, measurements,
 
 
 def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
-                       epoch=None, cal_at=None, cal_dur=None, cal_dry=False) -> bytes:
+                       epoch=None, cal_at=None, cal_dur=None, cal_dry=False,
+                       cal_asc=False) -> bytes:
     """Collector-side helper: build a 'cfg' reply for a node.
 
     epoch: hub's current time (only sent when the hub clock is synced via
@@ -146,6 +149,8 @@ def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
             pkt["cdur"] = int(cal_dur)
         if cal_dry:
             pkt["cdry"] = 1
+        if cal_asc:
+            pkt["casc"] = 1
     if epoch:
         pkt["t"] = int(epoch)
     return encode(pkt)
@@ -156,8 +161,10 @@ PLAUSIBLE_EPOCH = 1700000000  # 2023-11
 
 
 def make_cal_result_packet(name, ok, correction=None, ref=None,
-                           reason=None) -> bytes:
+                           reason=None, ref0=None) -> bytes:
     pkt = {"k": "cal", "n": name, "ok": 1 if ok else 0}
+    if ref0 is not None:
+        pkt["ref0"] = int(ref0)
     if correction is not None:
         pkt["corr"] = correction
     if ref is not None:

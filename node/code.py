@@ -68,7 +68,8 @@ def mem_set_u32(off, val):
 
 MEM_STASH_N = 8      # count of stashed (unsent) readings
 # scheduled reference calibration (survives deep sleep until it runs)
-MEM_CAL_TGT = 9      # uint16 LE target ppm; bit 15 = dry run; 0 = none
+MEM_CAL_TGT = 9      # uint16 LE target ppm; bit15 = dry, bit14 = ASC mode
+                     # (MEM_CAL_DURM below is in 15-minute units: 48 h ASC fits)
 MEM_CAL_AT = 11      # uint32 LE epoch the window starts
 MEM_CAL_DURM = 15    # uint8 window minutes
 STASH_START = 16
@@ -586,7 +587,7 @@ if cfg:
         try:
             cal_schedule(int(cfg["cal"]), int(cfg.get("cat") or 0),
                          int(cfg.get("cdur") or config["cal_measure_s"]),
-                         bool(cfg.get("cdry")))
+                         bool(cfg.get("cdry")), bool(cfg.get("casc")))
         except (TypeError, ValueError) as exc:
             print("bad cal fields in cfg:", exc)
 
@@ -599,32 +600,46 @@ blink(sent)
 # on stability (calref.evaluate) and only then write the FRC.
 # --------------------------------------------------------------------------
 
-def cal_schedule(target, at, dur_s, dry):
+def cal_schedule(target, at, dur_s, dry, asc=False):
     now = int(time.time())
     if at and at > now + 30:
-        mem_set_u16(MEM_CAL_TGT, (target & 0x7FFF) | (0x8000 if dry else 0))
+        mem_set_u16(MEM_CAL_TGT, (target & 0x3FFF) | (0x8000 if dry else 0)
+                    | (0x4000 if asc else 0))
         mem_set_u32(MEM_CAL_AT, at)
         alarm.sleep_memory[MEM_CAL_DURM] = max(2, min(255, dur_s // 60))
         print("CAL scheduled: %d ppm%s at +%ds for %d min"
-              % (target, " DRY" if dry else "", at - now, dur_s // 60))
+              % (target, " ASC" if asc else (" DRY" if dry else ""),
+                 at - now, dur_s // 60))
     else:
-        run_calibration(target, dur_s, dry)
+        run_calibration(target, dur_s, dry, asc)
 
 
 def cal_pending():
     raw = mem_get_u16(MEM_CAL_TGT)
     if not raw:
         return None
-    return (raw & 0x7FFF, mem_get_u32(MEM_CAL_AT),
-            alarm.sleep_memory[MEM_CAL_DURM] * 60, bool(raw & 0x8000))
+    return (raw & 0x3FFF, mem_get_u32(MEM_CAL_AT),
+            alarm.sleep_memory[MEM_CAL_DURM] * 900, bool(raw & 0x8000),
+            bool(raw & 0x4000))
 
 
 def cal_clear():
     mem_set_u16(MEM_CAL_TGT, 0)
 
 
-def _send_cal_result(ok, corr, ref, why):
-    pkt = envproto.make_cal_result_packet(config["name"], ok, corr, ref, why)
+def _nap(seconds):
+    """Low-power wait that keeps the sensor measuring: light sleep when the
+    port allows it (I2C sensor runs on its own), plain sleep otherwise."""
+    try:
+        alarm.light_sleep_until_alarms(
+            alarm.time.TimeAlarm(monotonic_time=time.monotonic() + seconds))
+    except (NotImplementedError, RuntimeError, ValueError, AttributeError):
+        time.sleep(seconds)
+
+
+def _send_cal_result(ok, corr, ref, why, ref0=None):
+    pkt = envproto.make_cal_result_packet(config["name"], ok, corr, ref, why,
+                                          ref0)
     mac = COLLECTOR_MAC or nvm_collector()[0]
     if not mac:
         print("cal result not sent (no collector known)")
@@ -640,8 +655,9 @@ def _send_cal_result(ok, corr, ref, why):
         e2.deinit()
 
 
-def run_calibration(target, dur_s, dry):
-    """Measure through the window, gate on stability, then FRC (or dry)."""
+def run_calibration(target, dur_s, dry, asc=False):
+    """Measure through the window, then FRC (gated on stability), or in
+    ASC mode let the sensor self-calibrate with ASC ON, then OFF again."""
     cal_clear()
     vb = batt.voltage()
     if vb is not None and vb < config["cal_min_batt_v"]:
@@ -650,7 +666,14 @@ def run_calibration(target, dur_s, dry):
         _send_cal_result(False, None, None, why)
         return
     print("CAL: %s window %d min, target %d ppm -- keep me in fresh air"
-          % ("DRY-RUN" if dry else "reference", dur_s // 60, target))
+          % ("ASC" if asc else ("DRY-RUN" if dry else "reference"),
+             dur_s // 60, target))
+    if asc:
+        try:
+            sensor.set_asc(True)
+            alarm.sleep_memory[MEM_ASC_DONE] = 0   # re-assert OFF afterwards
+        except (OSError, RuntimeError) as exc:
+            print("CAL: could not enable ASC:", exc)
     samples = []
     t0 = time.monotonic()
     while time.monotonic() - t0 < dur_s:
@@ -663,7 +686,22 @@ def run_calibration(target, dur_s, dry):
         if len(samples) % 30 == 1:
             print("CAL: %d samples, last %s" % (len(samples), samples[-1][1]))
         blink(True)
-        time.sleep(10)
+        _nap(10)
+    if asc:
+        try:
+            sensor.set_asc(False)
+            alarm.sleep_memory[MEM_ASC_DONE] = 1
+        except (OSError, RuntimeError) as exc:
+            print("CAL: could not disable ASC again:", exc)
+        head = [v for _, v in samples[:30]]
+        tail = [v for _, v in samples[-30:]]
+        ref0 = calref._median(head) if head else None
+        ref = calref._median(tail) if tail else None
+        ok = ref is not None
+        print("CAL ASC result: start ~%s -> end ~%s ppm" % (ref0, ref))
+        _send_cal_result(ok, None, ref, "" if ok else "no samples", ref0)
+        blink(ok)
+        return
     ok, ref, spread, why = calref.evaluate(
         samples, target, config["cal_max_spread_ppm"])
     corr = None
@@ -682,10 +720,10 @@ def run_calibration(target, dur_s, dry):
 
 _pending = cal_pending()
 if _pending:
-    _tgt, _at, _dur, _dry = _pending
+    _tgt, _at, _dur, _dry, _asc = _pending
     _now = int(time.time())
     if _now >= _at - 15:
-        run_calibration(_tgt, _dur, _dry)
+        run_calibration(_tgt, _dur, _dry, _asc)
     else:
         # sleep straight to the window (but keep checking in as usual)
         interval = max(10, min(interval, _at - _now))

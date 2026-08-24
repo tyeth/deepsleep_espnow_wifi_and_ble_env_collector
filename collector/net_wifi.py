@@ -13,7 +13,8 @@ Routes (all JSON unless noted):
   POST /api/config          JSON body merged into config, saved to /sd/config.json
   GET  /api/calibrate       pending/scheduled calibrations + last results
   POST /api/calibrate       {"src","step":1|2,"when":"4am"|"now"|epoch,
-                             "duration_s","target_ppm","dry"} reference cal
+                             "duration_s","target_ppm","dry",
+                             "mode":"frc"|"asc"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
 
 The command handlers themselves live in code.py (shared with BLE); this

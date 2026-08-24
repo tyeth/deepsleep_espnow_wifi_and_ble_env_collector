@@ -136,7 +136,12 @@ class Scd4x(_Base):
         self.s = adafruit_scd4x.SCD4X(i2c)
 
     def set_asc(self, enabled):
-        self.s.self_calibration_enabled = enabled
+        # SCD4x settings commands need idle mode: pause, set, resume
+        self.s.stop_periodic_measurement()
+        try:
+            self.s.self_calibration_enabled = enabled
+        finally:
+            self.s.start_periodic_measurement()
 
     def begin(self):
         self.s.start_periodic_measurement()
@@ -200,7 +205,12 @@ class Sen6x(_Base):
 
     def set_asc(self, enabled):
         try:
-            self.s.co2_automatic_self_calibration = enabled
+            # driver refuses this while measuring: pause, set, resume
+            self.s.stop_measurement()
+            try:
+                self.s.co2_automatic_self_calibration = enabled
+            finally:
+                self.s.start_measurement()
         except (OSError, AttributeError):
             pass
 

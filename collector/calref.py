@@ -37,6 +37,24 @@ STEP1_GUIDANCE = (
     "writes the calibration -- a safe rehearsal."
 )
 
+ASC_GUIDANCE = (
+    "ALTERNATIVE (mode='asc'): let the sensor's own automatic "
+    "self-calibration do the job. Step 2 with mode='asc' switches ASC ON, "
+    "leaves it on for %(asc_h)d h (default; SCD4x needs ~44 h of continuous "
+    "operation for its first ASC adjustment, SCD30 about a week) and then "
+    "switches it OFF again so the no-ASC policy still holds afterwards. "
+    "WARNING -- read before choosing this: ASC assumes the LOWEST CO2 the "
+    "sensor sees during that period IS fresh air (~%(target)d ppm). If it "
+    "never sees real fresh air it will calibrate itself WRONG, so keep the "
+    "room well ventilated for the whole %(asc_h)d h -- window wide open at "
+    "least overnight (6-8 h) every night of the period, ideally the sensor "
+    "on the sill. The sensor measures continuously the whole time: a node "
+    "stays awake for %(asc_h)d h (light-sleeping between reads) -- that is "
+    "USB power only, never battery. The before/after readings are reported "
+    "so you can see whether it moved; a shorter window (duration_s) is "
+    "allowed but may simply not trigger an adjustment."
+)
+
 # stability window considered at the end of the measurement (seconds)
 STABLE_TAIL_S = 15 * 60
 MIN_SAMPLES = 6

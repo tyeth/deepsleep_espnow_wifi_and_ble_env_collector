@@ -215,6 +215,18 @@ a deliberate, scheduled, stability-gated two-step action (shared logic in
    * **Node**: the plan travels in the next cfg reply (`cal`/`cat`/`cdur`/
      `cdry`), is held in sleep memory, the node sleeps straight to the
      window, stays awake sampling every 10 s, refuses on a low battery.
+   * **Alternative `"mode":"asc"`** (BLE `... asc`, webapp *overnight ASC*):
+     instead of a forced value, the sensor's own automatic self-calibration
+     is switched **on** for `cal_asc_window_s` (default **48 h** — SCD4x
+     needs ~44 h of continuous operation for its first adjustment, SCD30
+     about a week) and **off** again afterwards, so the no-ASC policy still
+     holds. **Warning (also returned by step 1)**: ASC assumes the *lowest*
+     CO2 seen in the period is fresh air, so the room must be ventilated —
+     window wide open at least overnight (6–8 h) *every* night of the
+     window — or the sensor calibrates itself wrong. Nodes stay awake the
+     whole time (light-sleeping between 10 s reads): **USB power only**.
+     The before → after readings (`ref_start` → `ref`, `shift`) are
+     reported; logged as `cal_asc`.
 3. **Gate, then FRC.** `calref.evaluate()` takes the median of the last
    15 min as the observed reference and requires spread ≤
    `cal_max_spread_ppm` (60), reference ≤ target+250 ("not fresh air")

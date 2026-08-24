@@ -14,8 +14,9 @@ lines out. Commands map to the same shared handlers as the HTTP API:
   set <json>        -> merge JSON into config
   cal               -> calibration status (pending / scheduled / results)
   cal <src> 1       -> arm + setup/power/timing guidance
-  cal <src> 2 [4am|now|<epoch>] [dur_s] [dry]
-                    -> schedule the reference window (default next 04:00)
+  cal <src> 2 [4am|now|<epoch>] [dur_s] [dry] [asc]
+                    -> schedule the reference window (default next 04:00);
+                       'asc' = overnight automatic-self-calibration mode
   days              -> list of stored days on SD
 
 Requires CircuitPython with _bleio (ESP32-S3/C6 -- use the latest alpha for
@@ -176,6 +177,8 @@ class BleUartPortal:
                         wl = w.lower()
                         if wl == "dry":
                             opts["dry"] = True
+                        elif wl == "asc":
+                            opts["mode"] = "asc"
                         elif wl in ("now", "4am", "next") or (
                                 wl.isdigit() and len(wl) >= 9):
                             opts["when"] = wl
@@ -193,7 +196,7 @@ class BleUartPortal:
                             "cmds": ["latest", "battery", "events", "config",
                                      "days", "hist <day>", "set <json>",
                                      "cal", "cal <src> 1",
-                                     "cal <src> 2 [4am|now] [dur_s] [dry]",
+                                     "cal <src> 2 [4am|now] [dur_s] [dry|asc]",
                                      "time <epoch>", "mem"]})
         except Exception as exc:
             self._send({"err": str(exc)})

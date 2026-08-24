@@ -47,6 +47,16 @@ class LocalSensor:
             "nox": d.get("nox_index"),
         }
 
+    def set_asc(self, enabled):
+        """Toggle the SEN66's automatic self-calibration (project policy is
+        OFF; only the 'asc' calibration mode turns it on for a window)."""
+        # the driver refuses this while measuring: pause, set, resume
+        self.sensor.stop_measurement()
+        try:
+            self.sensor.co2_automatic_self_calibration = bool(enabled)
+        finally:
+            self.sensor.start_measurement()
+
     def force_recalibration(self, target_ppm):
         """Run forced CO2 recalibration. Returns the correction (ppm) or None.
 

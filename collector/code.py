@@ -493,7 +493,8 @@ def _cal_defaults():
     return (config.get("co2_cal_target_ppm", 420),
             config.get("cal_window_s", 3600),
             config.get("cal_now_window_s", 180),
-            config.get("cal_min_batt_v", 3.7))
+            config.get("cal_min_batt_v", 3.7),
+            config.get("cal_asc_window_s", 48 * 3600))
 
 
 def h_cal_status():
@@ -530,7 +531,7 @@ def h_calibrate(src, step, opts=None):
     """
     global _local_cal
     opts = opts or {}
-    target, win_s, now_s, min_v = _cal_defaults()
+    target, win_s, now_s, min_v, asc_s = _cal_defaults()
     try:
         target = int(opts.get("target_ppm") or target)
     except (TypeError, ValueError):
@@ -540,17 +541,20 @@ def h_calibrate(src, step, opts=None):
         return {"ok": True, "src": src, "step": 1, "target_ppm": target,
                 "msg": calref.STEP1_GUIDANCE % {
                     "src": src, "min_v": min_v, "target": target,
-                    "dur_min": win_s // 60, "now_min": now_s // 60}}
+                    "dur_min": win_s // 60, "now_min": now_s // 60}
+                + " " + calref.ASC_GUIDANCE % {"asc_h": asc_s // 3600,
+                                               "target": target}}
     if step != 2:
         return {"err": "step must be 1 or 2"}
     armed = pending_cal.get(src)
     if not armed or armed.get("step") != 1:
         return {"err": "run step 1 first (and follow its instructions)"}
-    when = str(opts.get("when", "4am")).lower()
-    dry = bool(opts.get("dry"))
+    asc = str(opts.get("mode", "frc")).lower() == "asc"
+    when = str(opts.get("when", "now" if asc else "4am")).lower()
+    dry = bool(opts.get("dry")) and not asc
     now = int(time.time())
     if when == "now":
-        at, dur = 0, now_s
+        at, dur = 0, (asc_s if asc else now_s)
     else:
         if not TIME_SYNCED:
             return {"err": "hub clock not synced: sync it (browser / BLE "
@@ -565,18 +569,19 @@ def h_calibrate(src, step, opts=None):
                 return {"err": "when must be '4am', 'now' or an epoch"}
             if at < now:
                 return {"err": "that time is in the past"}
-        dur = win_s
+        dur = asc_s if asc else win_s
     try:
         dur = int(opts.get("duration_s") or dur)
     except (TypeError, ValueError):
         return {"err": "bad duration_s"}
-    dur = max(120, min(dur, 6 * 3600))
-    plan = {"armed": target, "at": at, "dur": dur, "dry": dry, "ts": now}
+    dur = max(120, min(dur, 72 * 3600 if asc else 12 * 3600))
+    plan = {"armed": target, "at": at, "dur": dur, "dry": dry, "asc": asc,
+            "ts": now}
     if src == "local":
         if local_sensor is None:
             return {"err": "local sensor not available"}
         _local_cal = {"target": target, "at": at, "dur": dur, "dry": dry,
-                      "samples": [], "started": None}
+                      "asc": asc, "samples": [], "started": None}
         del pending_cal[src]
         where = "hub"
     else:
@@ -585,19 +590,21 @@ def h_calibrate(src, step, opts=None):
     _display_dirty[0] = True
     return {"ok": True, "src": src, "step": 2, "target_ppm": target,
             "starts_at": at or now, "starts_in_s": max(0, at - now),
-            "duration_s": dur, "dry_run": dry,
-            "msg": "%s calibration %s: %s, measurement window of %d min, "
-                   "then stability check%s. Keep the sensor in fresh air and "
-                   "powered for the whole window; result appears in events "
-                   "/ cal status." % (
-                       "DRY-RUN" if dry else "Reference",
+            "duration_s": dur, "dry_run": dry, "mode": "asc" if asc else "frc",
+            "msg": "%s calibration %s: %s, %s window of %d min%s. Keep the "
+                   "sensor in fresh air and powered for the whole window; "
+                   "result appears in events / cal status." % (
+                       "ASC" if asc else ("DRY-RUN" if dry else "Reference"),
                        "scheduled on the " + where,
                        ("starting now" if not at else
                         "starting in %dh%02dm" % ((at - now) // 3600,
                                                   ((at - now) % 3600) // 60)),
+                       "automatic-self-calibration ON" if asc else "measurement",
                        dur // 60,
-                       "" if dry else " and forced recalibration to %d ppm"
-                       % target)}
+                       (", then ASC OFF again (before/after readings reported)"
+                        if asc else ("" if dry else
+                        ", then stability check and forced recalibration to "
+                        "%d ppm" % target)))}
 
 
 def _local_cal_tick(now, co2):
@@ -613,11 +620,45 @@ def _local_cal_tick(now, co2):
             return
         lc["started"] = now
         lc["samples"] = []
-        print("CAL: hub reference window started (%d min%s)"
-              % (lc["dur"] // 60, ", dry run" if lc["dry"] else ""))
+        print("CAL: hub %s window started (%d min%s)"
+              % ("ASC" if lc.get("asc") else "reference", lc["dur"] // 60,
+                 ", dry run" if lc["dry"] else ""))
+        lc["asc_on"] = False
+        if lc.get("asc"):
+            try:
+                local_sensor.set_asc(True)
+                lc["asc_on"] = True
+            except (OSError, RuntimeError, AttributeError) as exc:
+                print("CAL: could not enable ASC:", exc)
+                lc["asc_err"] = str(exc)
     if co2 is not None:
         lc["samples"].append((now, co2))
     if now - lc["started"] < lc["dur"]:
+        return
+    if lc.get("asc"):
+        # ASC mode: the sensor adjusted itself (or not); report the shift
+        try:
+            local_sensor.set_asc(False)
+        except (OSError, RuntimeError, AttributeError) as exc:
+            print("CAL: could not disable ASC again:", exc)
+        head = [v for _, v in lc["samples"][:30]]
+        tail = [v for _, v in lc["samples"][-30:]]
+        ref0 = calref._median(head) if head else None
+        ref = calref._median(tail) if tail else None
+        ok = ref is not None and lc.get("asc_on", False)
+        why = "" if ok else ("ASC not enabled: %s" % lc.get("asc_err", "")
+                             if not lc.get("asc_on") else "no samples")
+        res = {"ok": ok, "mode": "asc", "ref_start": ref0, "ref": ref,
+               "shift": (ref - ref0) if ok and ref0 is not None else None,
+               "why": why, "ts": now}
+        cal_results["local"] = res
+        store.log_event({"ts": now, "src": "local", "metric": "co2",
+                         "state": "cal_asc" if ok else "cal_fail",
+                         "prev": "start %s" % ref0, "value": ref,
+                         "held_s": lc["dur"]})
+        print("CAL: hub ASC result", res)
+        _local_cal = None
+        _display_dirty[0] = True
         return
     ok, ref, spread, why = calref.evaluate(
         lc["samples"], lc["target"], config.get("cal_max_spread_ppm", 60))
@@ -727,10 +768,13 @@ def _cfg_reply_for(src):
         cal_at = armed.get("at") or None
         cal_dur = armed.get("dur")
         cal_dry = armed.get("dry", False)
+        cal_asc = armed.get("asc", False)
+    else:
+        cal_asc = False
     return envproto.make_config_packet(
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
-        cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry,
+        cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
     )
 
 
@@ -765,13 +809,16 @@ def _handle_node_packet(mac, obj, rssi):
         ok = bool(obj.get("ok"))
         was = pending_cal.get(src) or {}
         cal_results[src] = {"ok": ok, "corr": obj.get("corr"),
-                            "ref": obj.get("ref"), "why": obj.get("why"),
+                            "ref": obj.get("ref"), "ref_start": obj.get("ref0"),
+                            "why": obj.get("why"),
+                            "mode": "asc" if was.get("asc") else "frc",
                             "dry": was.get("dry", False), "ts": int(time.time())}
         if src in pending_cal:
             del pending_cal[src]   # node has run it (or refused): disarm
         store.log_event({
             "ts": int(time.time()), "src": src, "metric": "co2",
-            "state": ("cal_dry" if was.get("dry") else "cal_ok") if ok
+            "state": ("cal_asc" if was.get("asc") else
+                      "cal_dry" if was.get("dry") else "cal_ok") if ok
             else "cal_fail", "prev": obj.get("why") or "",
             "value": obj.get("ref"), "held_s": 0,
         })
