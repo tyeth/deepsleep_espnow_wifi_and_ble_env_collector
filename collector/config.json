@@ -1,12 +1,13 @@
 {
   "display_profile": "auto",
-  "display_interval_s": 120,
+  "display_interval_s": 40,
   "display_min_refresh_s": 25,
   "boot_display_delay_s": 60,
   "ap_enabled": true,
   "ap_ssid": "",
   "ap_password": "",
-  "ble_enabled": true,
+  "ble_enabled": false,
+  "http_port": 80,
   "sample_interval_s": 15,
   "record_interval_s": 60,
   "sd_flush_interval_s": 600,
@@ -27,12 +28,37 @@
   "node_metrics": {},
   "node_intervals": {},
   "thresholds": {
-    "co2":  {"warn": 1000, "bad": 2000},
-    "pm25": {"warn": 12,   "bad": 35},
-    "pm10": {"warn": 54,   "bad": 154},
-    "voc":  {"warn": 150,  "bad": 250},
-    "nox":  {"warn": 50,   "bad": 150},
-    "tc":   {"lo_bad": 12, "lo_warn": 16, "warn": 27, "bad": 31},
-    "rh":   {"lo_bad": 20, "lo_warn": 30, "warn": 60, "bad": 70}
+    "co2": {
+      "warn": 1000,
+      "bad": 2000
+    },
+    "pm25": {
+      "warn": 12,
+      "bad": 35
+    },
+    "pm10": {
+      "warn": 54,
+      "bad": 154
+    },
+    "voc": {
+      "warn": 150,
+      "bad": 250
+    },
+    "nox": {
+      "warn": 50,
+      "bad": 150
+    },
+    "tc": {
+      "lo_bad": 12,
+      "lo_warn": 16,
+      "warn": 27,
+      "bad": 31
+    },
+    "rh": {
+      "lo_bad": 20,
+      "lo_warn": 30,
+      "warn": 60,
+      "bad": 70
+    }
   }
 }

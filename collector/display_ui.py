@@ -1,28 +1,25 @@
 # SPDX-FileCopyrightText: 2026 Adafruit Industries
 # SPDX-License-Identifier: MIT
 """
-display_ui - layout for the 3.52" quad-color (black/white/yellow/red) eInk.
+display_ui - PERSISTENT dashboard for the quad/tri eInk panels.
 
-Design rules from the project spec:
-  * Local room values LARGE, with a yellow (warn) or red (bad) highlight
-    behind any metric that is out of spec.
-  * Remote nodes in tiny text at the bottom -- unless abnormal, in which case
-    that node's line gets a colored highlight.
-  * Battery warnings (node batteries, or host running unplugged) render as a
-    WATERMARK: a big pale layer BEHIND the content, visually obvious without
-    ruining the data display.
+The displayio tree is built ONCE (Dashboard) and every refresh mutates
+label text / palette colors in place. On the no-PSRAM C6 with the BLE
+stack resident (~24KB free heap) a full rebuild-per-refresh could not
+allocate; in-place updates peak at one small label bitmap at a time.
+
+Layout rules from the project spec:
+  * Local room values LARGE, yellow (warn) / red (bad) cell highlight
+    (tri palette has no yellow: red text + "!" marks warn).
+  * Remote nodes in tiny text, abnormal lines highlighted, worst first.
+  * Battery warnings as a WATERMARK behind the data + !BATT! corner tag.
   * Footer shows how long each zone has been out of spec.
-
-The screen is rebuilt as a fresh displayio.Group per refresh (2 min default)
--- cheap at this cadence, and gc.collect() in the main loop reclaims it.
 """
 
 import displayio
 import terminalio
 import vectorio
 
-# bitmap_label renders each string into ONE small bitmap instead of
-# per-glyph tilegrids -- far less RAM/fragmentation on no-PSRAM boards
 try:
     from adafruit_display_text import bitmap_label as label
 except ImportError:
@@ -36,42 +33,27 @@ WHITE = 0xFFFFFF
 YELLOW = 0xFFFF00
 RED = 0xFF0000
 
-# Quad palette (3.52") has yellow for WARN; tri palette (2.9" red/black/
-# white) has no yellow, so WARN renders as red accent bars + "!" markers
-# instead of a filled cell.
-_STATE_FG = {alerts.OK: BLACK, alerts.WARN: BLACK, alerts.BAD: WHITE}
+_CW, _CH = 6, 12  # terminalio glyph cell
 
-
-def _state_bg(palette_mode):
-    if palette_mode == "tri":
-        return {alerts.WARN: None, alerts.BAD: RED}
-    return {alerts.WARN: YELLOW, alerts.BAD: RED}
-
-# terminalio.FONT glyph cell
-_CW, _CH = 6, 12
-
-# Local metrics shown as big cells, in priority order
 _BIG_METRICS = ("co2", "pm25", "tc", "rh", "voc", "nox")
-
 _TREND_CHARS = {1: "^", -1: "v", 0: ""}
 
 
-def _palette(color):
-    pal = displayio.Palette(1)
-    pal[0] = color
-    return pal
+def _pal(color):
+    p = displayio.Palette(1)
+    p[0] = color
+    return p
 
 
 def _rect(x, y, w, h, color):
-    return vectorio.Rectangle(
-        pixel_shader=_palette(color), width=w, height=h, x=x, y=y
-    )
+    pal = _pal(color)
+    return vectorio.Rectangle(pixel_shader=pal, width=w, height=h,
+                              x=x, y=y), pal
 
 
 def _text(txt, x, y, color=BLACK, scale=1):
-    return label.Label(
-        terminalio.FONT, text=txt, color=color, x=x, y=y, scale=scale
-    )
+    return label.Label(terminalio.FONT, text=txt, color=color,
+                       x=x, y=y, scale=scale)
 
 
 def _fmt_value(key, value):
@@ -84,174 +66,221 @@ def _fmt_value(key, value):
     return "%d" % value
 
 
-def _no_sd_glyph(root, x, y):
-    """Tiny (10x13) SD-card silhouette with a red slash: storage degraded."""
-    root.append(_rect(x, y + 3, 10, 10, BLACK))          # card body
-    root.append(_rect(x, y, 7, 4, BLACK))                # body top, notched
-    root.append(_rect(x + 2, y + 6, 6, 5, WHITE))        # contact window
-    root.append(vectorio.Polygon(
-        pixel_shader=_palette(RED),
-        points=[(0, 12), (2, 14), (12, 2), (10, 0)],
-        x=x - 1, y=y - 1,
-    ))
+class Dashboard:
+    def __init__(self, width, height, palette_mode="quad", lite=False):
+        """lite=True (low-RAM boards, e.g. C6 with BLE resident): no big
+        watermark label and at most 3 node lines -- battery warnings still
+        show via the !BATT! corner tag and the node strip."""
+        self.w = width
+        self.h = height
+        self.tri = palette_mode == "tri"
+        self.warn_bg = None if self.tri else YELLOW
+        root = displayio.Group()
+        _bg, _ = _rect(0, 0, width, height, WHITE)
+        root.append(_bg)
 
+        # watermark layer (behind content); corner tag always exists
+        self.wm = None
+        if not lite:
+            self.wm = _text("", 0, 0, YELLOW, 2)
+            self.wm.anchor_point = (0.5, 0.5)
+            self.wm.anchored_position = (width // 2, height // 2)
+            self.wm.hidden = True
+            root.append(self.wm)
+        self.wm_tag = _text("!BATT!", width - 6 * _CW - 2, 6, RED)
+        self.wm_tag.hidden = True
+        root.append(self.wm_tag)
 
-def _batt_watermark_texts(host_batt, node_batt_warnings):
-    texts = []
-    worst_red = False
-    if host_batt.get("unplugged"):
-        v = host_batt.get("v")
-        texts.append("ON BATT" + ("" if v is None else " %.2fV" % v))
-        worst_red = worst_red or host_batt.get("crit", False)
-    for name, volts, crit in node_batt_warnings:
-        texts.append("%s BATT %.2fV" % (name.upper(), volts))
-        worst_red = worst_red or crit
-    return texts, worst_red
+        # no-SD glyph (storage degraded)
+        self.sd_glyph = displayio.Group(x=width - 14, y=1)
+        for r, _p in (_rect(0, 3, 10, 10, BLACK), _rect(0, 0, 7, 4, BLACK),
+                      _rect(2, 6, 6, 5, WHITE)):
+            self.sd_glyph.append(r)
+        _slash = vectorio.Polygon(pixel_shader=_pal(RED),
+                                  points=[(0, 12), (2, 14), (12, 2), (10, 0)],
+                                  x=-1, y=-1)
+        self.sd_glyph.append(_slash)
+        self.sd_glyph.hidden = True
+        root.append(self.sd_glyph)
 
+        # header
+        self.title = _text(" " * 20, 2, 6)
+        root.append(self.title)
+        self.status = _text(" " * ((width // _CW) - 14), 2, height - 6)
+        root.append(self.status)
 
-def build_screen(*, width, height, latest, tracker, zones, host_batt,
-                 node_batt_warnings, trends, status_line, now,
-                 palette_mode="quad", storage_mode="sd"):
-    """Build the full screen Group.
-
-    latest: datastore.latest ({src: {"ts","m","vb",...}})
-    tracker: alerts.AlertTracker
-    zones: {src: display name}
-    host_batt: battery.BatteryMonitor.status() dict
-    node_batt_warnings: [(name, volts, crit_bool), ...]
-    trends: {src: {metric: -1|0|1}}
-    status_line: short str e.g. "W:ok SD:ok B:adv 192.168.1.7"
-    now: epoch seconds
-    palette_mode: "quad" (has yellow) or "tri" (black/white/red only)
-    """
-    state_bg = _state_bg(palette_mode)
-    warn_color = RED if palette_mode == "tri" else YELLOW
-    root = displayio.Group()
-    root.append(_rect(0, 0, width, height, WHITE))
-
-    # ---- watermark layer (behind everything else) ----
-    wm_texts, wm_red = _batt_watermark_texts(host_batt, node_batt_warnings)
-    if wm_texts:
-        wm_color = RED if wm_red else warn_color
-        wm = " * ".join(wm_texts)
-        wm_scale = 3 if len(wm) * _CW * 3 <= width else 2
-        wm_label = _text(wm[: width // (_CW * wm_scale)], 0, 0, wm_color, wm_scale)
-        wm_label.anchor_point = (0.5, 0.5)
-        wm_label.anchored_position = (width // 2, height // 2)
-        root.append(wm_label)
-        # small always-legible strip too, top-right corner
-        root.append(_text("!BATT!", width - 6 * _CW - 2, 6, wm_color))
-
-    # ---- storage indicator: tiny crossed SD glyph when not on SD ----
-    if storage_mode != "sd":
-        gx = width - 14 - ((6 * _CW + 6) if wm_texts else 0)
-        _no_sd_glyph(root, gx, 1)
-
-    # ---- header ----
-    t = None
-    try:
-        import time as _time
-        t = _time.localtime(now)
-    except (OverflowError, OSError):
-        pass
-    clock = "%02d:%02d" % (t[3], t[4]) if t else "--:--"
-    local_name = zones.get("local", "Room")
-    root.append(_text("%s  %s" % (local_name, clock), 2, 6, BLACK))
-    root.append(_text(status_line[: (width // _CW) - 14], 2, height - 6, BLACK))
-
-    # ---- local metric cells (3x2 on big panels, 3x1 on the 2.9") ----
-    local = latest.get("local", {})
-    lm = local.get("m", {})
-    grid_top = 16
-    if height >= 150:
-        shown, rows, grid_h = _BIG_METRICS, 2, 92
-    else:
-        shown, rows, grid_h = _BIG_METRICS[:3], 1, 48
-    cols = 3
-    cell_w = width // cols
-    cell_h = grid_h // rows
-    local_trends = trends.get("local", {})
-    for i, key in enumerate(shown):
-        cx = (i % cols) * cell_w
-        cy = grid_top + (i // cols) * cell_h
-        state = tracker.state_of("local", key)
-        bg = state_bg.get(state)
-        if bg is not None:
-            root.append(_rect(cx + 1, cy, cell_w - 2, cell_h - 1, bg))
-            fg = _STATE_FG[state]
-        elif state != alerts.OK:
-            # tri palette WARN: red accent bars + "!" instead of yellow fill
-            root.append(_rect(cx + 1, cy, cell_w - 2, 3, RED))
-            root.append(_rect(cx + 1, cy + cell_h - 4, cell_w - 2, 3, RED))
-            fg = BLACK
+        # big metric cells
+        grid_top = 16
+        if height >= 150:
+            self.shown, rows, grid_h = _BIG_METRICS, 2, 92
         else:
-            fg = _STATE_FG[state]
-        name = envproto.METRIC_LABELS.get(key, key)
-        unit = envproto.METRIC_UNITS.get(key, "")
-        mark = "!" if (state != alerts.OK and bg is None) else ""
-        root.append(_text("%s %s%s" % (name, unit, mark), cx + 4, cy + 8, fg))
-        val = _fmt_value(key, lm.get(key))
-        # trend arrow folded into the value string (one label, not two)
-        val += _TREND_CHARS.get(local_trends.get(key, 0), "")
-        root.append(_text(val, cx + 4, cy + 8 + 20, fg, scale=2))
+            self.shown, rows, grid_h = _BIG_METRICS[:3], 1, 48
+        cols = 3
+        cw = width // cols
+        ch = grid_h // rows
+        self.cells = []
+        for i, key in enumerate(self.shown):
+            cx = (i % cols) * cw
+            cy = grid_top + (i // cols) * ch
+            bg, bg_pal = _rect(cx + 1, cy, cw - 2, ch - 1, WHITE)
+            root.append(bg)
+            name = _text("%s %s" % (envproto.METRIC_LABELS.get(key, key),
+                                    envproto.METRIC_UNITS.get(key, "")),
+                         cx + 4, cy + 8)
+            root.append(name)
+            val = _text("--", cx + 4, cy + 8 + 20, BLACK, 2)
+            root.append(val)
+            self.cells.append((key, bg_pal, name, val))
 
-    # ---- remote node strip (tiny text; abnormal lines highlighted) ----
-    strip_top = grid_top + grid_h + 4
-    strip_bottom = height - 24
-    line_h = _CH
-    y = strip_top
-    node_srcs = sorted(s for s in latest if s != "local")
-    # abnormal nodes first so they never fall off the bottom
-    node_srcs.sort(key=lambda s: -tracker.worst_for(s))
-    for src in node_srcs:
-        if y + line_h > strip_bottom:
-            root.append(_text("+%d more" % (len(node_srcs) - node_srcs.index(src)),
-                              width - 9 * _CW, y + 4, BLACK))
-            break
-        entry = latest[src]
-        m = entry.get("m", {})
-        worst = tracker.worst_for(src)
-        age = alerts.fmt_duration(max(0, now - entry.get("ts", now)))
-        parts = [zones.get(src, src)[:10]]
-        for key in ("co2", "pm25", "tc", "rh"):
-            if m.get(key) is not None:
-                parts.append("%s%s" % (_fmt_value(key, m[key]),
-                                       envproto.METRIC_UNITS.get(key, "")))
-        if entry.get("vb") is not None:
-            parts.append("%.2fV" % entry["vb"])
-        parts.append(age)
-        line = " ".join(parts)
-        fg = _STATE_FG[worst]
-        if worst != alerts.OK:
-            bg = state_bg.get(worst)
-            if bg is not None:
-                root.append(_rect(0, y - 1, width, line_h, bg))
-            else:  # tri palette WARN
-                root.append(_rect(0, y + line_h - 2, width, 2, RED))
-                line = "! " + line
+        # node strip: fixed line slots
+        strip_top = grid_top + grid_h + 4
+        strip_bottom = height - 24
+        self.node_lines = []
+        y = strip_top
+        while y + _CH <= strip_bottom and len(self.node_lines) < (3 if lite else 6):
+            bg, bg_pal = _rect(0, y - 1, width, _CH, WHITE)
+            root.append(bg)
+            lbl = _text("", 2, y + 4)
+            root.append(lbl)
+            self.node_lines.append((bg_pal, lbl))
+            y += _CH
+
+        # footer (out-of-spec durations)
+        fbg, self.footer_pal = _rect(0, height - 22, width, 12, WHITE)
+        root.append(fbg)
+        self.footer = _text("", 2, height - 16)
+        root.append(self.footer)
+
+        self.root = root
+
+    # ------------------------------------------------------------------
+    def _set(self, lbl, txt, color=None):
+        if lbl.text != txt:
+            lbl.text = txt
+        if color is not None and lbl.color != color:
+            lbl.color = color
+
+    def update(self, *, latest, tracker, zones, host_batt,
+               node_batt_warnings, trends, status_line, now,
+               storage_mode="sd"):
+        tri = self.tri
+
+        # watermark
+        wm_texts = []
+        wm_red = False
+        if host_batt.get("unplugged"):
+            v = host_batt.get("v")
+            wm_texts.append("ON BATT" + ("" if v is None else " %.2fV" % v))
+            wm_red = wm_red or host_batt.get("crit", False)
+        for name, volts, crit in node_batt_warnings:
+            wm_texts.append("%s BATT %.2fV" % (name.upper(), volts))
+            wm_red = wm_red or crit
+        if wm_texts:
+            if self.wm is not None:
+                wm = " * ".join(wm_texts)[: self.w // (_CW * 2)]
+                self._set(self.wm, wm, RED if (wm_red or tri) else YELLOW)
+                self.wm.hidden = False
+            self.wm_tag.hidden = False
+        else:
+            if self.wm is not None:
+                self.wm.hidden = True
+            self.wm_tag.hidden = True
+
+        self.sd_glyph.hidden = storage_mode == "sd"
+
+        # header + status
+        try:
+            import time as _t
+            t = _t.localtime(now)
+            clock = "%02d:%02d" % (t[3], t[4])
+        except (OverflowError, OSError):
+            clock = "--:--"
+        self._set(self.title, "%s  %s" % (zones.get("local", "Room"), clock))
+        self._set(self.status, status_line[: (self.w // _CW) - 14])
+
+        # big cells
+        lm = latest.get("local", {}).get("m", {})
+        local_trends = trends.get("local", {})
+        for key, bg_pal, name, val in self.cells:
+            state = tracker.state_of("local", key)
+            if state == alerts.BAD:
+                bg, fg = RED, WHITE
+            elif state == alerts.WARN and not tri:
+                bg, fg = YELLOW, BLACK
+            elif state == alerts.WARN:
+                bg, fg = WHITE, RED  # tri palette: red text marks warn
+            else:
+                bg, fg = WHITE, BLACK
+            if bg_pal[0] != bg:
+                bg_pal[0] = bg
+            txt = _fmt_value(key, lm.get(key))
+            txt += _TREND_CHARS.get(local_trends.get(key, 0), "")
+            if state == alerts.WARN and tri:
+                txt += "!"
+            self._set(val, txt, fg)
+            if name.color != fg:
+                name.color = fg
+
+        # node strip (worst first so abnormal never falls off)
+        srcs = sorted((s for s in latest if s != "local"),
+                      key=lambda s: -tracker.worst_for(s))
+        for i, (bg_pal, lbl) in enumerate(self.node_lines):
+            if i >= len(srcs):
+                if i == 0 and not srcs:
+                    self._set(lbl, "no nodes heard yet", BLACK)
+                    bg_pal[0] = WHITE
+                else:
+                    self._set(lbl, "")
+                    bg_pal[0] = WHITE
+                continue
+            src = srcs[i]
+            entry = latest[src]
+            m = entry.get("m", {})
+            worst = tracker.worst_for(src)
+            parts = [zones.get(src, src)[:10]]
+            for key in ("co2", "pm25", "tc", "rh"):
+                if m.get(key) is not None:
+                    parts.append("%s%s" % (_fmt_value(key, m[key]),
+                                           envproto.METRIC_UNITS.get(key, "")))
+            if entry.get("vb") is not None:
+                parts.append("%.2fV" % entry["vb"])
+            parts.append(alerts.fmt_duration(max(0, now - entry.get("ts", now))))
+            line = " ".join(parts)
+            if worst == alerts.BAD:
+                bg_pal[0] = RED
+                fg = WHITE
+            elif worst == alerts.WARN and not tri:
+                bg_pal[0] = YELLOW
                 fg = BLACK
-        root.append(_text(line[: width // _CW], 2, y + 4, fg))
-        y += line_h
+            elif worst == alerts.WARN:
+                bg_pal[0] = WHITE
+                fg = RED
+                line = "! " + line
+            else:
+                bg_pal[0] = WHITE
+                fg = BLACK
+            self._set(lbl, line[: self.w // _CW], fg)
 
-    if not node_srcs:
-        root.append(_text("no nodes heard yet", 2, strip_top + 4, BLACK))
-
-    # ---- footer: active out-of-spec durations ----
-    active = tracker.active_abnormal(now)
-    if active:
-        bits = []
-        for a in active[:4]:
-            bits.append("%s %s %s %s" % (
-                zones.get(a["src"], a["src"])[:8], a["metric"],
-                a["state"], alerts.fmt_duration(a["for_s"]),
-            ))
-        line = "OUT: " + "; ".join(bits)
-        worst_bad = any(a["state"] == "bad" for a in active)
-        if worst_bad or palette_mode != "tri":
-            root.append(_rect(0, height - 22, width, 12,
-                              RED if worst_bad else warn_color))
-            root.append(_text(line[: width // _CW], 2, height - 16,
-                              WHITE if worst_bad else BLACK))
-        else:  # tri palette warn footer: red text on white
-            root.append(_text(line[: width // _CW], 2, height - 16, RED))
-    return root
+        # footer
+        active = tracker.active_abnormal(now)
+        if active:
+            bits = ["%s %s %s %s" % (zones.get(a["src"], a["src"])[:8],
+                                     a["metric"], a["state"],
+                                     alerts.fmt_duration(a["for_s"]))
+                    for a in active[:4]]
+            worst_bad = any(a["state"] == "bad" for a in active)
+            if worst_bad:
+                self.footer_pal[0] = RED
+                fg = WHITE
+            elif not tri:
+                self.footer_pal[0] = YELLOW
+                fg = BLACK
+            else:
+                self.footer_pal[0] = WHITE
+                fg = RED
+            self._set(self.footer, ("OUT: " + "; ".join(bits))[: self.w // _CW],
+                      fg)
+        else:
+            self.footer_pal[0] = WHITE
+            self._set(self.footer, "")
+        return self.root

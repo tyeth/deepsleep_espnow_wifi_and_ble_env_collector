@@ -24,6 +24,8 @@ import json
 import os
 import time
 
+gc.collect()
+
 import board
 import digitalio
 import displayio
@@ -61,19 +63,39 @@ AP_SSID = (os.getenv("ENVHUB_AP_SSID")
            or "BASE" + envproto.short_mac(wifi.radio.mac_address))
 AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
                or _ecfg.get("ap_password", ""))
-# BLE controller first (objects handed to net_ble.BleUartPortal later)
+# BLE controller AND advertising first (before the AP -- mirroring the
+# BLE-workflow case, the only proven BLE+AP coexistence on C6). If any
+# step fails, tear BLE down completely: a half-up BLE stack costs ~65KB
+# of heap for zero function and starves the screen builds.
 _ble_radio = None
 _ble_uart = None
+_ble_adv = None
 if _ecfg.get("ble_enabled", True):
     try:
         from adafruit_ble import BLERadio
+        from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
         from adafruit_ble.services.nordic import UARTService
         _ble_radio = BLERadio()
+        _ble_radio.name = "ENVHUB"
         _ble_uart = UARTService()
-        print("early BLE up")
+        _ble_adv = ProvideServicesAdvertisement(_ble_uart)
+        _ble_adv.complete_name = "ENVHUB"
+        _ble_radio.start_advertising(_ble_adv)
+        print("early BLE advertising as ENVHUB")
     except Exception as exc:
-        print("early BLE failed:", type(exc).__name__, exc)
-        _ble_radio = _ble_uart = None
+        print("early BLE failed (%s: %s); reclaiming its memory"
+              % (type(exc).__name__, exc))
+        try:
+            import _bleio
+            _bleio.adapter.enabled = False
+        except Exception:
+            pass
+        _ble_radio = _ble_uart = _ble_adv = None
+        import sys as _sys
+        for _mod in list(_sys.modules):
+            if "ble" in _mod:
+                del _sys.modules[_mod]
+        gc.collect()
 ap_started = False
 if _ecfg.get("ap_enabled", True):
     try:
@@ -166,6 +188,29 @@ try:
     )
 except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
     print("Display init failed:", exc)
+
+# Build the persistent dashboard NOW, while the heap is still roomy --
+# later (with the BLE stack + portals resident) there is not enough
+# contiguous memory left to construct its ~40 display objects. Refreshes
+# only mutate it in place from here on.
+_dashboard = None
+if display is not None:
+    try:
+        gc.collect()
+        _dashboard = display_ui.Dashboard(
+            180 if display.width == 184 else display.width,
+            180 if display.height == 184 else display.height,
+            palette_mode,
+            lite=gc.mem_free() < 60000,  # C6 with BLE resident: slim tree
+        )
+        # attach now: the boot-screen group (already on the panel) becomes
+        # garbage and its RAM comes back; the panel itself keeps showing
+        # "Loading Data" until the first dashboard refresh
+        display.root_group = _dashboard.root
+        gc.collect()
+        print("dashboard tree built (mem %d)" % gc.mem_free())
+    except (MemoryError, ValueError) as exc:
+        print("dashboard build failed:", exc)
 
 sd_mounted = False
 if SD_CS is not None:
@@ -275,7 +320,8 @@ store = datastore.DataStore(
 )
 print("storage:", store.mode, store.root)
 _mem("after storage")
-ring = datastore.SampleRing(capacity=240)  # 4.8KB; every byte counts on C6
+ring = datastore.SampleRing(
+    capacity=config.get("ring_capacity", 120))  # 2.4KB default; C6 is tight
 
 def _record_interval():
     """Record cadence; stretched on flash to limit wear + fill rate."""
@@ -568,15 +614,25 @@ def _handle_node_packet(mac, obj, rssi):
 # Portals
 # ---------------------------------------------------------------------------
 portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
-                            if captive.ap_active else None)
-portal.start(ap_active=captive.ap_active)
+                            if captive.ap_active else None,
+                            port=config.get("http_port", 80))
+for _attempt in (1, 2):
+    try:
+        portal.start(ap_active=captive.ap_active)
+        break
+    except (MemoryError, OSError, RuntimeError) as exc:
+        # keep booting: data collection + display matter more than HTTP
+        print("HTTP portal start failed (try %d): %s" % (_attempt, exc))
+        gc.collect()
+        time.sleep(2)
 _mem("after http portal")
 # BLE radio/uart were created in the EARLY BLE START block (top of file);
 # here we just wire the command portal around them. Late BLE creation
 # alongside the softAP hard-faults the C6 core (bugs_issues_and_todos.md).
 if config.get("ble_enabled", True) and _ble_radio is not None:
     import net_ble
-    ble = net_ble.BleUartPortal(handlers, radio=_ble_radio, uart=_ble_uart)
+    ble = net_ble.BleUartPortal(handlers, radio=_ble_radio, uart=_ble_uart,
+                                adv=_ble_adv)
 else:
     if config.get("ble_enabled", True):
         print("BLE unavailable (early init failed)")
@@ -664,31 +720,28 @@ def _status_line():
 
 
 def refresh_display(now_epoch):
-    """Build + refresh. Returns True on success."""
+    """Update the persistent dashboard in place + refresh. True on success."""
+    global _dashboard
     if display is None:
         return False
-    # panel shows 384x180 of the 384x184 buffer: clamp the 184-axis
-    vis_w = 180 if display.width == 184 else display.width
-    vis_h = 180 if display.height == 184 else display.height
-    # NEVER set root_group = None here: that re-shows the console splash
-    # and the supervisor AUTO-REFRESHES splash-showing e-paper displays,
-    # perpetually colliding with our own refreshes ("Refresh too soon").
-    #
-    # C6/CP10.3-a4 bug: the wifi stack (captive portal construction)
-    # corrupts the SPI lock flag, leaving the bus "locked" with no owner,
-    # and refresh() then fails "Refresh too soon" forever. Only the
-    # display and the (idle/absent) SD share this bus, so clearing the
-    # stale lock is safe.
+    # C6/CP10.3-a4 bug: the wifi stack corrupts the SPI lock flag, leaving
+    # the bus "locked" with no owner; refresh() then fails "Refresh too
+    # soon" forever. Only the display and the (idle/absent) SD share this
+    # bus, so clearing the stale lock is safe.
     try:
         spi.unlock()
-        print("cleared stale SPI lock before refresh")
     except (RuntimeError, ValueError, OSError):
         pass  # not locked - normal
     gc.collect()
     try:
-        screen = display_ui.build_screen(
-            width=vis_w,
-            height=vis_h,
+        if _dashboard is None:
+            # panel shows 384x180 of the 384x184 buffer: clamp the 184-axis
+            _dashboard = display_ui.Dashboard(
+                180 if display.width == 184 else display.width,
+                180 if display.height == 184 else display.height,
+                palette_mode,
+            )
+        _dashboard.update(
             latest=store.latest,
             tracker=tracker,
             zones=config.get("zones", {}),
@@ -697,24 +750,18 @@ def refresh_display(now_epoch):
             trends=_trends,
             status_line=_status_line(),
             now=now_epoch,
-            palette_mode=palette_mode,
             storage_mode=store.mode,
         )
-        display.root_group = screen
+        # NEVER set root_group = None (re-shows the console splash, whose
+        # supervisor auto-refresh starves user refreshes)
+        if display.root_group is not _dashboard.root:
+            display.root_group = _dashboard.root
         display.refresh()
         _display_dirty[0] = False
         gc.collect()
         return True
     except (RuntimeError, MemoryError) as exc:
-        got_lock = False
-        try:
-            got_lock = spi.try_lock()
-        finally:
-            if got_lock:
-                spi.unlock()
-        print("display refresh failed: %s (ttr=%.1f busy=%s spi_free=%s)"
-              % (exc, display.time_to_refresh,
-                 getattr(display, "busy", "?"), got_lock))
+        print("display refresh failed: %s (mem %d)" % (exc, gc.mem_free()))
         gc.collect()
         return False
 

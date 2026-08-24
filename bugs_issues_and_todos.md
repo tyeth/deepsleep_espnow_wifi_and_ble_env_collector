@@ -69,13 +69,15 @@ vary WHERE BLE is initialised. Watch for (a) success, (b) clean error,
 | BLE **workflow** (pre-boot) + early AP + late user BLE init | 1 | AP + workflow coexist; user BLE init fails **cleanly** (`Unknown system firmware error: 519`) |
 | workflow OFF, early AP, **late** user BLE init (after all imports) | 2 | **HARD FAULT** both boots, exactly at BLE init (last breadcrumb `mem[after http portal]`) |
 | workflow OFF, early AP **then** early BLE (before heavy imports) | 1 | catastrophic: USB-Serial/JTAG **wedged** (port opens but blocks; needs physical reset) |
-| workflow OFF, early **BLE then AP** (mirrors the workflow ordering) | — | _next test — code deployed as the new default order_ |
+| workflow OFF, early **BLE then AP** (mirrors the workflow ordering) | 3 | **BLE advertises + AP coexists, no crash** — but the resident BLE stack costs ~64 KB gc heap **and enough IDF internal heap that the HTTP server can no longer create sockets** (`Cannot start server on 0.0.0.0:<any port>`, tried 80 and 999); remaining gc heap ~14 KB then OOMs later init |
 
-Interim conclusion: on C6/CP10.3-a4, initialising BLE from user code while
-the softAP is active fails in every ordering tried so far except when the
-BLE stack came up FIRST (the workflow case) — hence the BLE-then-AP
-ordering now in `collector/code.py`. If that also fails, the fallback is
-`ble_enabled=false` on C6 hubs (AP + web portal remain).
+**Conclusion**: on C6/CP10.3-a4 the working orderings are settled —
+early-BLE-then-early-AP is the only sequence where both come up — but the
+C6 does not have enough memory (gc + IDF internal) to run
+**BLE + softAP + HTTP portal + eInk dashboard** together. Pick per
+deployment: `ble_enabled=false` (default; AP + captive portal + dashboard
+all work, ~90 KB free) or `ap_enabled=false` for a BLE-centric hub.
+Boards with PSRAM (Feather S3 w/ PSRAM) should manage all of it.
 
 ## Library bugs
 * `adafruit_jd79667` ships **debug prints**: the start-sequence hex dump

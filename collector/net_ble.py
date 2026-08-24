@@ -33,10 +33,11 @@ except ImportError:
 
 class BleUartPortal:
     def __init__(self, handlers, name="ENVHUB", enabled=True,
-                 radio=None, uart=None):
-        """radio/uart: pre-built BLERadio/UARTService from the EARLY BLE
-        START block (on the C6, creating them late alongside the softAP
-        hard-faults the core -- see bugs_issues_and_todos.md)."""
+                 radio=None, uart=None, adv=None):
+        """radio/uart/adv: pre-built objects from the early radio block --
+        on the C6, BLE must be created AND advertising before the softAP
+        starts (any other ordering fails; see bugs_issues_and_todos.md).
+        When adv is given, advertising is assumed already running."""
         self.handlers = handlers
         self.ok = False
         self.connected = False
@@ -49,13 +50,16 @@ class BleUartPortal:
             return
         try:
             self.radio = radio or BLERadio()
-            self.radio.name = name
             self.uart = uart or UARTService()
-            self.adv = ProvideServicesAdvertisement(self.uart)
-            self.adv.complete_name = name
-            self.radio.start_advertising(self.adv)
+            if adv is not None:
+                self.adv = adv  # early block already started advertising
+            else:
+                self.radio.name = name
+                self.adv = ProvideServicesAdvertisement(self.uart)
+                self.adv.complete_name = name
+                self.radio.start_advertising(self.adv)
             self.ok = True
-            print("BLE advertising as", name)
+            print("BLE portal ready (advertising as %s)" % name)
         except Exception as exc:
             print("BLE init failed:", type(exc).__name__, exc)
 

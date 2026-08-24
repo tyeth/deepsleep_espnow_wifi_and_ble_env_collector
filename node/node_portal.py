@@ -143,10 +143,22 @@ def run(config, ssid, save_path="/node_config.json", timeout_s=180):
         config["led"] = "led" in d
         config["configured"] = True
         # CIRCUITPY is read-only to code while USB MSC is connected
-        # (S2/S3): fall back to the CPSAVES partition, which stays
-        # writable and is loaded with priority by code.py.
+        # (S2/S3): fall back to the CPSAVES partition, then as a last
+        # resort eject the USB drive at runtime (we reboot right after
+        # saving anyway, which restores it).
         saved = None
-        for path in (save_path, "/saves/node_config.json"):
+        for path in (save_path, "/saves/node_config.json", None):
+            if path is None:
+                try:
+                    import storage
+                    storage.unsafe_disable_usb_drive()
+                    storage.remount("/", readonly=False)
+                    path = save_path
+                    print("portal: USB drive ejected to unlock the flash")
+                except (ImportError, AttributeError, RuntimeError,
+                        OSError) as exc:
+                    print("portal: usb eject fallback failed:", exc)
+                    break
             try:
                 with open(path, "w") as f:
                     json.dump(config, f)

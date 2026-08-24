@@ -129,11 +129,12 @@ def _find_app_root():
 class WebPortal:
     """HTTP server wrapper. handlers: dict of callables shared with BLE."""
 
-    def __init__(self, handlers, portal_host=None):
+    def __init__(self, handlers, portal_host=None, port=80):
         self.handlers = handlers
         self.server = None
         self.ok = False
         self.portal_host = portal_host  # AP IP for captive redirects
+        self.port = port
         self.app_root = None
 
     def start(self, ap_active=False):
@@ -144,7 +145,9 @@ class WebPortal:
         h = self.handlers
         self.app_root = _find_app_root()
         app_root = self.app_root
-        portal_url = "http://%s/" % (self.portal_host or "192.168.4.1")
+        portal_url = "http://%s%s/" % (
+            self.portal_host or "192.168.4.1",
+            "" if self.port == 80 else ":%d" % self.port)
 
         @server.route("/", GET)
         def index(request: Request):
@@ -230,7 +233,8 @@ class WebPortal:
 
         try:
             # 0.0.0.0 serves both the STA (home WiFi) and AP interfaces
-            server.start("0.0.0.0", port=80)
+            server.start("0.0.0.0", port=self.port)
+            print("HTTP portal on port", self.port)
         except OSError as exc:
             print("HTTP server start failed:", exc)
             return False
