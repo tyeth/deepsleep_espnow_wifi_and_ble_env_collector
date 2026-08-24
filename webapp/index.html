@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b7285">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>Env Hub Analyzer</title>
 <style>
 :root{--bg:#fafafa;--fg:#1a1a1a;--card:#fff;--mut:#667;--line:#ddd;
@@ -54,6 +57,7 @@ a{color:var(--acc)}
  <span class="chip" id="chip-ble">ble: off</span>
  <span class="chip" id="chip-sw">offline cache: -</span>
  <span class="chip" id="chip-ai">ai: -</span>
+ <span class="chip" id="chip-net" hidden style="background:var(--warn);color:var(--fg)">OFFLINE</span>
 </header>
 <main>
 
@@ -126,10 +130,15 @@ a{color:var(--acc)}
 </section>
 
 <footer class="mut" style="padding:0 1em 2em">
- Works offline after first load (when served over HTTPS, e.g. the GitHub
- Pages copy). On the device copy (plain http) everything except CDN assets
- is local anyway. HTTPS pages cannot fetch a plain-http device (mixed
- content) - use BLE there, or open the device-hosted copy.
+ Fully offline after the first online visit (HTTPS copy, e.g. GitHub
+ Pages): the page, demo data, Plotly, and the ~10MB Pyodide runtime are
+ downloaded once into the offline cache in the background and reused
+ forever ("offline: ready" chip). Chrome's built-in AI model is likewise
+ a one-time on-device download (managed by Chrome) and answers offline.
+ Datasets live in IndexedDB on this device. On the device-hosted copy
+ (plain http) there is no offline cache - CDN libraries need internet
+ there. HTTPS pages cannot fetch a plain-http device (mixed content) -
+ use BLE there, or open the device-hosted copy.
 </footer>
 
 <script>
@@ -411,21 +420,30 @@ def analyze(series):
         out += merged
     return out
 `;
-let pyodide=null;
-async function runPy(){
- if(!rows.length){setStatus("pystatus","load & merge a dataset first",false,true);return;}
- $("btn-py").disabled=true;
- setStatus("pystatus","loading Pyodide (~10MB first time, then cached)...",true);
- try{
-  if(!pyodide){
+let pyodide=null,_pyLoading=null;
+function ensurePyodide(){
+ // single-flight: the user click and the background warm-up share one load
+ if(pyodide)return Promise.resolve(pyodide);
+ if(!_pyLoading)
+  _pyLoading=(async()=>{
    if(!window.loadPyodide){
     await new Promise((res,rej)=>{const s=document.createElement("script");
      s.src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js";
      s.onload=res;s.onerror=rej;document.head.appendChild(s);});
    }
-   pyodide=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.26.2/full/"});
-   await pyodide.loadPackage("numpy");
-  }
+   const py=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.26.2/full/"});
+   await py.loadPackage("numpy");
+   pyodide=py;
+   return py;
+  })().catch(e=>{_pyLoading=null;throw e;}); // allow retry when back online
+ return _pyLoading;
+}
+async function runPy(){
+ if(!rows.length){setStatus("pystatus","load & merge a dataset first",false,true);return;}
+ $("btn-py").disabled=true;
+ setStatus("pystatus","loading Pyodide (~10MB first time, then cached)...",true);
+ try{
+  await ensurePyodide();
   const series={};
   for(const r of rows)for(const m of METRICS){
    if(r[m]==null)continue;
@@ -614,6 +632,9 @@ function aiDiagnostics(extra){
   "NOT a secure context - serve over HTTPS (tools/serve_webapp.py) or localhost.");
  else bits.push("secure context OK ("+location.protocol+"//"+location.host+")");
  bits.push("LanguageModel API "+("LanguageModel" in self?"present":"MISSING"));
+ bits.push("(the ~2GB model is a ONE-TIME download managed by Chrome; "+
+  "once chrome://on-device-internals shows it ready, questions work "+
+  "fully offline)");
  if(extra)bits.push(extra);
  bits.push("Checklist: use a NORMAL browser profile (built-in AI is "+
   "disabled in Incognito/Guest/sandboxed windows); Chrome 131+ (or Canary "+
@@ -720,10 +741,45 @@ function mic(){
 
 /* =========================== service worker ======================== */
 if("serviceWorker" in navigator && isSecureContext){
- navigator.serviceWorker.register("sw.js").then(
-  ()=>chip("chip-sw","offline cache: on",true),
+ navigator.serviceWorker.register("sw.js").then(async ()=>{
+  // verify the heavyweights actually made it into the cache: opaque
+  // no-cors responses used to be skipped, which silently broke offline
+  try{
+   const c=await caches.open("envhub-v3");
+   const plotly=await c.match("https://cdn.plot.ly/plotly-2.35.2.min.js",
+                              {ignoreVary:true});
+   chip("chip-sw",plotly?"offline: ready":"offline cache: on",true);
+  }catch(e){chip("chip-sw","offline cache: on",true);}
+ },
   ()=>chip("chip-sw","offline cache: failed",false));
 }else chip("chip-sw","offline cache: n/a (http)",false);
+
+/* online/offline indicator -- the app keeps working offline: cached CDN
+ * libs + IndexedDB datasets; only live-device sync needs a network */
+function netstate(){
+ $("chip-net").hidden=navigator.onLine;
+ if(!navigator.onLine)
+  setStatus("conn-note","offline - cached data & analysis still work");
+}
+addEventListener("online",netstate);
+addEventListener("offline",netstate);
+netstate();
+
+/* background warm-up: pull Plotly + the ~10MB Pyodide runtime through
+ * the service worker cache once, while we're online, so charts AND
+ * change detection work offline even if never used before (same
+ * download-once-reuse-forever model as Chrome's on-device AI). Only on
+ * the SW-cached (HTTPS) copy; skipped when offline or already warm. */
+if(isSecureContext && "serviceWorker" in navigator){
+ addEventListener("load",()=>setTimeout(async()=>{
+  if(!navigator.onLine)return;
+  try{await ensurePlotly();}catch(e){}
+  try{
+   await ensurePyodide();
+   chip("chip-sw","offline: ready",true);
+  }catch(e){/* offline or CDN down - retried on next visit/use */}
+ },4000));
+}
 
 /* ============================== wiring ============================= */
 $("btn-http").onclick=httpConnect;
