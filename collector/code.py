@@ -29,7 +29,12 @@ import digitalio
 import displayio
 import sdcardio
 import storage
+import supervisor
 import wifi
+
+# deploys copy several files: don't restart on each write, half-updated.
+# Reset (Ctrl-D / button / microcontroller.reset()) when the copy is done.
+supervisor.runtime.autoreload = False
 
 import envproto  # tiny; needed for the early AP SSID
 
@@ -72,11 +77,12 @@ import battery
 import datastore
 import display_hw
 import display_ui
-import net_ble
 import net_captive
 import net_espnow
 import net_wifi
 import sensors_local
+# net_ble is imported lazily below: adafruit_ble is a large import and on
+# the C6 BLE can't start while the AP is up anyway (firmware error 519)
 
 # ---------------------------------------------------------------------------
 # Display + storage pins. eInk pins live in display_hw profiles (Feather +
@@ -92,6 +98,7 @@ CONFIG_FLASH = "/config.json"  # shipped defaults; runtime overrides live on
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
+
 
 def _mem(tag):
     gc.collect()
@@ -129,6 +136,20 @@ if SRAM_CS is not None:
     _sram_cs = digitalio.DigitalInOut(SRAM_CS)
     _sram_cs.switch_to_output(value=True)
 
+# ---------------------------------------------------------------------------
+# Display (profile-based: 3.52" quad on Feather wing / 2.9" tri on QT Py BFF)
+# ---------------------------------------------------------------------------
+display = None
+palette_mode = "quad"
+try:
+    display, palette_mode = display_hw.init_display(
+        spi,
+        profile_name=config.get("display_profile", "auto"),
+        overrides=config.get("display"),
+    )
+except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
+    print("Display init failed:", exc)
+
 sd_mounted = False
 if SD_CS is not None:
     try:
@@ -138,6 +159,24 @@ if SD_CS is not None:
         print("SD mounted")
     except (OSError, ValueError) as exc:
         print("SD mount failed:", exc)
+        # a failed SDCard() leaves the shared SPI bus LOCKED, which makes
+        # every eInk refresh fail with a misleading "Refresh too soon"
+        # (displayio can't acquire the bus). Unlock it; rebuild if stuck.
+        try:
+            spi.unlock()
+            print("SPI unlocked after failed SD probe")
+        except (RuntimeError, ValueError, OSError) as exc2:
+            print("SPI unlock failed (%s); rebuilding bus" % exc2)
+            try:
+                spi.deinit()
+            except (OSError, ValueError, RuntimeError):
+                pass
+            spi = board.SPI()
+        if spi.try_lock():
+            spi.unlock()
+            print("SPI bus verified free")
+        else:
+            print("WARNING: SPI bus still locked - display will not refresh")
 else:
     print("no SD slot on this rig (QT Py BFF); RAM-only buffering")
 
@@ -182,19 +221,6 @@ _mem("after AP")
 # Radio first on purpose: starting the AP after displayio is up
 # hard-faults the CP core on ESP32-C6 (10.3.0-a4). All radio
 # bring-up therefore happens before the display/sensors.
-# ---------------------------------------------------------------------------
-# Display (profile-based: 3.52" quad on Feather wing / 2.9" tri on QT Py BFF)
-# ---------------------------------------------------------------------------
-display = None
-palette_mode = "quad"
-try:
-    display, palette_mode = display_hw.init_display(
-        spi,
-        profile_name=config.get("display_profile", "auto"),
-        overrides=config.get("display"),
-    )
-except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
-    print("Display init failed:", exc)
 
 # ---------------------------------------------------------------------------
 # Sensor, battery, stores
@@ -227,7 +253,7 @@ store = datastore.DataStore(
 )
 print("storage:", store.mode, store.root)
 _mem("after storage")
-ring = datastore.SampleRing(capacity=360)
+ring = datastore.SampleRing(capacity=240)  # 4.8KB; every byte counts on C6
 
 def _record_interval():
     """Record cadence; stretched on flash to limit wear + fill rate."""
@@ -495,10 +521,26 @@ portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
                             if captive.ap_active else None)
 portal.start(ap_active=captive.ap_active)
 _mem("after http portal")
-# NOTE: on ESP32-C6 (CP 10.3.0-a4) BLE cannot start alongside the softAP
-# (firmware error 519) -- it degrades gracefully; set ble_enabled=false to
-# skip the attempt, or ap_enabled=false to prefer BLE.
-ble = net_ble.BleUartPortal(handlers, enabled=config.get("ble_enabled", True))
+# NOTE: on ESP32-C6 (CP 10.3.0-a4) BLE cannot start alongside the softAP --
+# best case "firmware error 519", worst case a core hard fault. Skip it
+# there outright; set ap_enabled=false to prefer BLE on a C6.
+_ble_wanted = config.get("ble_enabled", True)
+if _ble_wanted and ap_started and "esp32c6" in getattr(board, "board_id", ""):
+    print("BLE skipped: C6 cannot run BLE alongside the softAP")
+    _ble_wanted = False
+if _ble_wanted:
+    import net_ble
+    ble = net_ble.BleUartPortal(handlers)
+else:
+    print("BLE disabled by config (import skipped)")
+
+    class _NoBle:
+        ok = False
+        connected = False
+
+        def poll(self):
+            pass
+    ble = _NoBle()
 _mem("after BLE")
 
 # ---------------------------------------------------------------------------
@@ -543,9 +585,16 @@ def _update_trends(src, avgs, now):
 
 
 # ---------------------------------------------------------------------------
-# Display refresh
+# Display refresh. Quad-color eInk enforces ~180s minimum between
+# refreshes (EPaperDisplay seconds_per_frame default) and raises
+# "Refresh too soon" -- and time_to_refresh does NOT reliably report it
+# on this build, so we keep our own clock.
 # ---------------------------------------------------------------------------
-_last_display = 0.0
+_MIN_REFRESH_S = 185
+# no refresh is spent at init: the first refresh IS the dashboard, tried
+# as soon as the main loop starts (30s backoff if the panel objects)
+_last_refresh_ok = -10000.0
+_next_refresh_try = 0.0
 
 
 def _status_line():
@@ -563,15 +612,26 @@ def _status_line():
 
 
 def refresh_display(now_epoch):
-    global _last_display
+    """Build + refresh. Returns True on success."""
     if display is None:
-        return
-    if display.time_to_refresh > 0:
-        return  # eInk not ready yet; try again next loop
+        return False
     # panel shows 384x180 of the 384x184 buffer: clamp the 184-axis
     vis_w = 180 if display.width == 184 else display.width
     vis_h = 180 if display.height == 184 else display.height
-    display.root_group = None  # free the old screen before building anew
+    # NEVER set root_group = None here: that re-shows the console splash
+    # and the supervisor AUTO-REFRESHES splash-showing e-paper displays,
+    # perpetually colliding with our own refreshes ("Refresh too soon").
+    #
+    # C6/CP10.3-a4 bug: the wifi stack (captive portal construction)
+    # corrupts the SPI lock flag, leaving the bus "locked" with no owner,
+    # and refresh() then fails "Refresh too soon" forever. Only the
+    # display and the (idle/absent) SD share this bus, so clearing the
+    # stale lock is safe.
+    try:
+        spi.unlock()
+        print("cleared stale SPI lock before refresh")
+    except (RuntimeError, ValueError, OSError):
+        pass  # not locked - normal
     gc.collect()
     try:
         screen = display_ui.build_screen(
@@ -590,13 +650,21 @@ def refresh_display(now_epoch):
         )
         display.root_group = screen
         display.refresh()
-        _last_display = time.monotonic()
         _display_dirty[0] = False
+        gc.collect()
+        return True
     except (RuntimeError, MemoryError) as exc:
-        print("display refresh failed:", exc)
-        _last_display = time.monotonic() - config.get(
-            "display_interval_s", 120) + 30  # back off 30s, don't spin
-    gc.collect()
+        got_lock = False
+        try:
+            got_lock = spi.try_lock()
+        finally:
+            if got_lock:
+                spi.unlock()
+        print("display refresh failed: %s (ttr=%.1f busy=%s spi_free=%s)"
+              % (exc, display.time_to_refresh,
+                 getattr(display, "busy", "?"), got_lock))
+        gc.collect()
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -606,6 +674,7 @@ print("collector running; portal:", "http://%s/" % ip if ip else "no wifi")
 
 _last_sample = 0.0
 _last_record = 0.0
+_last_gc = 0.0
 _boot_epoch = time.time()
 
 while True:
@@ -643,15 +712,36 @@ while True:
                 flags |= datastore.FLAG_ABNORMAL
             store.record("local", avgs, flags=flags)
 
-    # 4. display
-    if (now_m - _last_display >= config.get("display_interval_s", 120)
-            or (_display_dirty[0] and now_m - _last_display >= 30)):
-        refresh_display(now_e)
+    # 4. display: the FIRST refresh waits until the system is genuinely
+    # ready -- boot settle window elapsed (sensor warmed up, nodes had a
+    # chance to check in, alerts collated) AND data on hand. After that,
+    # refreshes follow the user schedule; alerts pull one forward, the
+    # panel's ~180s hardware minimum is always respected, and a failed
+    # attempt backs off 30s instead of spinning.
+    _since_ok = now_m - _last_refresh_ok
+    _settled = now_m >= config.get("boot_display_delay_s", 60)
+    if (store.latest and _settled
+            and (_since_ok >= max(config.get("display_interval_s", 185),
+                                  _MIN_REFRESH_S)
+                 or (_display_dirty[0] and _since_ok >= _MIN_REFRESH_S))
+            and now_m >= _next_refresh_try):
+        if refresh_display(now_e):
+            _last_refresh_ok = now_m
+            print("dashboard refreshed (mem %d)" % gc.mem_free())
+        else:
+            _next_refresh_try = now_m + 30
 
     # 5. portals + housekeeping
     portal.poll()
     ble.poll()
     captive.poll()
     store.maybe_flush()
+
+    # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
+    # HTTP bursts can't fragment the heap out from under the next
+    # screen build or DHCP lease
+    if now_m - _last_gc >= 10:
+        _last_gc = now_m
+        gc.collect()
 
     time.sleep(0.05)

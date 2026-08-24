@@ -24,6 +24,7 @@ display_ui uses it to pick warn/bad rendering (tri has no yellow).
 import time
 
 import board
+import displayio
 from fourwire import FourWire
 
 PROFILES = {
@@ -99,6 +100,19 @@ def init_display(spi, profile_name="auto", overrides=None):
             rotation=prof["rotation"],
             highlight_color=0xFF0000,
         )
+    # Take the console splash off the panel immediately: the supervisor
+    # auto-refreshes e-paper displays that SHOW the splash, and that race
+    # blocks user refreshes forever. Assigning our own group is enough --
+    # no refresh is spent here; the first real refresh is the dashboard.
+    # (White rect so any refresh that does land shows white, not black --
+    # an empty group renders palette index 0 = black.)
+    import vectorio
+    _pal = displayio.Palette(1)
+    _pal[0] = 0xFFFFFF
+    _g = displayio.Group()
+    _g.append(vectorio.Rectangle(pixel_shader=_pal, width=display.width,
+                                 height=display.height, x=0, y=0))
+    display.root_group = _g
     print("eInk '%s' ready %dx%d (%s palette)"
           % (name, display.width, display.height, prof["palette"]))
     return display, prof["palette"]

@@ -1,6 +1,7 @@
 {
   "display_profile": "auto",
-  "display_interval_s": 120,
+  "display_interval_s": 185,
+  "boot_display_delay_s": 60,
   "ap_enabled": true,
   "ap_ssid": "",
   "ap_password": "",

@@ -20,7 +20,13 @@ The screen is rebuilt as a fresh displayio.Group per refresh (2 min default)
 import displayio
 import terminalio
 import vectorio
-from adafruit_display_text import label
+
+# bitmap_label renders each string into ONE small bitmap instead of
+# per-glyph tilegrids -- far less RAM/fragmentation on no-PSRAM boards
+try:
+    from adafruit_display_text import bitmap_label as label
+except ImportError:
+    from adafruit_display_text import label
 
 import alerts
 import envproto
@@ -185,13 +191,9 @@ def build_screen(*, width, height, latest, tracker, zones, host_batt,
         mark = "!" if (state != alerts.OK and bg is None) else ""
         root.append(_text("%s %s%s" % (name, unit, mark), cx + 4, cy + 8, fg))
         val = _fmt_value(key, lm.get(key))
-        trend = _TREND_CHARS.get(local_trends.get(key, 0), "")
-        big = _text(val, cx + 4, cy + 8 + 20, fg, scale=2)
-        root.append(big)
-        if trend:
-            root.append(
-                _text(trend, cx + 4 + (len(val) * _CW * 2) + 3, cy + 8 + 14, fg)
-            )
+        # trend arrow folded into the value string (one label, not two)
+        val += _TREND_CHARS.get(local_trends.get(key, 0), "")
+        root.append(_text(val, cx + 4, cy + 8 + 20, fg, scale=2))
 
     # ---- remote node strip (tiny text; abnormal lines highlighted) ----
     strip_top = grid_top + grid_h + 4
