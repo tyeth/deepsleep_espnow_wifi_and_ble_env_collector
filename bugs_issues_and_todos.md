@@ -79,6 +79,18 @@ deployment: `ble_enabled=false` (default; AP + captive portal + dashboard
 all work, ~90 KB free) or `ap_enabled=false` for a BLE-centric hub.
 Boards with PSRAM (Feather S3 w/ PSRAM) should manage all of it.
 
+### 0. **PARKED**: C6 softAP unconnectable from phones (2026-08-24)
+Despite fixing the ESP-NOW ordering (issue 6) and explicitly starting the
+DHCP server (`start_dhcp_ap()`), phones still associate with `BASE{mac}`
+and immediately drop. Everything server-side *looks* healthy
+(`ap_active=True`, DHCP started without error, DNS+HTTP listening).
+**Decision: park it.** Resume plan: two dev boards with no sensors and a
+self-compiled CircuitPython (debug logging in the espressif port's softAP
+/ DHCP glue) another day. Until then the collector runs
+`ap_enabled=false, ble_enabled=true` — BLE + ESP-NOW verified as the
+access/transport pair (HTTP portal available whenever STA WiFi creds are
+set in settings.toml).
+
 ### 6. C6: `espnow.ESPNow()` kills an active user softAP (and can wedge USB)
 * **Symptom**: boot order "start_ap → espnow.ESPNow()" completes without
   error, but `wifi.radio.ap_active` is later False — the AP beacon is
@@ -90,6 +102,15 @@ Boards with PSRAM (Feather S3 w/ PSRAM) should manage all of it.
 * **Workaround**: initialise ESP-NOW BEFORE `start_ap` in the early radio
   block and keep the object alive forever (`net_espnow.EspNowHub`
   accepts the pre-built object); main loop logs if the AP still drops.
+
+### 7. C6: BLE resident → eInk refresh fails "SPI configuration failed"
+In BLE-mode (`ap_enabled=false, ble_enabled=true`) the collector boots,
+advertises, and runs, but dashboard refreshes fail with
+`SPI configuration failed` at ~10 KB gc free — the BLE stack's internal-
+heap footprint leaves too little for the SPI transaction reconfig. Same
+family as the softAP socket starvation (issue 5/BLE matrix). Candidate
+mitigations for the dev-board session: self-built CP with reduced BLE
+buffers / `CIRCUITPY_BLE_*` tuning, or accepting display-off in BLE mode.
 
 ## Library bugs
 * `adafruit_jd79667` ships **debug prints**: the start-sequence hex dump

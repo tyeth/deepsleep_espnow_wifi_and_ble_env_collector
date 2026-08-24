@@ -107,6 +107,10 @@ class BleUartPortal:
                 self._send(h["calibrate"](src, step))
             elif cmd == "time" and len(parts) > 1:
                 self._send(h["time_set"](parts[1]))
+            elif cmd == "mem":
+                import gc
+                gc.collect()
+                self._send({"free": gc.mem_free()})
             else:
                 self._send({"err": "unknown cmd",
                             "cmds": ["latest", "battery", "events", "config",
