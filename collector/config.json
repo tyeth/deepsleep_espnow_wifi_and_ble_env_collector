@@ -16,7 +16,7 @@
   "node_stale_s": 600,
   "trend_window_s": 600,
   "co2_cal_target_ppm": 420,
-  "host_vcc_unplugged_v": 4.35,
+  "host_vcc_unplugged_v": 4.15,
   "node_batt_warn_v": 3.5,
   "node_batt_crit_v": 3.3,
   "timezone_offset_h": 0,

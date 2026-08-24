@@ -63,6 +63,7 @@ a{color:var(--acc)}
   <input id="baseurl" size="24" placeholder="http://192.168.4.1">
   <button id="btn-http">Connect HTTP</button>
   <button id="btn-ble" class="sec">Connect BLE</button>
+  <button id="btn-time" class="sec" title="set the hub clock from this browser">Sync clock</button>
   <span class="mut" id="conn-note"></span>
  </div>
  <div class="row">
@@ -458,6 +459,7 @@ async function httpConnect(){
   httpBase=base;chip("chip-http","http: on",true);
   $("btn-sync").disabled=false;
   setStatus("conn-note","connected");
+  syncClock(true); // hub may have no RTC battery: sync on every connect
   try{const cfg=await(await fetch(base+"/api/config")).json();
    if(cfg.thresholds)DEFAULT_THRESHOLDS=cfg.thresholds;
    $("thrbox").value=JSON.stringify(DEFAULT_THRESHOLDS,null,1);}catch(e){}
@@ -468,6 +470,24 @@ async function httpConnect(){
    "device unreachable: "+e,false,true);
  }
 }
+/* --- hub time service: push this browser's clock to the device --- */
+async function syncClock(auto){
+ const epoch=Math.round(Date.now()/1000);
+ try{
+  let r;
+  if(httpBase)
+   r=await(await fetch(httpBase+"/api/time",{method:"POST",
+    body:JSON.stringify({epoch})})).json();
+  else if(bleIO)r=await bleJSON("time "+epoch);
+  else{if(!auto)setStatus("conn-note","connect first to sync the clock",false,true);
+   return;}
+  if(r.ok)setStatus("conn-note",
+   `clock synced (hub adjusted ${r.delta_s>=0?"+":""}${r.delta_s}s`+
+   (r.adjusted?`, ${r.adjusted} buffered records fixed`:"")+")");
+  else if(!auto)setStatus("conn-note","clock sync: "+(r.err||"failed"),false,true);
+ }catch(e){if(!auto)setStatus("conn-note","clock sync failed: "+e,false,true);}
+}
+
 /* --- BLE (Nordic UART) --- */
 const UART={svc:"6e400001-b5a3-f393-e0a9-e50e24dcca9e",
  rx:"6e400002-b5a3-f393-e0a9-e50e24dcca9e",
@@ -698,6 +718,7 @@ if("serviceWorker" in navigator && isSecureContext){
 /* ============================== wiring ============================= */
 $("btn-http").onclick=httpConnect;
 $("btn-ble").onclick=bleConnect;
+$("btn-time").onclick=()=>syncClock(false);
 $("btn-sync").onclick=sync;
 $("btn-load").onclick=loadAll;
 $("btn-episodes").onclick=findEpisodes;

@@ -208,6 +208,14 @@ class WebPortal:
         def ingest(request: Request):
             return JSONResponse(request, h["ingest"](request.body))
 
+        @server.route("/api/time", POST)
+        def time_post(request: Request):
+            try:
+                body = json.loads(request.body)
+            except ValueError:
+                return JSONResponse(request, {"err": "bad json"})
+            return JSONResponse(request, h["time_set"](body.get("epoch")))
+
         @server.route("/api/history", GET)
         def history(request: Request):
             day = request.query_params.get("day")

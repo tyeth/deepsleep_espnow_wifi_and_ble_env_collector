@@ -237,22 +237,35 @@ class DataStore:
     # ---------------- record + event queueing ----------------
 
     def record(self, src, m, flags=0, ts=None):
-        """Queue one averaged record for SD."""
+        """Queue one averaged record. Timestamp kept separate from the CSV
+        tail so pending records can be retro-adjusted when the clock syncs
+        (see adjust_pending)."""
         ts = int(ts if ts is not None else time.time())
 
         def f(key, fmt="%.2f"):
             v = m.get(key)
             return "" if v is None else (fmt % v if isinstance(v, float) else str(v))
 
-        line = "%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d\n" % (
-            ts, src, f("tc", "%.1f"), f("rh", "%.1f"), f("co2", "%.0f"),
+        tail = "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d" % (
+            src, f("tc", "%.1f"), f("rh", "%.1f"), f("co2", "%.0f"),
             f("pm1", "%.1f"), f("pm25", "%.1f"), f("pm4", "%.1f"),
             f("pm10", "%.1f"), f("voc", "%.0f"), f("nox", "%.0f"),
             f("vb", "%.3f"), flags,
         )
-        self._pending.append((ts, line))
+        self._pending.append([ts, tail])
         if len(self._pending) >= self.flush_max_pending:
             self.flush()
+
+    def adjust_pending(self, offset_s):
+        """Shift every not-yet-written record by offset_s -- called when
+        the clock is synced after data was buffered with a wrong clock."""
+        if not offset_s:
+            return 0
+        for rec in self._pending:
+            rec[0] += offset_s
+        print("datastore: adjusted %d pending records by %+ds"
+              % (len(self._pending), offset_s))
+        return len(self._pending)
 
     def log_event(self, event):
         """Queue an alert transition; forces a flush so it survives power loss."""
@@ -323,15 +336,16 @@ class DataStore:
                 self._ensure_dir(self.data_dir())
                 # group by day so a flush spanning midnight lands correctly
                 by_day = {}
-                for ts, line in self._pending:
+                for ts, tail in self._pending:
                     t = time.localtime(ts)
                     day = "%04d-%02d-%02d" % (t[0], t[1], t[2])
-                    by_day.setdefault(day, []).append(line)
+                    by_day.setdefault(day, []).append("%d,%s\n" % (ts, tail))
                 for day, lines in by_day.items():
                     self._append(
                         "%s/%s.csv" % (self.data_dir(), day), CSV_HEADER, lines
                     )
                 self._pending = []
+                del by_day
             if self._pending_events:
                 self._append(
                     self.root.rstrip("/") + "/events.csv", EVENTS_HEADER,

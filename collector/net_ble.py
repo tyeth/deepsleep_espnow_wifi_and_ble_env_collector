@@ -32,7 +32,11 @@ except ImportError:
 
 
 class BleUartPortal:
-    def __init__(self, handlers, name="ENVHUB", enabled=True):
+    def __init__(self, handlers, name="ENVHUB", enabled=True,
+                 radio=None, uart=None):
+        """radio/uart: pre-built BLERadio/UARTService from the EARLY BLE
+        START block (on the C6, creating them late alongside the softAP
+        hard-faults the core -- see bugs_issues_and_todos.md)."""
         self.handlers = handlers
         self.ok = False
         self.connected = False
@@ -40,20 +44,20 @@ class BleUartPortal:
         if not enabled:
             print("BLE disabled by config")
             return
-        if not _HAVE_BLE:
+        if not _HAVE_BLE and radio is None:
             print("BLE not available on this board/build")
             return
         try:
-            self.radio = BLERadio()
+            self.radio = radio or BLERadio()
             self.radio.name = name
-            self.uart = UARTService()
+            self.uart = uart or UARTService()
             self.adv = ProvideServicesAdvertisement(self.uart)
             self.adv.complete_name = name
             self.radio.start_advertising(self.adv)
             self.ok = True
             print("BLE advertising as", name)
         except Exception as exc:
-            print("BLE init failed:", exc)
+            print("BLE init failed:", type(exc).__name__, exc)
 
     def _send(self, obj):
         data = (json.dumps(obj) + "\n").encode()
@@ -97,6 +101,8 @@ class BleUartPortal:
                 src = parts[1] if len(parts) > 1 else "local"
                 step = int(parts[2]) if len(parts) > 2 else 1
                 self._send(h["calibrate"](src, step))
+            elif cmd == "time" and len(parts) > 1:
+                self._send(h["time_set"](parts[1]))
             else:
                 self._send({"err": "unknown cmd",
                             "cmds": ["latest", "battery", "events", "config",

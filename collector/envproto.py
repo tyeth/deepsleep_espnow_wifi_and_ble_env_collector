@@ -99,8 +99,14 @@ def make_discovery_packet(name, sensor_type=None) -> bytes:
     return encode(pkt)
 
 
-def make_data_packet(name, sensor_type, seq, batt_v, measurements) -> bytes:
-    """Node-side helper: build a 'dat' packet, dropping None values."""
+def make_data_packet(name, sensor_type, seq, batt_v, measurements,
+                     at=None) -> bytes:
+    """Node-side helper: build a 'dat' packet, dropping None values.
+
+    at: epoch seconds the reading was TAKEN (may differ from send time for
+    stashed/retransmitted readings). The collector ignores implausible
+    values (unsynced node clocks) and falls back to receive time.
+    """
     m = {}
     for key, val in measurements.items():
         if val is None or key not in METRICS:
@@ -110,17 +116,31 @@ def make_data_packet(name, sensor_type, seq, batt_v, measurements) -> bytes:
     pkt = {"k": "dat", "n": name, "t": sensor_type, "sq": seq, "m": m}
     if batt_v is not None:
         pkt["vb"] = round(batt_v, 3)
+    if at:
+        pkt["at"] = int(at)
     return encode(pkt)
 
 
-def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None) -> bytes:
-    """Collector-side helper: build a 'cfg' reply for a node."""
+def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
+                       epoch=None) -> bytes:
+    """Collector-side helper: build a 'cfg' reply for a node.
+
+    epoch: hub's current time (only sent when the hub clock is synced via
+    NTP or the browser) -- the time service for the whole mesh: nodes set
+    their RTC from it and retro-adjust any stashed readings.
+    """
     pkt = {"k": "cfg", "int": int(interval_s), "asc": 1 if asc else 0}
     if metrics:
         pkt["m"] = list(metrics)
     if cal_target:
         pkt["cal"] = int(cal_target)
+    if epoch:
+        pkt["t"] = int(epoch)
     return encode(pkt)
+
+
+# node clocks tick from 2020 when unsynced; anything before this is bogus
+PLAUSIBLE_EPOCH = 1700000000  # 2023-11
 
 
 def make_cal_result_packet(name, ok, correction=None) -> bytes:

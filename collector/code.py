@@ -27,6 +27,8 @@ import time
 import board
 import digitalio
 import displayio
+import microcontroller
+import rtc
 import sdcardio
 import storage
 import supervisor
@@ -39,11 +41,12 @@ supervisor.runtime.autoreload = False
 import envproto  # tiny; needed for the early AP SSID
 
 # ---------------------------------------------------------------------------
-# EARLY AP START -- before the heavy imports below. softAP init needs large
-# contiguous ESP-IDF internal-heap buffers; once BLE/httpserver/displayio
-# etc. are imported the heap is fragmented and start_ap hard-faults the CP
-# core on ESP32-C6 (10.3.0-a4). Starting the AP first reserves its buffers
-# while the heap is still empty. (ESP-NOW is lightweight and can wait.)
+# EARLY RADIO BRING-UP -- BLE first, then the AP, both BEFORE the heavy
+# imports below. Each needs large contiguous internal-heap buffers; done
+# late (or in the other order) they hard-fault the C6 core on CP 10.3-a4.
+# BLE-before-AP mirrors the one configuration proven to coexist: the BLE
+# workflow (which boots before user code) alongside our early AP.
+# Full evidence in bugs_issues_and_todos.md. ESP-NOW is light; it waits.
 # ---------------------------------------------------------------------------
 def _early_cfg():
     try:
@@ -58,6 +61,19 @@ AP_SSID = (os.getenv("ENVHUB_AP_SSID")
            or "BASE" + envproto.short_mac(wifi.radio.mac_address))
 AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
                or _ecfg.get("ap_password", ""))
+# BLE controller first (objects handed to net_ble.BleUartPortal later)
+_ble_radio = None
+_ble_uart = None
+if _ecfg.get("ble_enabled", True):
+    try:
+        from adafruit_ble import BLERadio
+        from adafruit_ble.services.nordic import UARTService
+        _ble_radio = BLERadio()
+        _ble_uart = UARTService()
+        print("early BLE up")
+    except Exception as exc:
+        print("early BLE failed:", type(exc).__name__, exc)
+        _ble_radio = _ble_uart = None
 ap_started = False
 if _ecfg.get("ap_enabled", True):
     try:
@@ -70,6 +86,7 @@ if _ecfg.get("ap_enabled", True):
         print("early AP up: %s @ %s" % (AP_SSID, wifi.radio.ipv4_address_ap))
     except Exception as exc:
         print("early AP failed:", exc)
+
 del _ecfg
 
 import alerts
@@ -81,8 +98,8 @@ import net_captive
 import net_espnow
 import net_wifi
 import sensors_local
-# net_ble is imported lazily below: adafruit_ble is a large import and on
-# the C6 BLE can't start while the AP is up anyway (firmware error 519)
+# (adafruit_ble was already imported in the early block when enabled;
+# net_ble itself is wired up after the handlers exist)
 
 # ---------------------------------------------------------------------------
 # Display + storage pins. eInk pins live in display_hw profiles (Feather +
@@ -202,6 +219,11 @@ else:
 
 MAC = envproto.mac_str(wifi.radio.mac_address)
 print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
+
+# hub time service: synced by NTP (net_wifi.connect) or by a browser via
+# POST /api/time / BLE "time <epoch>"; pushed to nodes in every cfg reply
+TIME_SYNCED = time.localtime()[0] >= 2025
+print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)")
 
 # The AP itself was started at the very top of the file (see EARLY AP
 # START); here we add ESP-NOW plus the captive-portal DNS around it.
@@ -427,6 +449,27 @@ def h_list_days():
     return store.list_days()
 
 
+def h_time_set(epoch):
+    """Set the hub clock (browser time via web page / BLE). Pending
+    records buffered with a wrong clock are retro-adjusted."""
+    global TIME_SYNCED
+    try:
+        epoch = int(epoch)
+    except (TypeError, ValueError):
+        return {"err": "epoch (seconds) required"}
+    if epoch < envproto.PLAUSIBLE_EPOCH:
+        return {"err": "implausible epoch"}
+    delta = epoch - int(time.time())
+    rtc.RTC().datetime = time.localtime(epoch)
+    adjusted = 0
+    if abs(delta) > 5:
+        adjusted = store.adjust_pending(delta)
+    TIME_SYNCED = True
+    print("clock set by client: %+ds (%d pending adjusted)" % (delta, adjusted))
+    return {"ok": True, "delta_s": delta, "adjusted": adjusted,
+            "now": int(time.time())}
+
+
 def h_history_lines(day):
     """Generator of file chunks for BLE streaming, or None if missing."""
     if store.data_dir() is None:
@@ -459,6 +502,7 @@ handlers = {
     "list_days": h_list_days,
     "history_lines": h_history_lines,
     "data_dir": lambda: store.data_dir(),
+    "time_set": h_time_set,
 }
 
 # ---------------------------------------------------------------------------
@@ -475,7 +519,8 @@ def _cfg_reply_for(src):
     if armed and "armed" in armed:
         cal = armed["armed"]
     return envproto.make_config_packet(
-        interval, metrics=metrics, asc=False, cal_target=cal
+        interval, metrics=metrics, asc=False, cal_target=cal,
+        epoch=int(time.time()) if TIME_SYNCED else None,
     )
 
 
@@ -491,16 +536,21 @@ def _handle_node_packet(mac, obj, rssi):
     elif kind == "dat":
         m = obj.get("m", {})
         vb = obj.get("vb")
+        # honour the node's reading timestamp (stashed retransmissions);
+        # ignore implausible values from unsynced node clocks
+        at = obj.get("at")
+        if not (at and at > envproto.PLAUSIBLE_EPOCH):
+            at = None
         store.update_latest(src, m, batt_v=vb, sensor_type=obj.get("t"),
-                            rssi=rssi)
+                            rssi=rssi, ts=at)
         sample = dict(m)
         if vb is not None:
             sample["vb"] = vb
-        ring.add(src, sample, flags=0)
+        ring.add(src, sample, flags=0, ts=at)
         worst = tracker.update(src, m)
         flags = datastore.FLAG_ABNORMAL if worst else 0
         # nodes already report at record cadence -> every packet is a record
-        store.record(src, sample, flags=flags)
+        store.record(src, sample, flags=flags, ts=at)
     elif kind == "cal":
         ok = bool(obj.get("ok"))
         cal_results[src] = {"ok": ok, "corr": obj.get("corr"),
@@ -521,18 +571,17 @@ portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
                             if captive.ap_active else None)
 portal.start(ap_active=captive.ap_active)
 _mem("after http portal")
-# NOTE: on ESP32-C6 (CP 10.3.0-a4) BLE cannot start alongside the softAP --
-# best case "firmware error 519", worst case a core hard fault. Skip it
-# there outright; set ap_enabled=false to prefer BLE on a C6.
-_ble_wanted = config.get("ble_enabled", True)
-if _ble_wanted and ap_started and "esp32c6" in getattr(board, "board_id", ""):
-    print("BLE skipped: C6 cannot run BLE alongside the softAP")
-    _ble_wanted = False
-if _ble_wanted:
+# BLE radio/uart were created in the EARLY BLE START block (top of file);
+# here we just wire the command portal around them. Late BLE creation
+# alongside the softAP hard-faults the C6 core (bugs_issues_and_todos.md).
+if config.get("ble_enabled", True) and _ble_radio is not None:
     import net_ble
-    ble = net_ble.BleUartPortal(handlers)
+    ble = net_ble.BleUartPortal(handlers, radio=_ble_radio, uart=_ble_uart)
 else:
-    print("BLE disabled by config (import skipped)")
+    if config.get("ble_enabled", True):
+        print("BLE unavailable (early init failed)")
+    else:
+        print("BLE disabled by config")
 
     class _NoBle:
         ok = False
@@ -677,71 +726,99 @@ _last_record = 0.0
 _last_gc = 0.0
 _boot_epoch = time.time()
 
+_err_streak = 0
+
 while True:
     now_m = time.monotonic()
     now_e = int(time.time())
+    try:
+        # 1. remote nodes over ESP-NOW (reply immediately -- they nap fast)
+        for mac, obj, rssi in hub.poll():
+            try:
+                _handle_node_packet(mac, obj, rssi)
+                if obj.get("k") in ("dat", "dsc"):
+                    hub.send(mac, _cfg_reply_for(obj.get("n", "?")))
+            except Exception as exc:  # one bad packet must not kill the loop
+                print("node packet error:", type(exc).__name__, exc)
 
-    # 1. remote nodes over ESP-NOW (reply immediately -- they nap fast)
-    for mac, obj, rssi in hub.poll():
-        _handle_node_packet(mac, obj, rssi)
-        if obj.get("k") in ("dat", "dsc"):
-            hub.send(mac, _cfg_reply_for(obj.get("n", "?")))
+        # 2. local sensor sampling into the RAM ring
+        if local_sensor and now_m - _last_sample >= config.get(
+                "sample_interval_s", 15):
+            _last_sample = now_m
+            m = local_sensor.read()
+            if m:
+                hb = batt_mon.status()
+                sample = dict(m)
+                if hb.get("v") is not None:
+                    sample["vb"] = hb["v"]
+                ring.add("local", sample)
+                store.update_latest("local", m, batt_v=hb.get("v"),
+                                    sensor_type="sen66")
+                tracker.update("local", m)
+                if hb.get("crit"):
+                    store.flush()  # about to brown out? save everything now
 
-    # 2. local sensor sampling into the RAM ring
-    if local_sensor and now_m - _last_sample >= config.get("sample_interval_s", 15):
-        _last_sample = now_m
-        m = local_sensor.read()
-        if m:
-            hb = batt_mon.status()
-            sample = dict(m)
-            if hb.get("v") is not None:
-                sample["vb"] = hb["v"]
-            ring.add("local", sample)
-            store.update_latest("local", m, batt_v=hb.get("v"), sensor_type="sen66")
-            tracker.update("local", m)
-            if hb.get("crit"):
-                store.flush()  # about to brown out? save everything now
+        # 3. averaged record at the user cadence (stretched on flash storage)
+        if now_m - _last_record >= _record_interval():
+            _last_record = now_m
+            avgs = ring.averages("local", _record_interval() * 2)
+            if avgs:
+                flags = _update_trends("local", avgs, now_e)
+                if tracker.worst_for("local"):
+                    flags |= datastore.FLAG_ABNORMAL
+                store.record("local", avgs, flags=flags)
 
-    # 3. averaged record at the user cadence (stretched on flash storage)
-    if now_m - _last_record >= _record_interval():
-        _last_record = now_m
-        avgs = ring.averages("local", _record_interval() * 2)
-        if avgs:
-            flags = _update_trends("local", avgs, now_e)
-            if tracker.worst_for("local"):
-                flags |= datastore.FLAG_ABNORMAL
-            store.record("local", avgs, flags=flags)
+        # 4. display: the FIRST refresh waits until the system is genuinely
+        # ready -- boot settle window elapsed (sensor warmed up, nodes had a
+        # chance to check in, alerts collated) AND data on hand. After that,
+        # refreshes follow the user schedule; alerts pull one forward, the
+        # panel's ~180s hardware minimum is always respected, and a failed
+        # attempt backs off 30s instead of spinning.
+        _since_ok = now_m - _last_refresh_ok
+        _settled = now_m >= config.get("boot_display_delay_s", 60)
+        if (store.latest and _settled
+                and (_since_ok >= max(config.get("display_interval_s", 185),
+                                      _MIN_REFRESH_S)
+                     or (_display_dirty[0] and _since_ok >= _MIN_REFRESH_S))
+                and now_m >= _next_refresh_try):
+            if refresh_display(now_e):
+                _last_refresh_ok = now_m
+                print("dashboard refreshed (mem %d)" % gc.mem_free())
+            else:
+                _next_refresh_try = now_m + 30
 
-    # 4. display: the FIRST refresh waits until the system is genuinely
-    # ready -- boot settle window elapsed (sensor warmed up, nodes had a
-    # chance to check in, alerts collated) AND data on hand. After that,
-    # refreshes follow the user schedule; alerts pull one forward, the
-    # panel's ~180s hardware minimum is always respected, and a failed
-    # attempt backs off 30s instead of spinning.
-    _since_ok = now_m - _last_refresh_ok
-    _settled = now_m >= config.get("boot_display_delay_s", 60)
-    if (store.latest and _settled
-            and (_since_ok >= max(config.get("display_interval_s", 185),
-                                  _MIN_REFRESH_S)
-                 or (_display_dirty[0] and _since_ok >= _MIN_REFRESH_S))
-            and now_m >= _next_refresh_try):
-        if refresh_display(now_e):
-            _last_refresh_ok = now_m
-            print("dashboard refreshed (mem %d)" % gc.mem_free())
-        else:
-            _next_refresh_try = now_m + 30
+        # 5. portals + housekeeping
+        portal.poll()
+        ble.poll()
+        captive.poll()
+        store.maybe_flush()
 
-    # 5. portals + housekeeping
-    portal.poll()
-    ble.poll()
-    captive.poll()
-    store.maybe_flush()
+        # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
+        # HTTP bursts can't fragment the heap out from under the next
+        # screen build or DHCP lease
+        if now_m - _last_gc >= 10:
+            _last_gc = now_m
+            gc.collect()
 
-    # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
-    # HTTP bursts can't fragment the heap out from under the next
-    # screen build or DHCP lease
-    if now_m - _last_gc >= 10:
-        _last_gc = now_m
+        _err_streak = 0
+    except MemoryError:
+        # recover heap and keep the buffered data alive
         gc.collect()
+        print("loop MemoryError; collected (mem %d)" % gc.mem_free())
+    except Exception as exc:
+        # never lose data to a crash: log, and if errors persist, flush
+        # everything to storage and take a clean reset
+        _err_streak += 1
+        print("loop error %d/20: %s: %s" % (_err_streak,
+                                            type(exc).__name__, exc))
+        if _err_streak >= 20:
+            print("persistent errors: flushing data, then resetting")
+            try:
+                store.flush()
+            except Exception:
+                pass
+            time.sleep(1)
+            microcontroller.reset()
+        time.sleep(0.5)
 
     time.sleep(0.05)
