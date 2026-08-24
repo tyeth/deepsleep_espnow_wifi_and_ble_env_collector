@@ -230,7 +230,11 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 * [ ] Node ↔ collector: verify ESP-NOW discovery end-to-end on the bench
       (S3 node with SCD41 → BASE597BE4), incl. stash retransmission after
       a collector outage and hub-time retro-adjustment.
-* [ ] Battery watermark test (unplug), calibration two-step test.
+* [ ] Battery watermark test (unplug).
+* [x] Calibration: two-step scheduled reference cal built + hub dry-run
+      verified over BLE (2 min window, ref 568/spread 8, no FRC written).
+      Node-side window still needs an end-to-end run (needs espnow TX +
+      a trigger path: STA-WiFi HTTP, or a PSRAM hub) -- see README.
 * [ ] QT Py S3 + 2.9" tri-color HIL rig bring-up (profile `tri_2in9`).
 * [ ] GitHub Pages deploy of `webapp/` + web-BLE against the S3 node/hub.
 * [ ] Adafruit IO upload of averaged subsets (future).

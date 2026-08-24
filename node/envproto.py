@@ -22,13 +22,19 @@ Data packet (node -> collector):
    "m":{"co2":612,"tc":21.4,"rh":48.2,"pm25":3.1,"voc":101,"nox":1}}
 
 Config reply (collector -> node, unicast to the node's MAC):
-  {"v":1,"k":"cfg","int":120,"asc":0,"m":["co2","tc","rh"],"cal":420}
-  "int" sleep seconds, "asc" 0/1 automatic self calibration,
-  "m" enabled metric keys, "cal" ONLY present when a forced CO2
-  recalibration to that ppm target has been armed by the user.
+  {"v":1,"k":"cfg","int":120,"asc":0,"m":["co2","tc","rh"],"t":1787595725,
+   "cal":420,"cat":1787630400,"cdur":3600,"cdry":0}
+  "int" sleep seconds, "asc" 0/1 automatic self calibration (always 0),
+  "m" enabled metric keys, "t" hub epoch (time service). Calibration
+  fields are ONLY present while the user has armed a reference
+  calibration: "cal" target ppm, "cat" epoch at which the measurement
+  window starts (absent/0 = now), "cdur" window length in seconds,
+  "cdry" 1 = dry run (measure + stability check, never write the FRC).
 
 Calibration result (node -> collector):
-  {"v":1,"k":"cal","n":"kitchen","ok":1,"corr":-23}
+  {"v":1,"k":"cal","n":"kitchen","ok":1,"corr":-23,"ref":431,"why":""}
+  "ref" = median CO2 the sensor saw in the window (its idea of fresh
+  air), "why" = failure reason (unstable / not fresh air / battery / ...)
 """
 
 import json
@@ -122,7 +128,7 @@ def make_data_packet(name, sensor_type, seq, batt_v, measurements,
 
 
 def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
-                       epoch=None) -> bytes:
+                       epoch=None, cal_at=None, cal_dur=None, cal_dry=False) -> bytes:
     """Collector-side helper: build a 'cfg' reply for a node.
 
     epoch: hub's current time (only sent when the hub clock is synced via
@@ -134,6 +140,12 @@ def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
         pkt["m"] = list(metrics)
     if cal_target:
         pkt["cal"] = int(cal_target)
+        if cal_at:
+            pkt["cat"] = int(cal_at)
+        if cal_dur:
+            pkt["cdur"] = int(cal_dur)
+        if cal_dry:
+            pkt["cdry"] = 1
     if epoch:
         pkt["t"] = int(epoch)
     return encode(pkt)
@@ -143,10 +155,15 @@ def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
 PLAUSIBLE_EPOCH = 1700000000  # 2023-11
 
 
-def make_cal_result_packet(name, ok, correction=None) -> bytes:
+def make_cal_result_packet(name, ok, correction=None, ref=None,
+                           reason=None) -> bytes:
     pkt = {"k": "cal", "n": name, "ok": 1 if ok else 0}
     if correction is not None:
         pkt["corr"] = correction
+    if ref is not None:
+        pkt["ref"] = int(ref)
+    if reason:
+        pkt["why"] = reason[:40]
     return encode(pkt)
 
 

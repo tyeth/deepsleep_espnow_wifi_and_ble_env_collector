@@ -31,6 +31,7 @@ import microcontroller
 import rtc
 import wifi
 
+import calref
 import envproto
 import node_sensors
 from battery import BatteryMonitor
@@ -56,7 +57,20 @@ def mem_set_u16(off, val):
     alarm.sleep_memory[off + 1] = (val >> 8) & 0xFF
 
 
+def mem_get_u32(off):
+    return mem_get_u16(off) | (mem_get_u16(off + 2) << 16)
+
+
+def mem_set_u32(off, val):
+    mem_set_u16(off, val & 0xFFFF)
+    mem_set_u16(off + 2, (val >> 16) & 0xFFFF)
+
+
 MEM_STASH_N = 8      # count of stashed (unsent) readings
+# scheduled reference calibration (survives deep sleep until it runs)
+MEM_CAL_TGT = 9      # uint16 LE target ppm; bit 15 = dry run; 0 = none
+MEM_CAL_AT = 11      # uint32 LE epoch the window starts
+MEM_CAL_DURM = 15    # uint8 window minutes
 STASH_START = 16
 # stashed reading: ts(I) tc*100(h) rh*100(H) co2(H) pm25*10(H) voc(H)
 #                  nox(H) vb_mv(H) -- 18 bytes
@@ -165,7 +179,9 @@ DEFAULTS = {
     "interval_s": 120,
     "metrics": None,               # None = send everything the sensor has
     "pm_warmup_s": 20,             # extra fan spin-up for SEN5x/SEN6x PM
-    "cal_measure_s": 180,          # measurement time before forced recal
+    "cal_measure_s": 180,          # fallback window when the hub sends none
+    "cal_max_spread_ppm": 60,      # stability gate over the last 15 min
+    "cal_min_batt_v": 3.7,         # refuse a long awake window on a low cell
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "deep_sleep": True,            # False = bench mode: stay awake between
@@ -565,46 +581,115 @@ if cfg:
             alarm.sleep_memory[MEM_ASC_DONE] = 1
         except (OSError, RuntimeError):
             pass
-    cal_target = None
-    try:
-        cal_target = cfg.get("cal")
-    except AttributeError:
-        pass
-    if cal_target:
-        # User armed forced recalibration (they were warned to go outside at
-        # step 1). Measure in fresh air for cal_measure_s, then recalibrate.
-        print("FORCED RECAL to %dppm: measuring %ds first..."
-              % (cal_target, config["cal_measure_s"]))
-        end = time.monotonic() + config["cal_measure_s"]
-        while time.monotonic() < end:
-            try:
-                sensor.read(timeout_s=5)
-            except (OSError, RuntimeError):
-                pass  # transient I2C error: keep measuring, never skip sleep
-            time.sleep(5)
-        ok = True
-        corr = None
+    if cfg.get("cal"):
+        # user armed a reference calibration: schedule it (or run now)
         try:
-            corr = sensor.force_recal(cal_target)
-            print("recal done, correction:", corr)
-        except (OSError, RuntimeError, AttributeError) as exc:
-            ok = False
-            print("recal failed:", exc)
-        result = envproto.make_cal_result_packet(config["name"], ok, corr)
-        cal_mac = COLLECTOR_MAC or nvm_collector()[0]
-        if cal_mac:
-            e2 = espnow.ESPNow()
-            try:
-                ch = alarm.sleep_memory[MEM_CHANNEL] or 1
-                p2 = espnow.Peer(mac=cal_mac, channel=ch)
-                e2.peers.append(p2)
-                e2.send(result, p2)
-            except (RuntimeError, OSError, ValueError) as exc:
-                print("cal result send failed:", exc)
-            finally:
-                e2.deinit()
+            cal_schedule(int(cfg["cal"]), int(cfg.get("cat") or 0),
+                         int(cfg.get("cdur") or config["cal_measure_s"]),
+                         bool(cfg.get("cdry")))
+        except (TypeError, ValueError) as exc:
+            print("bad cal fields in cfg:", exc)
 
 blink(sent)
+
+# --------------------------------------------------------------------------
+# Reference calibration (ASC is OFF: this is the sensor's only correction).
+# The hub schedules a window (default next 04:00 local, 60 min); we keep it
+# in sleep memory, sleep until then, stay awake measuring through it, gate
+# on stability (calref.evaluate) and only then write the FRC.
+# --------------------------------------------------------------------------
+
+def cal_schedule(target, at, dur_s, dry):
+    now = int(time.time())
+    if at and at > now + 30:
+        mem_set_u16(MEM_CAL_TGT, (target & 0x7FFF) | (0x8000 if dry else 0))
+        mem_set_u32(MEM_CAL_AT, at)
+        alarm.sleep_memory[MEM_CAL_DURM] = max(2, min(255, dur_s // 60))
+        print("CAL scheduled: %d ppm%s at +%ds for %d min"
+              % (target, " DRY" if dry else "", at - now, dur_s // 60))
+    else:
+        run_calibration(target, dur_s, dry)
+
+
+def cal_pending():
+    raw = mem_get_u16(MEM_CAL_TGT)
+    if not raw:
+        return None
+    return (raw & 0x7FFF, mem_get_u32(MEM_CAL_AT),
+            alarm.sleep_memory[MEM_CAL_DURM] * 60, bool(raw & 0x8000))
+
+
+def cal_clear():
+    mem_set_u16(MEM_CAL_TGT, 0)
+
+
+def _send_cal_result(ok, corr, ref, why):
+    pkt = envproto.make_cal_result_packet(config["name"], ok, corr, ref, why)
+    mac = COLLECTOR_MAC or nvm_collector()[0]
+    if not mac:
+        print("cal result not sent (no collector known)")
+        return
+    e2 = espnow.ESPNow()
+    try:
+        p2 = espnow.Peer(mac=mac, channel=alarm.sleep_memory[MEM_CHANNEL] or 1)
+        e2.peers.append(p2)
+        _try_send(e2, p2, pkt)
+    except (RuntimeError, OSError, ValueError) as exc:
+        print("cal result send failed:", exc)
+    finally:
+        e2.deinit()
+
+
+def run_calibration(target, dur_s, dry):
+    """Measure through the window, gate on stability, then FRC (or dry)."""
+    cal_clear()
+    vb = batt.voltage()
+    if vb is not None and vb < config["cal_min_batt_v"]:
+        why = "battery %.2fV < %.2fV" % (vb, config["cal_min_batt_v"])
+        print("CAL refused:", why)
+        _send_cal_result(False, None, None, why)
+        return
+    print("CAL: %s window %d min, target %d ppm -- keep me in fresh air"
+          % ("DRY-RUN" if dry else "reference", dur_s // 60, target))
+    samples = []
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < dur_s:
+        try:
+            m = sensor.read(timeout_s=15)
+        except (OSError, RuntimeError):
+            m = None   # transient I2C error: keep going, never skip sleep
+        if m and m.get("co2"):
+            samples.append((time.monotonic(), m["co2"]))
+        if len(samples) % 30 == 1:
+            print("CAL: %d samples, last %s" % (len(samples), samples[-1][1]))
+        blink(True)
+        time.sleep(10)
+    ok, ref, spread, why = calref.evaluate(
+        samples, target, config["cal_max_spread_ppm"])
+    corr = None
+    if ok and not dry:
+        try:
+            corr = sensor.force_recal(target)
+            print("CAL: recalibrated to %d ppm (was ~%d), correction %s"
+                  % (target, ref, corr))
+        except (OSError, RuntimeError, AttributeError) as exc:
+            ok, why = False, "FRC failed: %s" % exc
+    print("CAL result: ok=%s ref=%s spread=%s %s%s"
+          % (ok, ref, spread, why, " (dry)" if dry else ""))
+    _send_cal_result(ok, corr, ref, why)
+    blink(ok)
+
+
+_pending = cal_pending()
+if _pending:
+    _tgt, _at, _dur, _dry = _pending
+    _now = int(time.time())
+    if _now >= _at - 15:
+        run_calibration(_tgt, _dur, _dry)
+    else:
+        # sleep straight to the window (but keep checking in as usual)
+        interval = max(10, min(interval, _at - _now))
+        print("CAL pending in %ds; next wake in %ds" % (_at - _now, interval))
 
 # --------------------------------------------------------------------------
 # Sleep
@@ -614,7 +699,7 @@ try:
 except (OSError, RuntimeError):
     pass
 
-if not sent:
+if not sent and not _pending:
     # back off but never disappear for long when unreachable
     interval = min(interval, 300)
 go_to_sleep(interval)

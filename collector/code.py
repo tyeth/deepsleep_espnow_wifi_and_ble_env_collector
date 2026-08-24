@@ -140,6 +140,7 @@ del _ecfg
 
 import alerts
 import battery
+import calref
 import datastore
 import display_hw
 import display_ui
@@ -387,13 +388,6 @@ node_macs = {}      # src name -> mac bytes (for cfg replies)
 pending_cal = {}    # src -> {"step": 1, "ts": epoch} / {"armed": target}
 cal_results = {}    # src -> {"ok":, "corr":, "ts":}
 
-CAL_STEP1_MSG = (
-    "STEP 1 armed. Take the sensor OUTSIDE (or to fresh air, ~%dppm) and "
-    "leave it measuring for at least 3 minutes. THEN run step 2. "
-    "Calibrating indoors will mis-calibrate the sensor."
-)
-
-
 def _zone(src):
     return config.get("zones", {}).get(src, src)
 
@@ -490,32 +484,159 @@ def h_config_set(body):
     return {"ok": True, "saved_to_sd": saved, "config": config}
 
 
-def h_calibrate(src, step):
-    target = config.get("co2_cal_target_ppm", 420)
+# reference calibration state (ASC is OFF everywhere: this is the sensor's
+# only correction, so it is a scheduled, stability-gated, two-step affair)
+_local_cal = None   # {"target","at","dur","dry","samples","started"}
+
+
+def _cal_defaults():
+    return (config.get("co2_cal_target_ppm", 420),
+            config.get("cal_window_s", 3600),
+            config.get("cal_now_window_s", 180),
+            config.get("cal_min_batt_v", 3.7))
+
+
+def h_cal_status():
+    """Pending/armed/scheduled calibrations + last results, per source."""
+    now = int(time.time())
+    out = {"pending": {}, "results": cal_results, "local": None}
+    for src, p in pending_cal.items():
+        d = dict(p)
+        if d.get("at"):
+            d["starts_in_s"] = d["at"] - now
+        out["pending"][src] = d
+    if _local_cal:
+        lc = {k: _local_cal[k] for k in ("target", "at", "dur", "dry")}
+        lc["samples"] = len(_local_cal["samples"])
+        lc["running"] = _local_cal["started"] is not None
+        if lc["running"]:
+            lc["remaining_s"] = max(0, _local_cal["started"]
+                                    + _local_cal["dur"] - now)
+        else:
+            lc["starts_in_s"] = _local_cal["at"] - now
+        out["local"] = lc
+    return out
+
+
+def h_calibrate(src, step, opts=None):
+    """Two-step CO2 reference calibration.
+
+    step 1: arm + return the setup / power / timing guidance.
+    step 2: schedule the measurement window. opts: when='4am' (default:
+      next 04:00 local, cal_window_s long) | 'now' (cal_now_window_s) |
+      epoch; duration_s override; target_ppm override; dry=true never
+      writes the FRC (rehearsal). Nodes get it in their next cfg reply and
+      wake for it; the hub's own SEN66 runs it from the main loop.
+    """
+    global _local_cal
+    opts = opts or {}
+    target, win_s, now_s, min_v = _cal_defaults()
+    try:
+        target = int(opts.get("target_ppm") or target)
+    except (TypeError, ValueError):
+        return {"err": "bad target_ppm"}
     if step == 1:
         pending_cal[src] = {"step": 1, "ts": int(time.time())}
-        return {"ok": True, "src": src, "step": 1, "msg": CAL_STEP1_MSG % target}
-    if step == 2:
-        armed = pending_cal.get(src)
-        if not armed or armed.get("step") != 1:
-            return {"err": "run step 1 first (and follow its instructions)"}
-        if src == "local":
-            if local_sensor is None:
-                return {"err": "local sensor not available"}
+        return {"ok": True, "src": src, "step": 1, "target_ppm": target,
+                "msg": calref.STEP1_GUIDANCE % {
+                    "src": src, "min_v": min_v, "target": target,
+                    "dur_min": win_s // 60, "now_min": now_s // 60}}
+    if step != 2:
+        return {"err": "step must be 1 or 2"}
+    armed = pending_cal.get(src)
+    if not armed or armed.get("step") != 1:
+        return {"err": "run step 1 first (and follow its instructions)"}
+    when = str(opts.get("when", "4am")).lower()
+    dry = bool(opts.get("dry"))
+    now = int(time.time())
+    if when == "now":
+        at, dur = 0, now_s
+    else:
+        if not TIME_SYNCED:
+            return {"err": "hub clock not synced: sync it (browser / BLE "
+                           "'time') to schedule, or use when='now'"}
+        if when in ("4am", "next", ""):
+            at = calref.next_local_time(now, config.get("timezone_offset_h", 0),
+                                        hour=config.get("cal_hour_local", 4))
+        else:
             try:
-                corr = local_sensor.force_recalibration(target)
-            except (OSError, RuntimeError) as exc:
-                return {"err": "recalibration failed: %s" % exc}
-            del pending_cal[src]
-            cal_results[src] = {"ok": True, "corr": corr, "ts": int(time.time())}
-            return {"ok": True, "src": src, "correction_ppm": corr}
-        # remote node: arm; delivered in the cfg reply at its next check-in
-        pending_cal[src] = {"armed": target, "ts": int(time.time())}
-        return {"ok": True, "src": src, "step": 2,
-                "msg": "armed - node will recalibrate at its next check-in "
-                       "(within its sleep interval); result appears in "
-                       "/api/events and cal results"}
-    return {"err": "step must be 1 or 2"}
+                at = int(when)
+            except ValueError:
+                return {"err": "when must be '4am', 'now' or an epoch"}
+            if at < now:
+                return {"err": "that time is in the past"}
+        dur = win_s
+    try:
+        dur = int(opts.get("duration_s") or dur)
+    except (TypeError, ValueError):
+        return {"err": "bad duration_s"}
+    dur = max(120, min(dur, 6 * 3600))
+    plan = {"armed": target, "at": at, "dur": dur, "dry": dry, "ts": now}
+    if src == "local":
+        if local_sensor is None:
+            return {"err": "local sensor not available"}
+        _local_cal = {"target": target, "at": at, "dur": dur, "dry": dry,
+                      "samples": [], "started": None}
+        del pending_cal[src]
+        where = "hub"
+    else:
+        pending_cal[src] = plan   # delivered in the node's next cfg reply
+        where = "node (delivered at its next check-in; it wakes for the window)"
+    _display_dirty[0] = True
+    return {"ok": True, "src": src, "step": 2, "target_ppm": target,
+            "starts_at": at or now, "starts_in_s": max(0, at - now),
+            "duration_s": dur, "dry_run": dry,
+            "msg": "%s calibration %s: %s, measurement window of %d min, "
+                   "then stability check%s. Keep the sensor in fresh air and "
+                   "powered for the whole window; result appears in events "
+                   "/ cal status." % (
+                       "DRY-RUN" if dry else "Reference",
+                       "scheduled on the " + where,
+                       ("starting now" if not at else
+                        "starting in %dh%02dm" % ((at - now) // 3600,
+                                                  ((at - now) % 3600) // 60)),
+                       dur // 60,
+                       "" if dry else " and forced recalibration to %d ppm"
+                       % target)}
+
+
+def _local_cal_tick(now, co2):
+    """Drive the hub's own reference-calibration window from the main
+    loop: collect co2 samples through the window, gate on stability,
+    then write (or dry-run) the FRC and log the result."""
+    global _local_cal
+    lc = _local_cal
+    if lc is None:
+        return
+    if lc["started"] is None:
+        if now < lc["at"]:
+            return
+        lc["started"] = now
+        lc["samples"] = []
+        print("CAL: hub reference window started (%d min%s)"
+              % (lc["dur"] // 60, ", dry run" if lc["dry"] else ""))
+    if co2 is not None:
+        lc["samples"].append((now, co2))
+    if now - lc["started"] < lc["dur"]:
+        return
+    ok, ref, spread, why = calref.evaluate(
+        lc["samples"], lc["target"], config.get("cal_max_spread_ppm", 60))
+    corr = None
+    if ok and not lc["dry"]:
+        try:
+            corr = local_sensor.force_recalibration(lc["target"])
+        except (OSError, RuntimeError) as exc:
+            ok, why = False, "FRC failed: %s" % exc
+    res = {"ok": ok, "corr": corr, "ref": ref, "spread": spread,
+           "why": why, "dry": lc["dry"], "ts": now}
+    cal_results["local"] = res
+    store.log_event({"ts": now, "src": "local", "metric": "co2",
+                     "state": ("cal_dry" if lc["dry"] else "cal_ok") if ok
+                     else "cal_fail", "prev": why or "",
+                     "value": ref, "held_s": lc["dur"]})
+    print("CAL: hub result", res)
+    _local_cal = None
+    _display_dirty[0] = True
 
 
 def h_ingest(body):
@@ -581,6 +702,7 @@ handlers = {
     "config_get": h_config_get,
     "config_set": h_config_set,
     "calibrate": h_calibrate,
+    "cal_status": h_cal_status,
     "ingest": h_ingest,
     "list_days": h_list_days,
     "history_lines": h_history_lines,
@@ -597,13 +719,18 @@ def _cfg_reply_for(src):
         src, config.get("node_default_interval_s", 120)
     )
     metrics = config.get("node_metrics", {}).get(src)
-    cal = None
+    cal = cal_at = cal_dur = None
+    cal_dry = False
     armed = pending_cal.get(src)
     if armed and "armed" in armed:
         cal = armed["armed"]
+        cal_at = armed.get("at") or None
+        cal_dur = armed.get("dur")
+        cal_dry = armed.get("dry", False)
     return envproto.make_config_packet(
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
+        cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry,
     )
 
 
@@ -636,15 +763,20 @@ def _handle_node_packet(mac, obj, rssi):
         store.record(src, sample, flags=flags, ts=at)
     elif kind == "cal":
         ok = bool(obj.get("ok"))
+        was = pending_cal.get(src) or {}
         cal_results[src] = {"ok": ok, "corr": obj.get("corr"),
-                            "ts": int(time.time())}
-        if ok and src in pending_cal:
-            del pending_cal[src]
+                            "ref": obj.get("ref"), "why": obj.get("why"),
+                            "dry": was.get("dry", False), "ts": int(time.time())}
+        if src in pending_cal:
+            del pending_cal[src]   # node has run it (or refused): disarm
         store.log_event({
             "ts": int(time.time()), "src": src, "metric": "co2",
-            "state": "cal_ok" if ok else "cal_fail", "prev": "",
-            "value": obj.get("corr"), "held_s": 0,
+            "state": ("cal_dry" if was.get("dry") else "cal_ok") if ok
+            else "cal_fail", "prev": obj.get("why") or "",
+            "value": obj.get("ref"), "held_s": 0,
         })
+        print("CAL: %s result ok=%s ref=%s corr=%s %s"
+              % (src, ok, obj.get("ref"), obj.get("corr"), obj.get("why") or ""))
 
 
 # ---------------------------------------------------------------------------
@@ -758,6 +890,10 @@ def _status_line():
     if ble.ok:
         bits.append("B:%s" % ("con" if ble.connected else "adv"))
     bits.append("E:%d" % hub.rx_count)
+    if _local_cal is not None:
+        bits.append("CAL:%s" % ("run" if _local_cal["started"] else "wait"))
+    elif any("armed" in p for p in pending_cal.values()):
+        bits.append("CAL:node")
     if not store.latest or len(store.latest) <= 1:
         bits.append(MAC)
     return " ".join(bits)
@@ -840,6 +976,8 @@ while True:
                 "sample_interval_s", 15):
             _last_sample = now_m
             m = local_sensor.read()
+            if _local_cal is not None:
+                _local_cal_tick(now_e, m.get("co2") if m else None)
             if m:
                 hb = batt_mon.status()
                 sample = dict(m)

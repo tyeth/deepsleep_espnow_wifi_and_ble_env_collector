@@ -11,7 +11,9 @@ Routes (all JSON unless noted):
   GET  /api/history         ?day=YYYY-MM-DD -> that day's CSV from SD
   GET  /api/config          effective config
   POST /api/config          JSON body merged into config, saved to /sd/config.json
-  POST /api/calibrate       {"src": "local"|node, "step": 1|2} two-step FRC
+  GET  /api/calibrate       pending/scheduled calibrations + last results
+  POST /api/calibrate       {"src","step":1|2,"when":"4am"|"now"|epoch,
+                             "duration_s","target_ppm","dry"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
 
 The command handlers themselves live in code.py (shared with BLE); this
@@ -196,15 +198,23 @@ class WebPortal:
                 return JSONResponse(request, {"err": "bad json"})
             return JSONResponse(request, h["config_set"](body))
 
+        @server.route("/api/calibrate", GET)
+        def calibrate_status(request: Request):
+            return JSONResponse(request, h["cal_status"]())
+
         @server.route("/api/calibrate", POST)
         def calibrate(request: Request):
             try:
                 body = json.loads(request.body)
             except ValueError:
                 return JSONResponse(request, {"err": "bad json"})
+            try:
+                step = int(body.get("step", 1))
+            except (TypeError, ValueError):
+                return JSONResponse(request, {"err": "bad step"})
             return JSONResponse(
                 request,
-                h["calibrate"](body.get("src", "local"), int(body.get("step", 1))),
+                h["calibrate"](body.get("src", "local"), step, body),
             )
 
         @server.route("/api/ingest", POST)

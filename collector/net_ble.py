@@ -12,7 +12,10 @@ lines out. Commands map to the same shared handlers as the HTTP API:
   events            -> active out-of-spec + recent events
   config            -> effective config
   set <json>        -> merge JSON into config
-  cal <src> <1|2>   -> two-step forced CO2 recalibration
+  cal               -> calibration status (pending / scheduled / results)
+  cal <src> 1       -> arm + setup/power/timing guidance
+  cal <src> 2 [4am|now|<epoch>] [dur_s] [dry]
+                    -> schedule the reference window (default next 04:00)
   days              -> list of stored days on SD
 
 Requires CircuitPython with _bleio (ESP32-S3/C6 -- use the latest alpha for
@@ -162,9 +165,23 @@ class BleUartPortal:
                 body = json.loads(line.strip()[4:])
                 self._send(h["config_set"](body))
             elif cmd == "cal":
-                src = parts[1] if len(parts) > 1 else "local"
-                step = int(parts[2]) if len(parts) > 2 else 1
-                self._send(h["calibrate"](src, step))
+                words = line.strip().split()
+                if len(words) == 1:
+                    self._send(h["cal_status"]())
+                else:
+                    src = words[1]
+                    step = int(words[2]) if len(words) > 2 else 1
+                    opts = {}
+                    for w in words[3:]:
+                        wl = w.lower()
+                        if wl == "dry":
+                            opts["dry"] = True
+                        elif wl in ("now", "4am", "next") or (
+                                wl.isdigit() and len(wl) >= 9):
+                            opts["when"] = wl
+                        elif wl.isdigit():
+                            opts["duration_s"] = int(wl)
+                    self._send(h["calibrate"](src, step, opts))
             elif cmd == "time" and len(parts) > 1:
                 self._send(h["time_set"](parts[1]))
             elif cmd == "mem":
@@ -175,7 +192,9 @@ class BleUartPortal:
                 self._send({"err": "unknown cmd",
                             "cmds": ["latest", "battery", "events", "config",
                                      "days", "hist <day>", "set <json>",
-                                     "cal <src> <1|2>"]})
+                                     "cal", "cal <src> 1",
+                                     "cal <src> 2 [4am|now] [dur_s] [dry]",
+                                     "time <epoch>", "mem"]})
         except Exception as exc:
             self._send({"err": str(exc)})
 

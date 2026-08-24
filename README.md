@@ -190,15 +190,38 @@ over an internet-connected link.
 ## Calibration policy
 
 Every sensor has **automatic self-calibration forced OFF** (collector at
-boot; nodes once, then re-asserted via config pushes). Forced CO2
-recalibration is a deliberate two-step user action:
+boot; nodes once, then re-asserted in every config push). That makes the
+user-run **reference calibration the sensor's only correction**, so it is
+a deliberate, scheduled, stability-gated two-step action (shared logic in
+`calref.py`, identical in `collector/` and `node/`):
 
-1. `POST /api/calibrate {"src": "kitchen", "step": 1}` (or BLE
-   `cal kitchen 1`) — arms and returns the warning: *take the sensor
-   outside / fresh air ~420ppm for 3+ minutes*.
-2. Step 2 — local sensor recalibrates immediately; a remote node receives
-   the target in its next config reply, measures outside for
-   `cal_measure_s`, recalibrates, and reports the correction back.
+1. **Step 1 — arm & guidance.** `POST /api/calibrate {"src":"kitchen",
+   "step":1}` / BLE `cal kitchen 1` / the web app's *Step 1* button. Returns
+   the setup, power and timing guide: sensor OUTSIDE (shaded, sheltered) or
+   at a wide-open window, away from people/vents/plants/traffic; **power**
+   — the sensor stays awake for the whole window, so a node needs USB or a
+   charged battery (≥ `cal_min_batt_v` 3.7 V) and the hub must stay on;
+   **timing** — urban outdoor CO2 is nearest the ~420 ppm background at
+   **04:00–05:00 local**, so step 2 defaults to the next 04:00.
+2. **Step 2 — schedule the window.** `{"src":"kitchen","step":2,
+   "when":"4am"|"now"|<epoch>,"duration_s":3600,"target_ppm":420,
+   "dry":false}` / BLE `cal kitchen 2 [4am|now|<epoch>] [dur_s] [dry]`.
+   Default = next 04:00 local for `cal_window_s` (60 min); `now` = a
+   `cal_now_window_s` (3 min) window for when you are genuinely outdoors.
+   `dry` runs the window and the stability check but never writes the
+   calibration (a rehearsal). Scheduling needs a synced hub clock.
+   * **Hub SEN66**: the main loop collects CO2 samples through the window
+     (status line shows `CAL:wait`/`CAL:run`).
+   * **Node**: the plan travels in the next cfg reply (`cal`/`cat`/`cdur`/
+     `cdry`), is held in sleep memory, the node sleeps straight to the
+     window, stays awake sampling every 10 s, refuses on a low battery.
+3. **Gate, then FRC.** `calref.evaluate()` takes the median of the last
+   15 min as the observed reference and requires spread ≤
+   `cal_max_spread_ppm` (60), reference ≤ target+250 ("not fresh air")
+   and ≥ target−200. Only then is the forced recalibration written. The
+   result (`ok`, `ref` observed ppm, `corr`, `why`) is logged to the events
+   CSV as `cal_ok` / `cal_dry` / `cal_fail`, shown in `GET /api/calibrate`
+   / BLE `cal`, and in the web app's calibration status.
 
 ## Node behaviour
 
