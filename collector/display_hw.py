@@ -100,19 +100,37 @@ def init_display(spi, profile_name="auto", overrides=None):
             rotation=prof["rotation"],
             highlight_color=0xFF0000,
         )
-    # Take the console splash off the panel immediately: the supervisor
-    # auto-refreshes e-paper displays that SHOW the splash, and that race
-    # blocks user refreshes forever. Assigning our own group is enough --
-    # no refresh is spent here; the first real refresh is the dashboard.
-    # (White rect so any refresh that does land shows white, not black --
-    # an empty group renders palette index 0 = black.)
+    # Boot screen: takes the console splash off the panel immediately (the
+    # supervisor auto-refreshes splash-showing e-paper, starving user
+    # refreshes) AND tells the user the hub is alive while sensors warm
+    # up. The refresh is non-blocking -- boot continues while the panel
+    # flashes -- and the dashboard follows once the panel's ~180s minimum
+    # interval allows.
+    import terminalio
     import vectorio
+    from adafruit_display_text import bitmap_label
     _pal = displayio.Palette(1)
     _pal[0] = 0xFFFFFF
     _g = displayio.Group()
     _g.append(vectorio.Rectangle(pixel_shader=_pal, width=display.width,
                                  height=display.height, x=0, y=0))
+    _msg = bitmap_label.Label(terminalio.FONT, text="Loading Data",
+                              color=0x000000, scale=2)
+    _msg.anchor_point = (0.5, 0.5)
+    _msg.anchored_position = (display.width // 2, display.height // 2 - 12)
+    _g.append(_msg)
+    _sub = bitmap_label.Label(terminalio.FONT,
+                              text="give it a minute...",
+                              color=0xFF0000)
+    _sub.anchor_point = (0.5, 0.5)
+    _sub.anchored_position = (display.width // 2, display.height // 2 + 14)
+    _g.append(_sub)
     display.root_group = _g
+    try:
+        display.refresh()
+        print("boot screen refresh started")
+    except RuntimeError as exc:
+        print("boot screen refresh skipped:", exc)
     print("eInk '%s' ready %dx%d (%s palette)"
           % (name, display.width, display.height, prof["palette"]))
     return display, prof["palette"]

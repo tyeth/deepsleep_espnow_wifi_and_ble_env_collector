@@ -640,9 +640,9 @@ def _update_trends(src, avgs, now):
 # on this build, so we keep our own clock.
 # ---------------------------------------------------------------------------
 _MIN_REFRESH_S = 185
-# no refresh is spent at init: the first refresh IS the dashboard, tried
-# as soon as the main loop starts (30s backoff if the panel objects)
-_last_refresh_ok = -10000.0
+# the "Loading Data" boot screen (display_hw) used the first refresh
+# slot; the dashboard lands once the panel's minimum interval has passed
+_last_refresh_ok = time.monotonic()
 _next_refresh_try = 0.0
 
 
