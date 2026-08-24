@@ -721,7 +721,28 @@ drop.ondrop=async e=>{
 $("thrbox").value=JSON.stringify(DEFAULT_THRESHOLDS,null,1);
 $("pybox").value=DEFAULT_PY;
 if(location.protocol.startsWith("http"))$("baseurl").value=location.origin;
-idb.open().then(refreshFiles);
+
+// ?demo=1 -> pull the bundled sample dataset (webapp/sample/) into
+// IndexedDB and load it, so the charts/analysis/AI have data to chew on.
+async function loadDemo(){
+ setStatus("load-status","fetching sample dataset...",true);
+ try{
+  const days=await(await fetch("sample/days.json",{cache:"no-store"})).json();
+  for(const d of days){
+   const r=await fetch("sample/"+d+".csv",{cache:"no-store"});
+   if(r.ok)await idb.put(d,await r.text());
+  }
+  await refreshFiles();
+  await loadAll();
+  findEpisodes();
+  setStatus("load-status",$("load-status").textContent+
+   " (demo dataset loaded - try the AI below)");
+ }catch(e){setStatus("load-status","demo load failed: "+e,false,true);}
+}
+idb.open().then(async()=>{
+ await refreshFiles();
+ if(new URLSearchParams(location.search).has("demo"))await loadDemo();
+});
 if(location.hostname&&location.protocol==="http:")httpConnect();
 </script>
 </body>
