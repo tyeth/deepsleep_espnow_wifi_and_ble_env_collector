@@ -59,18 +59,61 @@ class EspNowHub:
     def _peer(self, mac):
         peer = self._peers.get(mac)
         if peer is None:
-            peer = espnow.Peer(mac=mac)
-            self._e.peers.append(peer)
+            try:
+                peer = espnow.Peer(mac=mac)
+                self._e.peers.append(peer)
+            except (RuntimeError, OSError, ValueError) as exc:
+                print("ESP-NOW peer add %s failed: %s: %s"
+                      % (envproto.mac_str(mac), type(exc).__name__, exc))
+                return None
             self._peers[mac] = peer
         return peer
+
+    def _reinit(self):
+        """Tear down and rebuild the espnow object (per-error recovery:
+        the C6 send path gets stuck in ESP_ERR_ESPNOW_NO_MEM 0x3067 with
+        BLE resident; a deinit/re-setup clears the driver state). Only
+        safe when no user softAP is up (issue 6) -- BLE mode qualifies."""
+        try:
+            self._e.deinit()
+        except (RuntimeError, OSError, ValueError, AttributeError):
+            pass
+        self._peers = {}
+        try:
+            self._e = espnow.ESPNow()
+            print("ESP-NOW reinitialised after send errors")
+            return True
+        except (RuntimeError, OSError, ValueError) as exc:
+            self.last_error = str(exc)
+            print("ESP-NOW reinit failed:", exc)
+            self.enabled = False
+            return False
 
     def send(self, mac, payload) -> bool:
         """Unicast payload bytes to a node. True if the MAC-layer ACKed."""
         if not self.enabled:
             return False
-        try:
-            self._e.send(payload, self._peer(mac))
-            return True
-        except (RuntimeError, OSError, ValueError) as exc:
-            self.last_error = str(exc)
-            return False
+        # C6 + resident BLE: sends fail ESP_ERR_ESPNOW_NO_MEM (0x3067, IDF
+        # internal heap). Retry briefly, then deinit + re-setup and retry.
+        import time
+        for attempt in range(4):
+            peer = self._peer(mac)
+            if peer is None:
+                if attempt < 3 and self._reinit():
+                    continue
+                return False
+            try:
+                self._e.send(payload, peer)
+                return True
+            except (RuntimeError, OSError, ValueError) as exc:
+                self.last_error = str(exc)
+                if attempt < 2:
+                    time.sleep(0.1)
+                elif attempt == 2:
+                    if not self._reinit():
+                        return False
+                else:
+                    print("ESP-NOW send to %s failed even after reinit: "
+                          "%s: %s" % (envproto.mac_str(mac),
+                                      type(exc).__name__, exc))
+        return False

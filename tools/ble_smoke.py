@@ -28,17 +28,19 @@ NAME = "ENVHUB"
 DEFAULT_CMDS = ["mem", "latest", "battery", "config", "days", "events"]
 
 
-async def find_hub(timeout=12):
-    print("scanning for %s ..." % NAME)
-    dev = await BleakScanner.find_device_by_filter(
-        lambda d, ad: (d.name or "").startswith(NAME)
-        or UART_SVC in (ad.service_uuids or []),
-        timeout=timeout,
-    )
-    if dev is None:
-        raise SystemExit("no %s advertisement found (is BLE mode on?)" % NAME)
-    print("found %s [%s]" % (dev.name, dev.address))
-    return dev
+async def find_hub(timeout=12, tries=3):
+    for attempt in range(tries):
+        print("scanning for %s ..." % NAME)
+        dev = await BleakScanner.find_device_by_filter(
+            lambda d, ad: (d.name or "").startswith(NAME)
+            or UART_SVC in (ad.service_uuids or []),
+            timeout=timeout,
+        )
+        if dev is not None:
+            print("found %s [%s]" % (dev.name, dev.address))
+            return dev
+        await asyncio.sleep(2)
+    raise SystemExit("no %s advertisement found (is BLE mode on?)" % NAME)
 
 
 async def run(cmds):
@@ -75,24 +77,37 @@ async def run(cmds):
             if cmd == "time now":
                 cmd = "time %d" % int(time.time())
             print("\n>> %s" % cmd)
-            await client.write_gatt_char(UART_RX, (cmd + "\n").encode(),
-                                         response=False)
-            if cmd.startswith("hist "):
-                # streamed CSV between #BEGIN/#END
-                n = 0
-                while True:
-                    line = await asyncio.wait_for(lines.get(), 20)
-                    if line.startswith("#END"):
-                        print("<< %d CSV lines streamed" % n)
+            # C6 _bleio drops outgoing notifications now and then even when
+            # paced (bugs_issues_and_todos.md item 8): a lost chunk means the
+            # newline never arrives. Replies are line-framed, so just resend.
+            for attempt in range(3):
+                while not lines.empty():   # drop partial/stale reply data
+                    lines.get_nowait()
+                buf[:] = b""
+                await client.write_gatt_char(UART_RX, (cmd + "\n").encode(),
+                                             response=False)
+                try:
+                    if cmd.startswith("hist "):
+                        # streamed CSV between #BEGIN/#END
+                        n = 0
+                        while True:
+                            line = await asyncio.wait_for(lines.get(), 20)
+                            if line.startswith("#END"):
+                                print("<< %d CSV lines streamed" % n)
+                                break
+                            if not line.startswith("#BEGIN"):
+                                n += 1
                         break
-                    if not line.startswith("#BEGIN"):
-                        n += 1
-                continue
-            line = await asyncio.wait_for(lines.get(), 15)
-            try:
-                print("<<", json.dumps(json.loads(line), indent=1)[:800])
-            except ValueError:
-                print("<<", line[:200])
+                    line = await asyncio.wait_for(lines.get(), 15)
+                    try:
+                        print("<<", json.dumps(json.loads(line), indent=1)[:800])
+                    except ValueError:
+                        print("<< (unparsed)", line[:200])
+                    break
+                except asyncio.TimeoutError:
+                    print("   (no complete reply, retry %d/2)" % (attempt + 1))
+            else:
+                print("<< FAILED after 3 tries")
         await client.stop_notify(UART_TX)
     finally:
         await client.disconnect()

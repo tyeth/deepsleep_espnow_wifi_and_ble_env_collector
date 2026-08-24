@@ -128,6 +128,14 @@ if _ecfg.get("ap_enabled", True):
     except Exception as exc:
         print("early AP failed:", exc)
 
+# HTTP serving only makes sense with an AP or STA WiFi: in BLE-only mode
+# skip the whole adafruit_httpserver/socket stack -- its import + server
+# cost tens of KB that the resident BLE stack has already spoken for, and
+# at ~15KB free the C6 can't even complete an incoming GATT connection
+# (three client stacks all timed out until this was reclaimed).
+HTTP_WANTED = (_ecfg.get("ap_enabled", True)
+               or bool(os.getenv("CIRCUITPY_WIFI_SSID")
+                       or os.getenv("WIFI_SSID")))
 del _ecfg
 
 import alerts
@@ -135,10 +143,11 @@ import battery
 import datastore
 import display_hw
 import display_ui
-import net_captive
 import net_espnow
-import net_wifi
 import sensors_local
+if HTTP_WANTED:
+    import net_captive
+    import net_wifi
 # (adafruit_ble was already imported in the early block when enabled;
 # net_ble itself is wired up after the handlers exist)
 
@@ -275,7 +284,7 @@ for _root in ("/sd", "/saves", "/"):
 ip = None
 if wifi.radio.connected:
     ip = str(wifi.radio.ipv4_address)
-else:
+elif HTTP_WANTED:
     ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
     pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
     if ssid:
@@ -294,13 +303,23 @@ print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)
 hub = net_espnow.EspNowHub(existing=_espnow_obj)
 print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
-captive = net_captive.CaptivePortal(
-    ssid=AP_SSID,
-    password=AP_PASSWORD,
-    enabled=config.get("ap_enabled", True),
-    already_active=ap_started,
-)
-print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
+if HTTP_WANTED:
+    captive = net_captive.CaptivePortal(
+        ssid=AP_SSID,
+        password=AP_PASSWORD,
+        enabled=config.get("ap_enabled", True),
+        already_active=ap_started,
+    )
+    print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
+else:
+    class _NoCaptive:
+        ap_active = False
+        ap_ip = None
+
+        def poll(self):
+            pass
+    captive = _NoCaptive()
+    print("bring-up: HTTP/captive stack skipped (BLE-only mode)")
 _mem("after AP")
 
 # Radio first on purpose: starting the AP after displayio is up
@@ -631,18 +650,24 @@ def _handle_node_packet(mac, obj, rssi):
 # ---------------------------------------------------------------------------
 # Portals
 # ---------------------------------------------------------------------------
-portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
-                            if captive.ap_active else None,
-                            port=config.get("http_port", 80))
-for _attempt in (1, 2):
-    try:
-        portal.start(ap_active=captive.ap_active)
-        break
-    except (MemoryError, OSError, RuntimeError) as exc:
-        # keep booting: data collection + display matter more than HTTP
-        print("HTTP portal start failed (try %d): %s" % (_attempt, exc))
-        gc.collect()
-        time.sleep(2)
+if HTTP_WANTED:
+    portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
+                                if captive.ap_active else None,
+                                port=config.get("http_port", 80))
+    for _attempt in (1, 2):
+        try:
+            portal.start(ap_active=captive.ap_active)
+            break
+        except (MemoryError, OSError, RuntimeError) as exc:
+            # keep booting: data collection + display matter more than HTTP
+            print("HTTP portal start failed (try %d): %s" % (_attempt, exc))
+            gc.collect()
+            time.sleep(2)
+else:
+    class _NoPortal:
+        def poll(self):
+            pass
+    portal = _NoPortal()
 _mem("after http portal")
 # BLE radio/uart were created in the EARLY BLE START block (top of file);
 # here we just wire the command portal around them. Late BLE creation
@@ -650,7 +675,8 @@ _mem("after http portal")
 if config.get("ble_enabled", True) and _ble_radio is not None:
     import net_ble
     ble = net_ble.BleUartPortal(handlers, radio=_ble_radio, uart=_ble_uart,
-                                adv=_ble_adv)
+                                adv=_ble_adv,
+                                use_pktbuf=config.get("ble_tx_pktbuf", False))
 else:
     if config.get("ble_enabled", True):
         print("BLE unavailable (early init failed)")

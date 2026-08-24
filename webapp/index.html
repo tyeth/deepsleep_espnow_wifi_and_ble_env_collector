@@ -139,10 +139,12 @@ const METRICS = ["tc","rh","co2","pm1","pm25","pm4","pm10","voc","nox","vb"];
 const LABELS = {tc:"Temp C",rh:"Humidity %",co2:"CO2 ppm",pm1:"PM1",
  pm25:"PM2.5",pm4:"PM4",pm10:"PM10",voc:"VOC idx",nox:"NOx idx",vb:"Batt V"};
 let DEFAULT_THRESHOLDS = {
- co2:{warn:1000,bad:2000}, pm25:{warn:12,bad:35}, pm10:{warn:54,bad:154},
+ co2:{lo_bad:300,lo_warn:380,warn:1000,bad:2000}, // <~400 = sensor/cal fault
+ pm25:{warn:12,bad:35}, pm10:{warn:54,bad:154},
  voc:{warn:150,bad:250}, nox:{warn:50,bad:150},
  tc:{lo_bad:12,lo_warn:16,warn:27,bad:31},
- rh:{lo_bad:20,lo_warn:30,warn:60,bad:70}};
+ rh:{lo_bad:20,lo_warn:30,warn:60,bad:70},
+ vb:{lo_bad:3.3,lo_warn:3.5}};
 let rows = [];          // merged samples {ts,src,tc,...}
 let gaps = [];          // {src, from, to}
 let episodes = [];      // threshold episodes
@@ -564,9 +566,17 @@ async function sync(){
 /* ====================== built-in AI assistant ====================== */
 const SYSTEM_PROMPT=`You are the analyst for a home environmental monitoring
 hub (CO2 ppm, temperature C, relative humidity %, particulates ug/m3, VOC and
-NOx indices, node battery volts). You are given computed statistics: per-metric
+NOx, node battery volts). You are given computed statistics: per-metric
 ranges, out-of-spec episodes (warn = outside comfortable range, bad = well
-beyond acceptable), data gaps, and detected change points. Answer the user's
+beyond acceptable), data gaps, and detected change points. Out-of-spec runs
+BOTH ways: values BELOW the normal range are also warn/bad - low temperature,
+low humidity, low battery volts, and CO2 below ~400ppm (physically implausible
+indoors, so it indicates a sensor or calibration fault rather than good air).
+VOC and NOx are Sensirion INDEX values, NOT ppm/ppb concentrations: the VOC
+index settles to a baseline of 100 once the sensor is warmed up (higher =
+worse than the recent norm, lower = better), and the NOx index settles to a
+baseline of 1. NOx is rarely relevant indoors - ignore it unless the user
+asks about it specifically or it deviates wildly from 1. Answer the user's
 question plainly and briefly. Users speak casually: phrases like "totally
 fucked" or "how bad" mean "how far beyond acceptable limits and for how long".
 Give: 1) what happened with numbers (peaks, durations), 2) a severity verdict -

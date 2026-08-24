@@ -6,7 +6,7 @@
   "ap_enabled": false,
   "ap_ssid": "",
   "ap_password": "",
-  "ble_enabled": true,
+  "ble_enabled": false,
   "http_port": 80,
   "sample_interval_s": 15,
   "record_interval_s": 60,
@@ -29,6 +29,8 @@
   "node_intervals": {},
   "thresholds": {
     "co2": {
+      "lo_bad": 300,
+      "lo_warn": 380,
       "warn": 1000,
       "bad": 2000
     },

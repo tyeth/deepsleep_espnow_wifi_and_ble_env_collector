@@ -21,21 +21,50 @@ consoles (`/dev/ttyACM*`) with `mpremote` for deploys.
 Controller setup: `pip install bleak mpremote pyserial pytest`.
 Starter client: `tools/ble_smoke.py` (works on Windows too, best on Pi).
 
-## Status from the 2026-08-24 bench (Windows controller)
-* BLE **advertising verified**: `tools/ble_smoke.py` scan finds
-  `ENVHUB [40:4C:CA:59:7B:E6]` from the PC.
-* BLE **GATT connect fails from Windows/WinRT** (service-discovery
-  timeout, 3 retries) — retest first thing from the Pi (BlueZ) and/or a
-  phone (Bluefruit Connect app → UART → `latest`); if BlueZ also fails,
-  the C6 alpha's connection path is implicated, not the client.
-* ESP-NOW end-to-end still pending a node power-cycle against the
-  BLE-mode collector.
-
-## Known blockers to clear first
-* **Issue 7**: with BLE resident on the C6, eInk refreshes fail
-  (`SPI configuration failed`, internal-heap starvation). Either accept
-  display-off during BLE longruns, test BLE on the S3 instead, or tune a
-  self-built CP. BLE *advertising and the UART portal* work regardless.
+## Status from the 2026-08-24 bench (Pi controller, rpi-hil003b)
+* BLE GATT connect had failed from **three independent stacks** (WinRT,
+  Android nRF Connect, BlueZ) — root cause was **C6 memory starvation**,
+  not the BLE core: a minimal BLE-only code.py (227 KB free) connected
+  instantly. Fixed by the `HTTP_WANTED` gate (don't load the HTTP stack
+  in BLE-only mode) → ~72 KB free. See bugs item 7 (RESOLVED).
+* **BLE suite items 1+2 PASS from the Pi**: scan, connect, full command
+  matrix (`mem latest battery config days events`, `time <epoch>` incl.
+  pending-record adjust), disconnect → re-advertise cycles, all with the
+  eInk dashboard refreshing normally (issue 7 gone).
+* **New issue 8**: C6 `_bleio` silently drops outgoing notifications
+  (TX queue ~5 packets). `net_ble` paces TX (20 B / 50 ms) and
+  `ble_smoke.py` retries on incomplete lines; occasional drops persist —
+  quantify drop rate vs eInk-refresh timing in the longrun test.
+* **New issue 9**: the proper fix (`_bleio.PacketBuffer` TX — real flow
+  control, verified no drops while connected) wedges the main loop when
+  the client disconnects mid-reply (`write()` never returns). Opt-in via
+  `"ble_tx_pktbuf": true` until the core aborts writes on disconnect.
+* **Node bench mode**: `"deep_sleep": false` in node_config.json keeps
+  the node awake between reports (USB console stays alive; sleep_memory
+  still carries stash/seq across the supervisor reload each cycle).
+* **ESP-NOW suite items 1-5 PASS** (evening session, `ble_enabled=false`):
+  broadcast discovery + NVM pin (no re-hunt on later wakes), data path
+  with live alerts on the eInk, hub time push (`clock set from hub`,
+  stash timestamps retro-adjusted), config push (`interval -> 120`), and
+  stash retransmission (36 backlogged readings drained 20+16 across two
+  wakes, original timestamps kept). Node ran in the new bench mode
+  (`"deep_sleep": false`).
+* **BLE and ESP-NOW are mutually exclusive on the C6** (issue 10): BLE
+  resident → every espnow TX fails 0x3067 NO_MEM (RX still works), even
+  after deinit/re-init. The BLE-suite coexistence test (item 5) is
+  therefore an expected FAIL on C6 until the core slims down; run the
+  coexistence tests on a PSRAM board or after tuned self-builds.
+  config.json ships `ble_enabled=false` (node mesh mode); flip to true
+  for a BLE-access hub.
+* All of today's findings (0-10 + the S3 USB-wedge) need re-validation on
+  C6/S3 **devkits (dual USB)** with **debug-logging self-built CP** —
+  see the validation matrix in bugs_issues_and_todos.md.
+* Pi bench notes: BT adapter starts soft-blocked —
+  `/usr/sbin/rfkill unblock bluetooth` (no sudo needed) then
+  `bluetoothctl power on`. esptool 5.3.1 cannot watchdog-reset a C6 and
+  RTS is a no-op on USB-Serial/JTAG: reset by injecting
+  `\x03` + `import microcontroller` + `microcontroller.reset()` straight
+  into `/dev/ttyACM0` (or mpremote exec) instead.
 
 ## BLE test suite (scriptable with bleak)
 

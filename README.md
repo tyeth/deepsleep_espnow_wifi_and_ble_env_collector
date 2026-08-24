@@ -229,17 +229,23 @@ device folders — keep the copies identical.
 
 ## Bring-up state (as of 2026-08-24 evening) — read this to resume
 
-**WORKING**: the C6 collector boots and runs end-to-end: AP `BASE597BE4`
-+ captive DNS + HTTP portal (192.168.4.1, no SD card → storage on flash
-`/`), ESP-NOW, SEN66 + MAX17048, and the **dashboard rendering on the
-quad panel** (~90 KB heap steady, ~66 KB after a screen build; first
-refresh at the 60 s settle mark). The Feather S3 node (COM10/11) has the
-stash/time firmware on its CIRCUITPY drive.
+**WORKING (2026-08-24 evening, Pi HIL bench)**: full ESP-NOW pipeline
+verified end-to-end — node broadcast discovery + NVM pin, data with live
+eInk alerts, hub-time push (stash timestamps retro-adjusted), config
+push, and a 36-reading stash retransmitted after an outage. BLE UART
+portal verified end-to-end from BlueZ/bleak (full command matrix, with
+TX pacing + client retries around core notify drops). SEN66 + MAX17048 +
+quad dashboard all live (~70 KB heap steady in either mode).
 
-**Immediately blocked on**: the C6's USB wedged during the BLE
-early-after-AP experiment — **press its reset button**, then deploy
-`collector/code.py` (new BLE-then-AP early ordering) and run the verdict
-boot. Full BLE test matrix in `bugs_issues_and_todos.md`.
+**C6 mode pick (memory ceiling, see bugs 5/7/10)**: the collector runs
+EITHER as the node mesh hub (`ble_enabled=false`, default — ESP-NOW two-
+way + display) OR as a BLE-access hub (`ble_enabled=true` — espnow
+receive-only: TX dies 0x3067 NO_MEM with BLE resident). The softAP is
+parked outright (item 0). PSRAM boards should manage everything at once.
+
+Node bench mode: `"deep_sleep": false` in `node_config.json` keeps USB
+alive between reports (supervisor reload instead of deep sleep;
+sleep_memory still carries the stash/seq/channel).
 
 Hard-won ESP32-C6 (CP 10.3.0-alpha.4) findings (details + upstream-issue
 drafts in `bugs_issues_and_todos.md`):

@@ -168,6 +168,8 @@ DEFAULTS = {
     "cal_measure_s": 180,          # measurement time before forced recal
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
+    "deep_sleep": True,            # False = bench mode: stay awake between
+                                   # reports (USB/console stays alive)
     "led": False,
     "configured": False,           # portal sets this; True skips the portal
     "portal_timeout_s": 180,
@@ -266,6 +268,13 @@ def blink(ok=True):
 
 
 def go_to_sleep(seconds):
+    if not config.get("deep_sleep", True):
+        # bench mode: keep USB/console alive, then rerun the wake cycle.
+        # sleep_memory (stash/seq/channel) survives a supervisor reload.
+        print("awake wait %ds (deep_sleep disabled)" % seconds)
+        time.sleep(seconds)
+        import supervisor
+        supervisor.reload()
     print("deep sleep %ds" % seconds)
     t = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + seconds)
     alarm.exit_and_deep_sleep_until_alarms(t)
@@ -328,17 +337,28 @@ packet = envproto.make_data_packet(
 
 
 def _try_send(e, peer, payload):
-    """Send and report MAC-layer ACK using the phy counters when available."""
-    before = getattr(e, "send_success", None)
+    """Send and report MAC-layer ACK using the phy counters when available.
+
+    The ACK callback that bumps send_success/send_failure is ASYNC -- read
+    immediately after send() it hasn't fired yet and every send looks
+    failed (node then re-discovers every wake and stashes delivered
+    readings). Poll the counters briefly instead."""
+    before_ok = getattr(e, "send_success", None)
+    before_bad = getattr(e, "send_failure", None)
     try:
         e.send(payload, peer)
     except (RuntimeError, OSError, ValueError) as exc:
         print("send raised:", exc)
         return False
-    after = getattr(e, "send_success", None)
-    if before is None or after is None:
+    if before_ok is None:
         return True  # no counters on this port; assume sent
-    return after > before
+    for _ in range(20):  # up to ~0.2s for the ACK callback
+        if e.send_success > before_ok:
+            return True
+        if before_bad is not None and e.send_failure > before_bad:
+            return False
+        time.sleep(0.01)
+    return True  # counters never moved; assume sent
 
 
 def _mk_peer(e, old_peer, mac, ch):
@@ -396,7 +416,9 @@ def _discover(e):
             e.send(dsc, peer)
         except (RuntimeError, OSError, ValueError):
             continue
-        cfg, mac = _listen_cfg(e, 0.25)
+        # the collector replies from its main loop, which can be seconds
+        # away (eInk SPI refresh, BLE work) -- 0.25s missed every reply
+        cfg, mac = _listen_cfg(e, 1.5)
         if cfg and mac:
             print("discovered collector %s on ch%d"
                   % (envproto.mac_str(mac), ch))
@@ -419,7 +441,7 @@ def espnow_report():
             if ch:
                 alarm.sleep_memory[MEM_CHANNEL] = ch
                 nvm_save_collector(mac, ch)
-                cfg, _ = _listen_cfg(e, 0.5)
+                cfg, _ = _listen_cfg(e, 1.5)
                 return True, cfg
             print("known collector unreachable; rediscovering...")
             nvm_forget_collector()
@@ -433,7 +455,7 @@ def espnow_report():
         peer = espnow.Peer(mac=mac, channel=ch)
         e.peers.append(peer)
         sent = _try_send(e, peer, packet)
-        cfg2, _ = _listen_cfg(e, 0.5)
+        cfg2, _ = _listen_cfg(e, 1.5)
         return sent, cfg2 or cfg
     finally:
         e.deinit()

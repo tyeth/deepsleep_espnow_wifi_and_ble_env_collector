@@ -21,6 +21,17 @@ no-op).
 """
 
 import json
+import time
+
+# C6/CP10.3-a4 _bleio: the outgoing notification queue holds ~5 packets
+# (5 x 20B at the default ATT MTU) and UARTService.write neither blocks
+# nor raises on overflow -- excess notifications are SILENTLY DROPPED
+# (measured: every burst reply truncates at exactly 100 bytes).
+# Preferred fix: a _bleio.PacketBuffer on the TX characteristic, whose
+# write() provides real flow control. Fallback: pace one notification
+# per write with a gap so the queue drains (still loses the odd packet).
+_TX_CHUNK = 20
+_TX_DELAY = 0.05   # 20ms still lost the odd packet on long replies
 
 try:
     from adafruit_ble import BLERadio
@@ -33,7 +44,7 @@ except ImportError:
 
 class BleUartPortal:
     def __init__(self, handlers, name="ENVHUB", enabled=True,
-                 radio=None, uart=None, adv=None):
+                 radio=None, uart=None, adv=None, use_pktbuf=False):
         """radio/uart/adv: pre-built objects from the early radio block --
         on the C6, BLE must be created AND advertising before the softAP
         starts (any other ordering fails; see bugs_issues_and_todos.md).
@@ -42,6 +53,7 @@ class BleUartPortal:
         self.ok = False
         self.connected = False
         self._rxbuf = b""
+        self._pb = None
         if not enabled:
             print("BLE disabled by config")
             return
@@ -59,15 +71,64 @@ class BleUartPortal:
                 self.adv.complete_name = name
                 self.radio.start_advertising(self.adv)
             self.ok = True
-            print("BLE portal ready (advertising as %s)" % name)
+            # PacketBuffer TX gives true flow control (no dropped
+            # notifications) BUT on C6/CP10.3-a4 its write() blocks FOREVER
+            # if the client disconnects mid-reply, wedging the main loop
+            # (bugs item 9) -- so it's opt-in ("ble_tx_pktbuf": true) until
+            # the core aborts blocked writes on disconnect.
+            self._pb = self._make_packet_buffer() if use_pktbuf else None
+            print("BLE portal ready (advertising as %s, tx=%s)"
+                  % (name, "pktbuf" if self._pb else "paced"))
         except Exception as exc:
             print("BLE init failed:", type(exc).__name__, exc)
 
+    def _make_packet_buffer(self):
+        """Server-side StreamOut binds to the raw _bleio.Characteristic;
+        wrapping it in a PacketBuffer gives writes real flow control
+        (multi-packet queue) instead of the drop-on-overflow UART path."""
+        ch = None
+        try:
+            import _bleio
+            ch = getattr(self.uart, "_server_tx", None)
+            # server-side StreamOut binds as a BoundWriteStream wrapper
+            ch = getattr(ch, "bound_characteristic", ch)
+            if ch is None:
+                print("PacketBuffer TX: no _server_tx on UARTService")
+                return None
+            return _bleio.PacketBuffer(ch, buffer_size=8)
+        except Exception as exc:
+            print("PacketBuffer TX unavailable (%s: %s; ch=%s); pacing"
+                  % (type(exc).__name__, exc, type(ch).__name__))
+            return None
+
+    def _write_paced(self, data):
+        if self._pb is not None:
+            try:
+                try:
+                    size = self._pb.outgoing_packet_length
+                except (AttributeError, ValueError):
+                    size = _TX_CHUNK
+                size = max(1, min(size, 512))
+                for i in range(0, len(data), size):
+                    chunk = data[i : i + size]
+                    for _ in range(20):  # flow control: wait for queue room
+                        if not self.radio.connected:
+                            return  # client gone: abort (it will resend)
+                        if self._pb.write(chunk):
+                            break
+                        time.sleep(0.01)
+                    else:
+                        return  # client not draining: give up on this reply
+                return
+            except Exception as exc:
+                print("pktbuf write failed (%s); falling back to pacing" % exc)
+                self._pb = None
+        for i in range(0, len(data), _TX_CHUNK):
+            self.uart.write(data[i : i + _TX_CHUNK])
+            time.sleep(_TX_DELAY)
+
     def _send(self, obj):
-        data = (json.dumps(obj) + "\n").encode()
-        # UARTService.write chunks internally, but stay defensive on size
-        for i in range(0, len(data), 128):
-            self.uart.write(data[i : i + 128])
+        self._write_paced((json.dumps(obj) + "\n").encode())
 
     def _dispatch(self, line):
         h = self.handlers
@@ -93,11 +154,10 @@ class BleUartPortal:
                 if chunks is None:
                     self._send({"err": "no such day", "days": h["list_days"]()})
                 else:
-                    self.uart.write(("#BEGIN %s\n" % day).encode())
+                    self._write_paced(("#BEGIN %s\n" % day).encode())
                     for chunk in chunks:
-                        for i in range(0, len(chunk), 128):
-                            self.uart.write(chunk[i : i + 128])
-                    self.uart.write(b"#END\n")
+                        self._write_paced(chunk)
+                    self._write_paced(b"#END\n")
             elif cmd == "set" and len(parts) > 1:
                 body = json.loads(line.strip()[4:])
                 self._send(h["config_set"](body))
@@ -127,8 +187,18 @@ class BleUartPortal:
                 if self.connected:
                     self.connected = False
                     self._rxbuf = b""
-                    self.radio.start_advertising(self.adv)
+                    print("BLE client disconnected")
+                # re-advertise whenever idle: C6 _bleio drops advertising on
+                # disconnect and a one-shot restart can be missed/fail
+                if not self.radio.advertising:
+                    try:
+                        self.radio.start_advertising(self.adv)
+                        print("BLE re-advertising")
+                    except Exception as exc:
+                        print("BLE re-advertise failed:", exc)
                 return
+            if not self.connected:
+                print("BLE client connected")
             self.connected = True
             n = self.uart.in_waiting
             if n:

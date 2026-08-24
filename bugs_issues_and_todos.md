@@ -84,6 +84,10 @@ Despite fixing the ESP-NOW ordering (issue 6) and explicitly starting the
 DHCP server (`start_dhcp_ap()`), phones still associate with `BASE{mac}`
 and immediately drop. Everything server-side *looks* healthy
 (`ap_active=True`, DHCP started without error, DNS+HTTP listening).
+NOT a DHCP bug per se: the **node's** portal AP accepts phones and hands
+out leases using the very same `start_ap`+`start_dhcp_ap` calls — the
+difference is the collector has ESP-NOW (and sometimes BLE) resident, so
+this is radio coexistence breaking the host AP, not the DHCP server.
 **Decision: park it.** Resume plan: two dev boards with no sensors and a
 self-compiled CircuitPython (debug logging in the espressif port's softAP
 / DHCP glue) another day. Until then the collector runs
@@ -103,14 +107,52 @@ set in settings.toml).
   block and keep the object alive forever (`net_espnow.EspNowHub`
   accepts the pre-built object); main loop logs if the AP still drops.
 
-### 7. C6: BLE resident → eInk refresh fails "SPI configuration failed"
-In BLE-mode (`ap_enabled=false, ble_enabled=true`) the collector boots,
-advertises, and runs, but dashboard refreshes fail with
-`SPI configuration failed` at ~10 KB gc free — the BLE stack's internal-
-heap footprint leaves too little for the SPI transaction reconfig. Same
-family as the softAP socket starvation (issue 5/BLE matrix). Candidate
-mitigations for the dev-board session: self-built CP with reduced BLE
-buffers / `CIRCUITPY_BLE_*` tuning, or accepting display-off in BLE mode.
+### 7. **RESOLVED 2026-08-24 (Pi bench)**: C6 BLE-mode starvation — eInk
+### "SPI configuration failed" AND GATT connects timing out
+Both had one root cause: in BLE mode the collector still imported and
+started the whole HTTP stack (`net_wifi`/`adafruit_httpserver` + captive
+DNS) that could serve nothing (no AP, no STA creds), leaving ~15 KB gc
+free with BLE resident. At that level (a) eInk refreshes fail
+`SPI configuration failed`, and (b) **incoming GATT connections never
+complete** — WinRT, Android nRF Connect, and BlueZ/bleak all timed out
+identically; a minimal BLE-only code.py (fresh VM, 227 KB free) accepted
+BlueZ connections instantly, proving the C6 BLE core is fine.
+**Fix**: `HTTP_WANTED` gate in `collector/code.py` — the HTTP/captive
+stack is only imported/started when the AP is enabled or STA creds
+exist. BLE mode now runs at ~71-73 KB free, the eInk dashboard refreshes
+fine, and the full BLE command matrix works from BlueZ on the Pi.
+Take-away for upstream: a failed GATT connect for lack of memory is
+totally silent on the device side — no exception, no console output.
+
+### 8. C6: `_bleio` silently DROPS outgoing notifications (TX queue ~5 deep)
+* **Symptom**: any UART reply longer than ~100 bytes truncates: exactly
+  100 bytes (5 x 20-byte notifications at the default ATT 23 MTU) arrive
+  at the client, the rest vanish. `UARTService.write` neither blocks nor
+  raises — the data is simply gone. Measured with a raw byte-counting
+  bleak client on the Pi (BlueZ).
+* **Partial workaround**: pace TX at one 20-byte notification per write
+  with a 50 ms gap (`net_ble._write_paced`). Long replies then complete
+  *most* of the time, but the occasional notification still disappears
+  even fully paced — suspicion: drops coincide with the ~20 s eInk SPI
+  refresh window and/or ESP-NOW activity.
+* **Client-side mitigation**: replies are newline-framed, so
+  `tools/ble_smoke.py` resends a command (up to 3x) when no complete
+  line arrives; `hist` framing (#BEGIN/#END) makes streamed days
+  verifiable the same way.
+* Upstream-worthy: TX overflow should block or raise, not drop.
+
+### 9. C6: `_bleio.PacketBuffer.write` blocks FOREVER after client disconnect
+* Tried the proper fix for issue 8: wrap the UART TX characteristic
+  (`uart._server_tx.bound_characteristic`) in a
+  `_bleio.PacketBuffer(ch, buffer_size=8)` and send via its `write()` —
+  flow control works (no more drops) **but when the client disconnects
+  mid-reply the pending `write()` never returns**, freezing the whole
+  main loop (found wedged at `net_ble._write_paced` minutes later; only
+  Ctrl-C recovered it). Supervision timeout has long expired by then —
+  the port should abort blocked writes on disconnect.
+* So PacketBuffer TX is opt-in (`"ble_tx_pktbuf": true` in config.json,
+  default off) with a connected-check + bounded retry guard; the default
+  path remains paced `UARTService.write` + client-side line retries.
 
 ## Library bugs
 * `adafruit_jd79667` ships **debug prints**: the start-sequence hex dump
@@ -121,6 +163,66 @@ buffers / `CIRCUITPY_BLE_*` tuning, or accepting display-off in BLE mode.
 * `mpremote fs cp` to a **new** file on CP 10.3-alpha fails with a
   device-side `ENOENT` (overwrites of existing files work) — CP or
   mpremote raw-REPL helper incompatibility.
+
+### 10. C6: resident BLE starves ESP-NOW **TX** (ESP_ERR_ESPNOW_NO_MEM 0x3067)
+* In BLE mode the collector RECEIVES espnow fine (node `dsc` broadcasts
+  logged every cycle) but **every send fails `IDFError: ESP-NOW error
+  0x3067`** (= ESP_ERR_ESPNOW_NO_MEM, IDF internal heap). Retries don't
+  help; **`deinit()` + fresh `espnow.ESPNow()` doesn't help either**
+  (reinit succeeds, next send still 0x3067). Nodes therefore never get
+  cfg replies → discovery can't complete → no data flows.
+* Control: identical build with `ble_enabled=false` — discovery, data,
+  time push, config push, and 36-reading stash retransmit all pass
+  immediately.
+* **Consequence: on the C6 the collector is EITHER a BLE hub OR an
+  ESP-NOW hub, not both** (mirrors the BLE-vs-HTTP-sockets finding,
+  issue 5). config.json ships `ble_enabled=false` so the node mesh works;
+  flip it for a BLE-access hub. PSRAM boards should manage both.
+* `net_espnow.EspNowHub.send` now retries then deinit/re-inits and logs
+  loudly instead of failing silently.
+
+### Fixed along the way (our bugs, 2026-08-24 evening)
+* `node/envproto.py` was a stale copy (no `at`/`t` fields) → node crashed
+  `TypeError: unexpected keyword argument 'at'` before ever transmitting.
+  Also: that crash happened OUTSIDE the guarded transport path, so the
+  node hit "Code done running" instead of sleeping — consider wrapping
+  packet build too.
+* Node `_try_send` read `send_success` immediately after `send()` — the
+  ACK callback is async, so every send looked failed: the node
+  re-discovered every wake and stashed readings it had actually
+  delivered. Now polls the counters for up to 0.2 s.
+* Node `_listen_cfg` windows were 0.25-0.5 s; the collector replies from
+  its main loop which can be seconds away (eInk SPI refresh) → raised to
+  1.5 s.
+* Node config had `configured: false` → every power-on sat 180 s in the
+  setup portal before reporting (looked like dead ESP-NOW).
+
+## Devkit validation matrix (C6 + S3 devkits, dual USB, debug CP builds)
+
+Every finding above rests on black-box observation of release builds on
+Feathers. Before filing upstream, validate each on **devkits with both
+USB ports** (native + UART bridge: console stays up through resets and
+radio crashes) running **self-compiled CircuitPython with debug logging**
+(WSL tree `~/dev-projects/python/circuitpython/circuitpython`, main;
+`cd ports/espressif && . ./esp-idf/export.sh && make
+BOARD=adafruit_feather_esp32c6_4mbflash_nopsram V=1`; enable IDF
+logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
+
+| # | Claim to validate | Debug evidence wanted |
+|---|---|---|
+| 0 | softAP associates then drops clients | wpa/hostapd + DHCP server logs during a phone associate |
+| 1 | `start_ap` after heavy imports hard-faults (alloc fail → fault, not MemoryError) | backtrace at fault; heap_caps trace of the failing alloc |
+| 2 | wifi/socket bring-up corrupts the shared SPI lock flag | watchpoint on the lock word; find the writer |
+| 3 | failed `sdcardio.SDCard()` leaves SPI locked | confirm on both chips; simple fix PR |
+| 4 | splash auto-refresh starves user refreshes | supervisor refresh scheduling trace |
+| 5 | BLE+AP orderings matrix (only BLE-then-AP coexists) | nimble + wifi init logs per ordering; internal-heap watermarks |
+| 6 | `espnow.ESPNow()` kills an active softAP | wifi event log at espnow init (channel/iface change?) |
+| 7 | GATT connect fails silently under low memory | nimble log at connect when gc/IDF heap is starved |
+| 8 | `_bleio` TX notify queue ~5 deep, overflow drops silently | nimble notify path; confirm queue depth + drop site |
+| 9 | `PacketBuffer.write` never returns after client disconnect | nimble conn-state at the blocked write; should abort on disconnect event |
+| — | DHCP itself is fine for user APs (the node's portal AP serves phone leases with the same `start_ap`+`start_dhcp_ap` calls); the **collector's** AP fails because BLE and/or ESP-NOW are resident alongside it — a radio-coexistence conflict, not missing DHCP | wifi/dhcp logs on the host AP with espnow/BLE up vs. without |
+| 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
+| — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
