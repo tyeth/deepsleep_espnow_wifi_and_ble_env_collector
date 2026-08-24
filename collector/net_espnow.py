@@ -19,14 +19,17 @@ import envproto
 
 
 class EspNowHub:
-    def __init__(self):
+    def __init__(self, existing=None):
+        """existing: an ESPNow object created in the early radio block --
+        on the C6, creating ESP-NOW while a user softAP is active kills
+        the AP (and can wedge USB), so it must come up before the AP."""
         self.enabled = False
         self.rx_count = 0
         self.last_error = None
         self._e = None
         self._peers = {}  # mac bytes -> espnow.Peer
         try:
-            self._e = espnow.ESPNow()
+            self._e = existing if existing is not None else espnow.ESPNow()
             self.enabled = True
         except (RuntimeError, ValueError, OSError) as exc:
             self.last_error = str(exc)

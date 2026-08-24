@@ -96,6 +96,19 @@ if _ecfg.get("ble_enabled", True):
             if "ble" in _mod:
                 del _sys.modules[_mod]
         gc.collect()
+# ESP-NOW before the AP: initialising ESP-NOW while a user softAP is
+# active silently kills the AP (phones can then never associate) and can
+# wedge USB outright. The object lives forever and is handed to
+# net_espnow.EspNowHub later.
+_espnow_obj = None
+try:
+    import espnow as _espnow_mod
+    wifi.radio.enabled = True
+    _espnow_obj = _espnow_mod.ESPNow()
+    print("early ESP-NOW up")
+except Exception as exc:
+    print("early ESP-NOW failed:", type(exc).__name__, exc)
+
 ap_started = False
 if _ecfg.get("ap_enabled", True):
     try:
@@ -270,11 +283,10 @@ print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
 TIME_SYNCED = time.localtime()[0] >= 2025
 print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)")
 
-# The AP itself was started at the very top of the file (see EARLY AP
-# START); here we add ESP-NOW plus the captive-portal DNS around it.
-print("bring-up: ESP-NOW...")
-hub = net_espnow.EspNowHub()
-print("bring-up: ESP-NOW done (enabled=%s)" % hub.enabled)
+# Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
+# the only ordering that coexists on the C6); wire the wrappers here.
+hub = net_espnow.EspNowHub(existing=_espnow_obj)
+print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
 captive = net_captive.CaptivePortal(
     ssid=AP_SSID,
@@ -845,10 +857,14 @@ while True:
 
         # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
         # HTTP bursts can't fragment the heap out from under the next
-        # screen build or DHCP lease
+        # screen build or DHCP lease. Also watch the AP: on the C6 other
+        # radio activity has been seen to silently kill it.
         if now_m - _last_gc >= 10:
             _last_gc = now_m
             gc.collect()
+            if captive.ap_active and not wifi.radio.ap_active:
+                print("WARNING: softAP dropped (radio interference bug)")
+                captive.ap_active = False
 
         _err_streak = 0
     except MemoryError:

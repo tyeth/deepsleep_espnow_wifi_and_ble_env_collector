@@ -79,6 +79,18 @@ deployment: `ble_enabled=false` (default; AP + captive portal + dashboard
 all work, ~90 KB free) or `ap_enabled=false` for a BLE-centric hub.
 Boards with PSRAM (Feather S3 w/ PSRAM) should manage all of it.
 
+### 6. C6: `espnow.ESPNow()` kills an active user softAP (and can wedge USB)
+* **Symptom**: boot order "start_ap → espnow.ESPNow()" completes without
+  error, but `wifi.radio.ap_active` is later False — the AP beacon is
+  gone and phones can never associate (looks like DHCP failure). Running
+  the same two calls interactively wedged USB-Serial/JTAG entirely
+  (serial write timeout, physical reset required).
+* **Contrast**: the S3 node's portal AP (no ESP-NOW running) accepts
+  phone connections fine.
+* **Workaround**: initialise ESP-NOW BEFORE `start_ap` in the early radio
+  block and keep the object alive forever (`net_espnow.EspNowHub`
+  accepts the pre-built object); main loop logs if the AP still drops.
+
 ## Library bugs
 * `adafruit_jd79667` ships **debug prints**: the start-sequence hex dump
   and a stray `AttributeError:` line on every init.
