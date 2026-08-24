@@ -1,0 +1,1 @@
+Adafruit CircuitPython 10.3.0-alpha.4 on 2026-07-23; Adafruit Feather ESP32-S3 No PSRAM with ESP32S3

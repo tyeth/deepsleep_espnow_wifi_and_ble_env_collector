@@ -244,12 +244,11 @@ class Sen5x(_Base):
     def __init__(self, i2c):
         self._dev = None
         try:
-            from circuitpython_sensirion_i2c_driver import (
-                I2cConnection,
-                I2cTransceiver,
+            from sensirion_i2c_driver import I2cConnection, I2cTransceiver
+            from sensirion_i2c_sen5x import Sen5xI2cDevice
+            self._dev = Sen5xI2cDevice(
+                I2cConnection(I2cTransceiver(i2c, 0x69))
             )
-            from circuitpython_sensirion_i2c_sen5x import Sen5xI2cDevice
-            self._dev = Sen5xI2cDevice(I2cConnection(I2cTransceiver(i2c)))
         except (ImportError, OSError, RuntimeError) as exc:
             print("sensirion sen5x lib unavailable (%s); using minimal driver"
                   % exc)
@@ -257,7 +256,9 @@ class Sen5x(_Base):
 
     @staticmethod
     def _phys(v):
-        return getattr(v, "physical", None)
+        # response types carry .physical (float, NaN when unavailable)
+        val = getattr(v, "physical", None)
+        return None if val is None or val != val else val
 
     def begin(self):
         if self._dev:

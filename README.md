@@ -46,15 +46,25 @@ refreshes). SEN66 on I2C/STEMMA QT.
 
 ## Install
 
-```sh
-# collector
-cd collector && circup install -r requirements-circup.txt
-# copy *.py, config.json to CIRCUITPY; copy settings.toml.example -> settings.toml and edit
+Libraries are staged **into the repo** with circup's `--path` mode (no
+CIRCUITPY drive needed — essential for the C6, which has no USB MSC). The
+committed `boot_out.txt` in each device folder tells circup which
+CircuitPython version to target (keep it in sync with the flashed CP):
 
-# node
-cd node && circup install -r requirements-circup.txt
-# copy *.py, node_config.json to CIRCUITPY; set "name" and "collector_mac"
+```sh
+# collector -> collector/lib/
+circup --path collector install -r collector/requirements-circup.txt
+
+# node -> node/lib/  (incl. SEN5x driver from the custom bundle)
+circup bundle-add good-enough-technology/circuitpython_goodenough_bundle
+circup --path node install -r node/requirements-circup.txt
+circup --path node install sensirion_i2c_sen5x
 ```
+
+Then deploy the folder's `*.py`, `config.json`/`node_config.json`,
+`settings.toml` (from the example), and `lib/` to the board — via the
+CIRCUITPY drive where one exists, or `tools/serial_deploy.py` / the web
+workflow on the C6. `lib/` is git-ignored; re-run circup after cloning.
 
 The collector prints its MAC on the console at boot (and on the eInk footer
 until a node is heard) — put it in each node's `node_config.json`.
