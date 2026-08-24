@@ -81,7 +81,7 @@ ordering now in `collector/code.py`. If that also fails, the fallback is
 * `adafruit_jd79667` ships **debug prints**: the start-sequence hex dump
   and a stray `AttributeError:` line on every init.
 * `adafruit_jd79667` passes no `refresh_time`/`seconds_per_frame`; the
-  quad panel needs ~180 s between refreshes and `time_to_refresh` doesn't
+  quad panel takes ~20 s per refresh; the inherited defaults (refresh_time=40, seconds_per_frame=180) are wrong for it, and `time_to_refresh` did not
   reflect the enforced minimum in all states.
 * `mpremote fs cp` to a **new** file on CP 10.3-alpha fails with a
   device-side `ENOENT` (overwrites of existing files work) — CP or

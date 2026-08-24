@@ -639,7 +639,10 @@ def _update_trends(src, avgs, now):
 # "Refresh too soon" -- and time_to_refresh does NOT reliably report it
 # on this build, so we keep our own clock.
 # ---------------------------------------------------------------------------
-_MIN_REFRESH_S = 185
+# panel minimum between refreshes: the quad takes ~20s per refresh and
+# display_hw sets seconds_per_frame to match (the core default of 180s
+# was just EPaperDisplay's conservatism); small margin on top here
+_MIN_REFRESH_S = config.get("display_min_refresh_s", 25)
 # the "Loading Data" boot screen (display_hw) used the first refresh
 # slot; the dashboard lands once the panel's minimum interval has passed
 _last_refresh_ok = time.monotonic()
@@ -777,7 +780,7 @@ while True:
         _since_ok = now_m - _last_refresh_ok
         _settled = now_m >= config.get("boot_display_delay_s", 60)
         if (store.latest and _settled
-                and (_since_ok >= max(config.get("display_interval_s", 185),
+                and (_since_ok >= max(config.get("display_interval_s", 120),
                                       _MIN_REFRESH_S)
                      or (_display_dirty[0] and _since_ok >= _MIN_REFRESH_S))
                 and now_m >= _next_refresh_try):

@@ -46,8 +46,10 @@ eInk Feather Friend #4446 on the shared SPI bus (`board.SPI()`):
 3.52" quad-color eInk via FPC: **constructor MUST be 384x184** (the
 driver's resolution whitelist) — the panel shows 384x180 of that buffer
 (the layout clamps the 184-axis). Driver: `adafruit_jd79667.JD79667`,
-`rotation=270`, `busy_pin=None` (timed refreshes, ~180 s minimum between
-them). SEN66 on I2C/STEMMA QT.
+`rotation=270`, `busy_pin=None` (timed refreshes). The profile passes
+`refresh_time=20, seconds_per_frame=20` — a real quad refresh takes
+~20 s, and EPaperDisplay's defaults (40/180 s) are needlessly
+conservative for this panel. SEN66 on I2C/STEMMA QT.
 
 ## Install
 
@@ -152,11 +154,12 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   (⇒ unplugged) or any node below `node_batt_warn_v`.
 * **Refresh policy**: power-on paints a quick **"Loading Data — give it a
   minute…"** boot screen (non-blocking; boot continues while the panel
-  flashes) so the user knows the hub is alive. The dashboard follows once
-  the panel's ~180 s hardware minimum, the `boot_display_delay_s` settle
-  window, and first data allow — then follows `display_interval_s`
-  (185 s). Alerts pull the next refresh forward to the minimum; failures
-  back off 30 s. Never re-init the display or soft-reload while a ~20 s
+  flashes) so the user knows the hub is alive. The dashboard follows
+  after the `boot_display_delay_s` (60 s) settle window with first data,
+  then every `display_interval_s` (120 s). The panel minimum between
+  refreshes is `display_min_refresh_s` (25 s — a quad refresh takes
+  ~20 s); alerts pull the next refresh forward to that minimum; failures
+  back off 30 s. Never re-init the display or soft-reload while a
   refresh is in flight (wedges the panel).
 
 ## Access

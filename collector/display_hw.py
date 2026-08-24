@@ -36,6 +36,11 @@ PROFILES = {
         "palette": "quad",
         "cs": "D9",
         "dc": "D10",
+        # the EPaperDisplay defaults (refresh_time=40, seconds_per_frame=
+        # 180) are unfair to this panel: a full quad refresh takes ~20s.
+        # With no busy pin these ARE the timing model, so set them true.
+        "refresh_time": 20,
+        "seconds_per_frame": 20,
     },
     "tri_2in9": {
         "driver": "il0373",
@@ -89,6 +94,8 @@ def init_display(spi, profile_name="auto", overrides=None):
             colstart=0,
             highlight_color=0xFFFF00,
             highlight_color2=0xFF0000,
+            refresh_time=prof.get("refresh_time", 20),
+            seconds_per_frame=prof.get("seconds_per_frame", 20),
         )
     else:
         import adafruit_il0373
