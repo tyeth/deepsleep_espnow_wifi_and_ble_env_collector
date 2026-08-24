@@ -117,6 +117,12 @@ if _ecfg.get("ap_enabled", True):
             wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
         else:
             wifi.radio.start_ap(ssid=AP_SSID)
+        # CP 10.3-a4 does NOT auto-start the softAP DHCP server: without
+        # this, phones associate and immediately drop (no lease)
+        try:
+            wifi.radio.start_dhcp_ap()
+        except (AttributeError, RuntimeError) as exc:
+            print("start_dhcp_ap:", exc)
         ap_started = True
         print("early AP up: %s @ %s" % (AP_SSID, wifi.radio.ipv4_address_ap))
     except Exception as exc:

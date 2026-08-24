@@ -100,6 +100,12 @@ def run(config, ssid, save_path="/node_config.json", timeout_s=180):
         return
     try:
         wifi.radio.start_ap(ssid=ssid)  # open network
+        try:
+            # softAP DHCP is NOT auto-started on CP 10.3-a4: without it
+            # phones associate then immediately drop (no lease)
+            wifi.radio.start_dhcp_ap()
+        except (AttributeError, RuntimeError):
+            pass
     except (RuntimeError, ValueError, OSError, NotImplementedError) as exc:
         print("portal: AP failed:", exc)
         return

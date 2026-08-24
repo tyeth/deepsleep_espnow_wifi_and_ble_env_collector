@@ -1,0 +1,19 @@
+# Install into venv with `pip install -r requirements-pip.txt` after `python -m venv venv` and `source venv/bin/activate` and `pip install circuitpython-stubs`
+# (only the driver matching the node's sensor is actually required)
+# Don't forget to set a board with `circuitpython_setboard --list` to show available boards and circuitpython_setboard <board> to set the board.
+adafruit_circuitpython_scd4x
+adafruit_circuitpython_scd30
+adafruit_circuitpython_sen6x
+adafruit_circuitpython_max1704x
+adafruit_circuitpython_lc709203f
+adafruit_circuitpython_neopixel
+# only if wifi_fallback is enabled:
+adafruit_circuitpython_requests
+adafruit_circuitpython_connectionmanager
+
+# SEN5x nodes: the Sensirion SEN5x driver lives in a custom circup bundle
+# (see https://adafruit-playground.com/u/tyeth/pages/creating-a-circuitpython-library-bundle-for-circup):
+#   circup bundle-add good-enough-technology/circuitpython_goodenough_bundle
+#   circup install sensirion_i2c_sen5x
+# (node_sensors.py falls back to a minimal built-in SEN5x driver without it)
+adafruit_circuitpython_httpserver

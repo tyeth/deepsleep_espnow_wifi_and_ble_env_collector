@@ -48,6 +48,11 @@ class CaptivePortal:
                     if password:
                         print("AP password <8 chars; starting OPEN network")
                     wifi.radio.start_ap(ssid=ssid)
+                try:
+                    # softAP DHCP is NOT auto-started on CP 10.3-a4
+                    wifi.radio.start_dhcp_ap()
+                except (AttributeError, RuntimeError):
+                    pass
                 self.ap_active = True
                 print("AP up: %s @ %s" % (ssid, wifi.radio.ipv4_address_ap))
             except (RuntimeError, ValueError, OSError,

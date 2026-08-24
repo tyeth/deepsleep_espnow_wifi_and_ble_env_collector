@@ -1,0 +1,11 @@
+# Install into venv with `pip install -r requirements-pip.txt` after `python -m venv venv` and `source venv/bin/activate` and `pip install circuitpython-stubs`
+# Don't forget to set a board with `circuitpython_setboard --list` to show available boards and circuitpython_setboard <board> to set the board.
+adafruit_circuitpython_jd79667
+adafruit_circuitpython_il0373
+adafruit_circuitpython_display_text
+adafruit_circuitpython_sen6x
+adafruit_circuitpython_httpserver
+adafruit_circuitpython_ntp
+adafruit_circuitpython_ble
+adafruit_circuitpython_max1704x
+adafruit_circuitpython_lc709203f
