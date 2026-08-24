@@ -15,3 +15,4 @@ adafruit_connection_manager
 #   circup bundle-add good-enough-technology/circuitpython_goodenough_bundle
 #   circup install sensirion_i2c_sen5x
 # (node_sensors.py falls back to a minimal built-in SEN5x driver without it)
+adafruit_httpserver

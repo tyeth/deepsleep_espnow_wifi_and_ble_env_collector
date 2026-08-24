@@ -6,8 +6,10 @@ display_hw - eInk hardware profiles.
 Two supported rigs (config "display_profile": "auto" picks by board id):
 
   quad_3in52  Feather (S3/C6/S2) + eInk Feather Friend #4446 + 3.52"
-              quad-color (black/white/yellow/red). Constructor takes
-              384x180 (driver/displayio quirk; panel is 380x180).
+              quad-color (black/white/yellow/red). Constructor MUST be
+              384x184 -- the driver's _SUPPORTED_RESOLUTIONS whitelist
+              rejects anything else ("Unsupported resolution"); the panel
+              shows ~380x180 of that buffer (the driver/displayio quirk).
               CS=D9 DC=D10, no reset/busy. Driver: adafruit_jd79667.
 
   tri_2in9    QT Py S3 + EYESPI/eInk BFF + 2.9" tri-color (PID 1028,
@@ -28,7 +30,7 @@ PROFILES = {
     "quad_3in52": {
         "driver": "jd79667",
         "width": 384,
-        "height": 180,
+        "height": 184,
         "rotation": 270,
         "palette": "quad",
         "cs": "D9",

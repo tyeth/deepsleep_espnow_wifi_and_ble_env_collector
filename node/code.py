@@ -23,7 +23,10 @@ import time
 
 import alarm
 import board
+import digitalio
 import espnow
+import microcontroller
+import wifi
 
 import envproto
 import node_sensors
@@ -62,8 +65,8 @@ print("wake:", alarm.wake_alarm, "boot#", alarm.sleep_memory[MEM_BOOTS])
 # Config
 # --------------------------------------------------------------------------
 DEFAULTS = {
-    "name": "node1",
-    "collector_mac": "",          # REQUIRED: "aa:bb:cc:dd:ee:ff"
+    "name": "",                    # "" = auto "sensor-{mac-hex}"
+    "collector_mac": "",          # optional pin; blank = ESP-NOW discovery
     "interval_s": 120,
     "metrics": None,               # None = send everything the sensor has
     "pm_warmup_s": 20,             # extra fan spin-up for SEN5x/SEN6x PM
@@ -71,14 +74,80 @@ DEFAULTS = {
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "led": False,
+    "configured": False,           # portal sets this; True skips the portal
+    "portal_timeout_s": 180,
 }
 
 config = dict(DEFAULTS)
-try:
-    with open("/node_config.json") as f:
-        config.update(json.load(f))
-except (OSError, ValueError) as exc:
-    print("node_config.json missing/bad, using defaults:", exc)
+# /saves (CPSAVES) takes priority: it's where the portal saves when USB MSC
+# holds CIRCUITPY read-only on S2/S3 boards.
+for _path in ("/node_config.json", "/saves/node_config.json"):
+    try:
+        with open(_path) as f:
+            config.update(json.load(f))
+    except (OSError, ValueError):
+        pass
+if not config.get("configured"):
+    print("node unconfigured (no config file found or portal never run)")
+
+SHORT_MAC = envproto.short_mac(wifi.radio.mac_address)
+if not config.get("name"):
+    config["name"] = "sensor-" + SHORT_MAC
+print("node:", config["name"])
+
+# ---------------------------------------------------------------------------
+# First-boot / on-demand config portal (AP "SENSOR{mac-hex}"): power-on
+# reset with the node unconfigured, or with the BOOT button held.
+# ---------------------------------------------------------------------------
+
+def _boot_button_held():
+    for pin_name in ("BUTTON", "BOOT", "BOOT0", "D0"):
+        pin = getattr(board, pin_name, None)
+        if pin is None:
+            continue
+        try:
+            btn = digitalio.DigitalInOut(pin)
+            btn.switch_to_input(pull=digitalio.Pull.UP)
+            held = not btn.value
+            btn.deinit()
+            return held
+        except (ValueError, RuntimeError):
+            continue
+    return False
+
+
+if alarm.wake_alarm is None and (
+        _boot_button_held() or not config.get("configured")):
+    import node_portal
+    node_portal.run(config, ssid="SENSOR" + SHORT_MAC,
+                    timeout_s=config.get("portal_timeout_s", 180))
+    # (reboots on save; falls through here on timeout)
+
+# ---------------------------------------------------------------------------
+# Collector identity: config pin > NVM (survives power loss) > discovery.
+# NVM layout: [0]=0xE6 magic, [1:7]=collector MAC, [7]=channel.
+# ---------------------------------------------------------------------------
+NVM = microcontroller.nvm
+
+
+def nvm_collector():
+    if NVM is None or NVM[0] != 0xE6:
+        return None, 0
+    return bytes(NVM[1:7]), NVM[7]
+
+
+def nvm_save_collector(mac, channel):
+    if NVM is None:
+        return
+    if bytes(NVM[1:7]) != mac or NVM[7] != channel or NVM[0] != 0xE6:
+        NVM[0:8] = bytes([0xE6]) + mac + bytes([channel & 0xFF])
+        print("collector pinned: %s ch%d" % (envproto.mac_str(mac), channel))
+
+
+def nvm_forget_collector():
+    if NVM is not None:
+        NVM[0] = 0
+
 
 COLLECTOR_MAC = bytes(
     int(x, 16) for x in config["collector_mac"].split(":")
@@ -176,50 +245,100 @@ def _try_send(e, peer, payload):
     return after > before
 
 
+def _mk_peer(e, old_peer, mac, ch):
+    """Create or retune a peer to a channel (ports differ on mutability)."""
+    if old_peer is None:
+        peer = espnow.Peer(mac=mac, channel=ch)
+        e.peers.append(peer)
+        return peer
+    try:
+        old_peer.channel = ch
+        return old_peer
+    except (AttributeError, ValueError):
+        e.peers.remove(old_peer)
+        peer = espnow.Peer(mac=mac, channel=ch)
+        e.peers.append(peer)
+        return peer
+
+
+def _listen_cfg(e, timeout):
+    """Wait for a 'cfg' packet; returns (cfg_dict, sender_mac) or (None, None)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if len(e):
+            pkt = e.read()
+            obj = envproto.decode(pkt.msg) if pkt else None
+            if obj and obj.get("k") == "cfg":
+                return obj, bytes(pkt.mac)
+        time.sleep(0.02)
+    return None, None
+
+
+def _channels(prefer):
+    return ([prefer] if prefer else []) + [
+        c for c in range(1, 14) if c != prefer]
+
+
+def _unicast_hunt(e, mac, payload, prefer_ch):
+    """Send unicast, hunting channels until the MAC ACKs. Returns channel or 0."""
+    peer = None
+    for ch in _channels(prefer_ch):
+        peer = _mk_peer(e, peer, mac, ch)
+        if _try_send(e, peer, payload):
+            return ch
+    return 0
+
+
+def _discover(e):
+    """Broadcast 'dsc' across channels; the collector's unicast 'cfg' reply
+    reveals its MAC + channel. Returns (mac, channel, cfg) or (None, 0, None)."""
+    dsc = envproto.make_discovery_packet(config["name"], None)
+    peer = None
+    for ch in _channels(alarm.sleep_memory[MEM_CHANNEL]):
+        peer = _mk_peer(e, peer, envproto.BROADCAST_MAC, ch)
+        try:
+            e.send(dsc, peer)
+        except (RuntimeError, OSError, ValueError):
+            continue
+        cfg, mac = _listen_cfg(e, 0.25)
+        if cfg and mac:
+            print("discovered collector %s on ch%d"
+                  % (envproto.mac_str(mac), ch))
+            return mac, ch, cfg
+    return None, 0, None
+
+
 def espnow_report():
-    """Returns (sent_ok, cfg_dict_or_None)."""
-    if COLLECTOR_MAC is None:
-        print("no collector_mac configured!")
-        return False, None
+    """Fully self-configuring report. Returns (sent_ok, cfg_dict_or_None)."""
     e = espnow.ESPNow()
     try:
-        saved = alarm.sleep_memory[MEM_CHANNEL]
-        channels = ([saved] if saved else []) + [
-            c for c in range(1, 14) if c != saved
-        ]
-        peer = None
-        sent = False
-        for ch in channels:
-            if peer is None:
-                peer = espnow.Peer(mac=COLLECTOR_MAC, channel=ch)
-                e.peers.append(peer)
-            else:
-                try:
-                    peer.channel = ch
-                except (AttributeError, ValueError):
-                    # port doesn't allow mutating channel: rebuild peer
-                    e.peers.remove(peer)
-                    peer = espnow.Peer(mac=COLLECTOR_MAC, channel=ch)
-                    e.peers.append(peer)
-            if _try_send(e, peer, packet):
-                if alarm.sleep_memory[MEM_CHANNEL] != ch:
-                    alarm.sleep_memory[MEM_CHANNEL] = ch
-                    print("locked channel", ch)
-                sent = True
-                break
-        if not sent:
+        # who's the collector? config pin > NVM > (later) discovery
+        mac = COLLECTOR_MAC
+        prefer_ch = alarm.sleep_memory[MEM_CHANNEL]
+        if mac is None:
+            mac, nvm_ch = nvm_collector()
+            prefer_ch = prefer_ch or nvm_ch
+        if mac is not None:
+            ch = _unicast_hunt(e, mac, packet, prefer_ch)
+            if ch:
+                alarm.sleep_memory[MEM_CHANNEL] = ch
+                nvm_save_collector(mac, ch)
+                cfg, _ = _listen_cfg(e, 0.5)
+                return True, cfg
+            print("known collector unreachable; rediscovering...")
+            nvm_forget_collector()
+        # discovery: learn MAC + channel from the cfg reply, then send data
+        mac, ch, cfg = _discover(e)
+        if mac is None:
             alarm.sleep_memory[MEM_CHANNEL] = 0
             return False, None
-        # listen briefly for the collector's cfg reply
-        deadline = time.monotonic() + 0.5
-        while time.monotonic() < deadline:
-            if len(e):
-                pkt = e.read()
-                obj = envproto.decode(pkt.msg) if pkt else None
-                if obj and obj.get("k") == "cfg":
-                    return True, obj
-            time.sleep(0.02)
-        return True, None
+        alarm.sleep_memory[MEM_CHANNEL] = ch
+        nvm_save_collector(mac, ch)
+        peer = espnow.Peer(mac=mac, channel=ch)
+        e.peers.append(peer)
+        sent = _try_send(e, peer, packet)
+        cfg2, _ = _listen_cfg(e, 0.5)
+        return sent, cfg2 or cfg
     finally:
         e.deinit()
 
@@ -293,16 +412,18 @@ if cfg:
             ok = False
             print("recal failed:", exc)
         result = envproto.make_cal_result_packet(config["name"], ok, corr)
-        e2 = espnow.ESPNow()
-        try:
-            ch = alarm.sleep_memory[MEM_CHANNEL] or 1
-            p2 = espnow.Peer(mac=COLLECTOR_MAC, channel=ch)
-            e2.peers.append(p2)
-            e2.send(result, p2)
-        except (RuntimeError, OSError, ValueError) as exc:
-            print("cal result send failed:", exc)
-        finally:
-            e2.deinit()
+        cal_mac = COLLECTOR_MAC or nvm_collector()[0]
+        if cal_mac:
+            e2 = espnow.ESPNow()
+            try:
+                ch = alarm.sleep_memory[MEM_CHANNEL] or 1
+                p2 = espnow.Peer(mac=cal_mac, channel=ch)
+                e2.peers.append(p2)
+                e2.send(result, p2)
+            except (RuntimeError, OSError, ValueError) as exc:
+                print("cal result send failed:", exc)
+            finally:
+                e2.deinit()
 
 blink(sent)
 

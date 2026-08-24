@@ -10,8 +10,11 @@ Transport: ESP-NOW (primary, <=250 byte payloads) or HTTP POST /api/ingest
 (fallback). Payloads are compact JSON so they stay human-debuggable.
 
 Packet kinds ("k"):
+  "dsc"  node -> broadcast   collector discovery ("any BASE out there?")
   "dat"  node -> collector   sensor readings
-  "cfg"  collector -> node   config push (reply to a "dat")
+  "cfg"  collector -> node   config push (reply to a "dat" OR a "dsc" --
+                             the node learns the collector's MAC + channel
+                             from the reply, making ESP-NOW self-configuring)
   "cal"  node -> collector   forced-recalibration result
 
 Data packet (node -> collector):
@@ -81,9 +84,19 @@ def decode(raw):
         return None
     if not isinstance(obj, dict) or obj.get("v") != PROTO_VERSION:
         return None
-    if obj.get("k") not in ("dat", "cfg", "cal"):
+    if obj.get("k") not in ("dsc", "dat", "cfg", "cal"):
         return None
     return obj
+
+
+BROADCAST_MAC = b"\xff\xff\xff\xff\xff\xff"
+
+
+def make_discovery_packet(name, sensor_type=None) -> bytes:
+    pkt = {"k": "dsc", "n": name}
+    if sensor_type:
+        pkt["t"] = sensor_type
+    return encode(pkt)
 
 
 def make_data_packet(name, sensor_type, seq, batt_v, measurements) -> bytes:
@@ -119,3 +132,10 @@ def make_cal_result_packet(name, ok, correction=None) -> bytes:
 
 def mac_str(mac_bytes) -> str:
     return ":".join("%02x" % b for b in mac_bytes)
+
+
+def short_mac(mac_bytes) -> str:
+    """Last 3 MAC bytes as uppercase hex -- used in default SSIDs/names
+    (BASE{mac-hex} for the collector AP, SENSOR{mac-hex} for node portals,
+    sensor-{mac-hex} for default node names)."""
+    return "".join("%02X" % b for b in mac_bytes[-3:])

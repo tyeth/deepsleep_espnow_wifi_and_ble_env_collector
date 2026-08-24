@@ -9,8 +9,8 @@ Hardware:
   * eInk Feather Friend / FeatherWing (#4446): shared SPI,
     SD CS = D5, SRAM CS = D6 (unused, held deselected),
     eInk CS = D9, eInk DC = D10, no reset / no busy wired.
-  * 3.52" quad-color eInk over FPC: constructor takes 384x180
-    (driver/displayio quirk), physically 380x180.
+  * 3.52" quad-color eInk over FPC: constructor MUST be 384x184 (driver
+    whitelist); the panel shows 384x180 of that buffer.
   * Sensirion SEN66 on I2C (STEMMA QT).
 
 Responsibilities: sample local SEN66, receive remote nodes over ESP-NOW
@@ -31,12 +31,47 @@ import sdcardio
 import storage
 import wifi
 
+import envproto  # tiny; needed for the early AP SSID
+
+# ---------------------------------------------------------------------------
+# EARLY AP START -- before the heavy imports below. softAP init needs large
+# contiguous ESP-IDF internal-heap buffers; once BLE/httpserver/displayio
+# etc. are imported the heap is fragmented and start_ap hard-faults the CP
+# core on ESP32-C6 (10.3.0-a4). Starting the AP first reserves its buffers
+# while the heap is still empty. (ESP-NOW is lightweight and can wait.)
+# ---------------------------------------------------------------------------
+def _early_cfg():
+    try:
+        with open("/config.json") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+_ecfg = _early_cfg()
+AP_SSID = (os.getenv("ENVHUB_AP_SSID")
+           or _ecfg.get("ap_ssid")
+           or "BASE" + envproto.short_mac(wifi.radio.mac_address))
+AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
+               or _ecfg.get("ap_password", ""))
+ap_started = False
+if _ecfg.get("ap_enabled", True):
+    try:
+        wifi.radio.enabled = True
+        if AP_PASSWORD and len(AP_PASSWORD) >= 8:
+            wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
+        else:
+            wifi.radio.start_ap(ssid=AP_SSID)
+        ap_started = True
+        print("early AP up: %s @ %s" % (AP_SSID, wifi.radio.ipv4_address_ap))
+    except Exception as exc:
+        print("early AP failed:", exc)
+del _ecfg
+
 import alerts
 import battery
 import datastore
 import display_hw
 import display_ui
-import envproto
 import net_ble
 import net_captive
 import net_espnow
@@ -57,6 +92,11 @@ CONFIG_FLASH = "/config.json"  # shipped defaults; runtime overrides live on
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
+
+def _mem(tag):
+    gc.collect()
+    print("mem[%s]: %d free" % (tag, gc.mem_free()))
+
 
 def _load_json(path):
     try:
@@ -110,6 +150,39 @@ for _root in ("/sd", "/saves", "/"):
         break
 
 # ---------------------------------------------------------------------------
+# WiFi (settings.toml may have auto-connected us already)
+# ---------------------------------------------------------------------------
+ip = None
+if wifi.radio.connected:
+    ip = str(wifi.radio.ipv4_address)
+else:
+    ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
+    pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
+    if ssid:
+        ip = net_wifi.connect(ssid, pw or "", config.get("timezone_offset_h", 0))
+
+MAC = envproto.mac_str(wifi.radio.mac_address)
+print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
+
+# The AP itself was started at the very top of the file (see EARLY AP
+# START); here we add ESP-NOW plus the captive-portal DNS around it.
+print("bring-up: ESP-NOW...")
+hub = net_espnow.EspNowHub()
+print("bring-up: ESP-NOW done (enabled=%s)" % hub.enabled)
+_mem("after espnow")
+captive = net_captive.CaptivePortal(
+    ssid=AP_SSID,
+    password=AP_PASSWORD,
+    enabled=config.get("ap_enabled", True),
+    already_active=ap_started,
+)
+print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
+_mem("after AP")
+
+# Radio first on purpose: starting the AP after displayio is up
+# hard-faults the CP core on ESP32-C6 (10.3.0-a4). All radio
+# bring-up therefore happens before the display/sensors.
+# ---------------------------------------------------------------------------
 # Display (profile-based: 3.52" quad on Feather wing / 2.9" tri on QT Py BFF)
 # ---------------------------------------------------------------------------
 display = None
@@ -142,13 +215,18 @@ batt_mon = battery.BatteryMonitor(
     unplugged_v=config.get("host_vcc_unplugged_v", 4.35),
 )
 print("battery source:", batt_mon.source)
+_mem("after sensor+batt")
 
+# only offer /sd as a root when the card actually mounted -- a stale /sd
+# DIRECTORY on the flash filesystem would otherwise masquerade as the card
 store = datastore.DataStore(
+    roots=(("/sd",) if sd_mounted else ()) + ("/saves", "/"),
     flush_interval_s=config.get("sd_flush_interval_s", 600),
     flush_max_pending=config.get("sd_flush_max_pending", 24),
     min_free_bytes=config.get("flash_min_free_kb", 50) * 1024,
 )
 print("storage:", store.mode, store.root)
+_mem("after storage")
 ring = datastore.SampleRing(capacity=360)
 
 def _record_interval():
@@ -170,31 +248,6 @@ def _on_alert_event(event):
 
 tracker = alerts.AlertTracker(config.get("thresholds", {}), _on_alert_event)
 
-# ---------------------------------------------------------------------------
-# WiFi (settings.toml may have auto-connected us already)
-# ---------------------------------------------------------------------------
-ip = None
-if wifi.radio.connected:
-    ip = str(wifi.radio.ipv4_address)
-else:
-    ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
-    pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
-    if ssid:
-        ip = net_wifi.connect(ssid, pw or "", config.get("timezone_offset_h", 0))
-
-MAC = envproto.mac_str(wifi.radio.mac_address)
-print("collector MAC (for node configs):", MAC)
-
-# Self-hosted AP + captive portal (works with or without home WiFi; when
-# both are up the single radio parks the AP on the STA channel).
-captive = net_captive.CaptivePortal(
-    ssid=config.get("ap_ssid", "ENVHUB"),
-    password=config.get("ap_password", ""),
-    enabled=config.get("ap_enabled", True),
-)
-
-# ESP-NOW must come up after all WiFi/AP setup so the channel is settled.
-hub = net_espnow.EspNowHub()
 
 # ---------------------------------------------------------------------------
 # Shared API handlers (HTTP + BLE)
@@ -405,7 +458,11 @@ def _handle_node_packet(mac, obj, rssi):
     src = obj.get("n", "node-%s" % (envproto.mac_str(mac)[-5:] if mac else "?"))
     if mac is not None:
         node_macs[src] = mac
-    if kind == "dat":
+    if kind == "dsc":
+        # discovery ping: the cfg reply (sent by the caller) is the answer --
+        # the node learns our MAC + channel from it. Just log the sighting.
+        print("discovery from %s (%s)" % (src, envproto.mac_str(mac) if mac else "?"))
+    elif kind == "dat":
         m = obj.get("m", {})
         vb = obj.get("vb")
         store.update_latest(src, m, batt_v=vb, sensor_type=obj.get("t"),
@@ -437,7 +494,12 @@ def _handle_node_packet(mac, obj, rssi):
 portal = net_wifi.WebPortal(handlers, portal_host=captive.ap_ip
                             if captive.ap_active else None)
 portal.start(ap_active=captive.ap_active)
-ble = net_ble.BleUartPortal(handlers)
+_mem("after http portal")
+# NOTE: on ESP32-C6 (CP 10.3.0-a4) BLE cannot start alongside the softAP
+# (firmware error 519) -- it degrades gracefully; set ble_enabled=false to
+# skip the attempt, or ap_enabled=false to prefer BLE.
+ble = net_ble.BleUartPortal(handlers, enabled=config.get("ble_enabled", True))
+_mem("after BLE")
 
 # ---------------------------------------------------------------------------
 # Trend tracking: keep per-source averaged snapshots; compare now vs the
@@ -490,7 +552,7 @@ def _status_line():
     bits = []
     bits.append("W:%s" % (ip or "off"))
     if captive.ap_active:
-        bits.append("AP:%s" % config.get("ap_ssid", "ENVHUB"))
+        bits.append("AP:%s" % AP_SSID)
     bits.append({"sd": "SD:ok", "flash": "ST:flash", "ram": "ST:RAM!"}[store.mode])
     if ble.ok:
         bits.append("B:%s" % ("con" if ble.connected else "adv"))
@@ -506,10 +568,15 @@ def refresh_display(now_epoch):
         return
     if display.time_to_refresh > 0:
         return  # eInk not ready yet; try again next loop
+    # panel shows 384x180 of the 384x184 buffer: clamp the 184-axis
+    vis_w = 180 if display.width == 184 else display.width
+    vis_h = 180 if display.height == 184 else display.height
+    display.root_group = None  # free the old screen before building anew
+    gc.collect()
     try:
         screen = display_ui.build_screen(
-            width=display.width,
-            height=display.height,
+            width=vis_w,
+            height=vis_h,
             latest=store.latest,
             tracker=tracker,
             zones=config.get("zones", {}),
@@ -527,6 +594,8 @@ def refresh_display(now_epoch):
         _display_dirty[0] = False
     except (RuntimeError, MemoryError) as exc:
         print("display refresh failed:", exc)
+        _last_display = time.monotonic() - config.get(
+            "display_interval_s", 120) + 30  # back off 30s, don't spin
     gc.collect()
 
 
@@ -546,7 +615,7 @@ while True:
     # 1. remote nodes over ESP-NOW (reply immediately -- they nap fast)
     for mac, obj, rssi in hub.poll():
         _handle_node_packet(mac, obj, rssi)
-        if obj.get("k") == "dat":
+        if obj.get("k") in ("dat", "dsc"):
             hub.send(mac, _cfg_reply_for(obj.get("n", "?")))
 
     # 2. local sensor sampling into the RAM ring

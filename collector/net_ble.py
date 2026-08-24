@@ -32,11 +32,14 @@ except ImportError:
 
 
 class BleUartPortal:
-    def __init__(self, handlers, name="ENVHUB"):
+    def __init__(self, handlers, name="ENVHUB", enabled=True):
         self.handlers = handlers
         self.ok = False
         self.connected = False
         self._rxbuf = b""
+        if not enabled:
+            print("BLE disabled by config")
+            return
         if not _HAVE_BLE:
             print("BLE not available on this board/build")
             return

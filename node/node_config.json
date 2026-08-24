@@ -1,6 +1,7 @@
 {
-  "name": "node1",
+  "name": "",
   "collector_mac": "",
+  "configured": false,
   "interval_s": 120,
   "metrics": null,
   "pm_warmup_s": 20,

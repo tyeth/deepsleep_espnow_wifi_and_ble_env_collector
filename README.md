@@ -150,7 +150,33 @@ examples/    kept references: deep_sleep.py, displayio_basics.py
 `envproto.py` (wire protocol) and `battery.py` are duplicated into both
 device folders — keep the copies identical.
 
-## Bring-up state (as of 2026-08-24) — read this to resume
+## Bring-up state (as of 2026-08-24 evening) — read this to resume
+
+**WORKING**: the C6 collector boots fully and runs: AP `BASE597BE4` +
+captive DNS + HTTP portal (192.168.4.1, no SD card inserted → storage on
+flash `/`), ESP-NOW enabled, 3.52" quad eInk rendering (learn-example
+ruler verified on the panel), SEN66 + MAX17048 reading, ~35KB heap free
+in the main loop. The Feather S3 node runs the SENSOR{mac} config portal.
+
+Hard-won ESP32-C6 (CP 10.3.0-alpha.4) findings:
+* `wifi.radio.start_ap()` **hard-faults the core unless called at the
+  very top of code.py, before the heavy imports** — softAP needs large
+  contiguous internal heap; after BLE/httpserver/displayio imports the
+  alloc fails as a hard fault instead of an exception. Hence the
+  "EARLY AP START" block in collector/code.py. (Worth filing upstream.)
+* **BLE cannot start alongside the softAP** (clean "firmware error 519",
+  graceful degrade). Choose via `ble_enabled` / `ap_enabled` on C6.
+* eInk: constructor must be **384x184** (driver whitelist; panel shows
+  384x180). NEVER re-init the display while a refresh is in flight (no
+  busy/reset lines) — it wedges the panel until a clean power-on;
+  soft-reload during refresh is the dev-time trap.
+* mpremote: `fs cp` to a NEW file fails against CP 10.3-alpha (existing
+  files OK); use raw-REPL paste + base64 writes (see session scripts /
+  tools/serial_deploy.py) and disable/mind auto-reload between writes.
+* Device files: `/learn_demo.py` (exact learn example) + ruler bmp kept
+  on the C6 for panel sanity checks.
+
+## Earlier bring-up notes
 
 * **Host**: Feather ESP32-C6 on **COM4** (USB VID:PID 303A:1001).
   **CircuitPython 10.3.0-alpha.4 flashed & hash-verified** via

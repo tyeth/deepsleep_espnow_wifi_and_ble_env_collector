@@ -27,26 +27,33 @@ AP_IP = "192.168.4.1"  # CircuitPython softAP default
 
 
 class CaptivePortal:
-    def __init__(self, ssid="ENVHUB", password="", enabled=True):
+    def __init__(self, ssid="ENVHUB", password="", enabled=True,
+                 already_active=False):
         self.enabled = enabled
-        self.ap_active = False
+        self.ap_active = already_active
         self.dns_queries = 0
         self._sock = None
         self._buf = bytearray(256)
         if not enabled:
             return
-        try:
-            if password and len(password) >= 8:
-                wifi.radio.start_ap(ssid=ssid, password=password)
-            else:
-                if password:
-                    print("AP password <8 chars; starting OPEN network")
-                wifi.radio.start_ap(ssid=ssid)
-            self.ap_active = True
-            print("AP up: %s @ %s" % (ssid, wifi.radio.ipv4_address_ap))
-        except (RuntimeError, ValueError, OSError, NotImplementedError) as exc:
-            print("AP start failed:", exc)
-            return
+        if not already_active:
+            # NOTE: on ESP32-C6 (CP 10.3.0-a4) start_ap needs large
+            # contiguous internal heap -- call it EARLY in boot (see
+            # code.py "EARLY AP START") or it hard-faults the core.
+            try:
+                wifi.radio.enabled = True
+                if password and len(password) >= 8:
+                    wifi.radio.start_ap(ssid=ssid, password=password)
+                else:
+                    if password:
+                        print("AP password <8 chars; starting OPEN network")
+                    wifi.radio.start_ap(ssid=ssid)
+                self.ap_active = True
+                print("AP up: %s @ %s" % (ssid, wifi.radio.ipv4_address_ap))
+            except (RuntimeError, ValueError, OSError,
+                    NotImplementedError) as exc:
+                print("AP start failed:", exc)
+                return
         if socketpool is None:
             return
         try:
