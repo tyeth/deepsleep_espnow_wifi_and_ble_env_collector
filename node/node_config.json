@@ -1,0 +1,11 @@
+{
+  "name": "node1",
+  "collector_mac": "",
+  "interval_s": 120,
+  "metrics": null,
+  "pm_warmup_s": 20,
+  "cal_measure_s": 180,
+  "wifi_fallback": false,
+  "collector_url": "",
+  "led": false
+}

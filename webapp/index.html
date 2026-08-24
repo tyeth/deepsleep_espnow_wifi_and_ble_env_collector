@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Env Hub Analyzer</title>
+<style>
+:root{--bg:#fafafa;--fg:#1a1a1a;--card:#fff;--mut:#667;--line:#ddd;
+ --warn:#ffe680;--bad:#ff9a8a;--ok:#b6e3b6;--acc:#0b7285}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8e8e8;--card:#1e2126;
+ --mut:#99a;--line:#333;--warn:#7a6a10;--bad:#8a2f24;--ok:#22572a;--acc:#3bc9db}}
+body{font-family:system-ui,sans-serif;margin:0;background:var(--bg);color:var(--fg)}
+header{padding:.6em 1em;background:var(--card);border-bottom:1px solid var(--line);
+ display:flex;flex-wrap:wrap;gap:.6em;align-items:center}
+h1{font-size:1.1em;margin:0}
+main{padding:1em;max-width:1100px;margin:0 auto}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;
+ padding:.8em 1em;margin-bottom:1em}
+h2{font-size:1em;margin:.1em 0 .5em}
+button{background:var(--acc);color:#fff;border:0;border-radius:6px;
+ padding:.45em .9em;cursor:pointer;font-size:.92em}
+button:disabled{opacity:.45;cursor:default}
+button.sec{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+input,textarea,select{background:var(--bg);color:var(--fg);
+ border:1px solid var(--line);border-radius:6px;padding:.4em;font-size:.92em}
+table{border-collapse:collapse;width:100%;font-size:.88em}
+td,th{padding:.25em .5em;border-bottom:1px solid var(--line);text-align:left}
+.chip{font-size:.78em;padding:.15em .55em;border-radius:99px;
+ border:1px solid var(--line);color:var(--mut)}
+.chip.on{background:var(--ok);color:var(--fg)}
+.warn-row{background:var(--warn)}.bad-row{background:var(--bad)}
+.mut{color:var(--mut);font-size:.85em}
+#drop{border:2px dashed var(--line);border-radius:8px;padding:1em;
+ text-align:center;color:var(--mut)}
+#drop.over{border-color:var(--acc);color:var(--acc)}
+#answer{white-space:pre-wrap;line-height:1.45;min-height:2em}
+#charts .plot{min-height:260px;margin-bottom:.6em}
+textarea{width:100%;box-sizing:border-box;font-family:ui-monospace,monospace}
+.row{display:flex;flex-wrap:wrap;gap:.5em;align-items:center;margin:.35em 0}
+#micbtn.rec{background:#c92a2a}
+a{color:var(--acc)}
+.spin::after{content:"";display:inline-block;width:.85em;height:.85em;
+ border:2px solid var(--acc);border-right-color:transparent;
+ border-radius:50%;animation:sp .8s linear infinite;margin-left:.45em;
+ vertical-align:-.1em}
+@keyframes sp{to{transform:rotate(360deg)}}
+.err{color:#c92a2a;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+ <h1>Env Hub Analyzer</h1>
+ <span class="chip" id="chip-http">http: off</span>
+ <span class="chip" id="chip-ble">ble: off</span>
+ <span class="chip" id="chip-sw">offline cache: -</span>
+ <span class="chip" id="chip-ai">ai: -</span>
+</header>
+<main>
+
+<section id="connect">
+ <h2>Device</h2>
+ <div class="row">
+  <input id="baseurl" size="24" placeholder="http://192.168.4.1">
+  <button id="btn-http">Connect HTTP</button>
+  <button id="btn-ble" class="sec">Connect BLE</button>
+  <span class="mut" id="conn-note"></span>
+ </div>
+ <div class="row">
+  <button id="btn-sync" disabled>Sync days from device</button>
+  <span class="mut" id="sync-status"></span>
+ </div>
+</section>
+
+<section id="data">
+ <h2>Datasets</h2>
+ <div id="drop">drop day CSVs here (e.g. straight off the SD card) or
+  <input type="file" id="filein" multiple accept=".csv"></div>
+ <table id="files"><thead><tr><th>day</th><th>rows</th><th>sources</th>
+  <th></th></tr></thead><tbody></tbody></table>
+ <div class="row">
+  <button id="btn-load">Load & merge all</button>
+  <span class="mut" id="load-status">nothing loaded</span>
+ </div>
+</section>
+
+<section id="chartsec" hidden>
+ <h2>Charts</h2>
+ <div class="row" id="metric-picks"></div>
+ <div id="charts"></div>
+ <div class="mut" id="gapnote"></div>
+</section>
+
+<section id="analysis" hidden>
+ <h2>Threshold analysis</h2>
+ <div class="row">
+  <button id="btn-episodes">Find out-of-spec episodes</button>
+  <button id="btn-thr" class="sec">Edit thresholds</button>
+ </div>
+ <textarea id="thrbox" rows="6" hidden></textarea>
+ <div id="epi-summary" class="mut"></div>
+ <table id="episodes" hidden><thead><tr><th>zone</th><th>metric</th>
+  <th>level</th><th>start</th><th>duration</th><th>peak</th></tr></thead>
+  <tbody></tbody></table>
+
+ <h2 style="margin-top:1em">Change detection <span class="mut">(Pyodide)</span></h2>
+ <div class="row">
+  <button id="btn-py">Run change detection</button>
+  <button id="btn-pyedit" class="sec">Edit Python</button>
+  <span class="mut" id="pystatus"></span>
+ </div>
+ <textarea id="pybox" rows="14" hidden></textarea>
+ <div id="pyout"></div>
+</section>
+
+<section id="ai" hidden>
+ <h2>Ask about your data <span class="mut">(on-device AI, Chrome built-in)</span></h2>
+ <div class="row">
+  <button id="micbtn" class="sec" title="voice input">&#127908; speak</button>
+  <input id="question" size="50"
+   placeholder='e.g. "my dehumidifier stopped the last couple of days - how bad did CO2 and humidity get?"'>
+  <button id="askbtn">Ask</button>
+ </div>
+ <div class="mut" id="aistatus"></div>
+ <div id="answer"></div>
+</section>
+
+<footer class="mut" style="padding:0 1em 2em">
+ Works offline after first load (when served over HTTPS, e.g. the GitHub
+ Pages copy). On the device copy (plain http) everything except CDN assets
+ is local anyway. HTTPS pages cannot fetch a plain-http device (mixed
+ content) - use BLE there, or open the device-hosted copy.
+</footer>
+
+<script>
+"use strict";
+/* ============================== state ============================== */
+const METRICS = ["tc","rh","co2","pm1","pm25","pm4","pm10","voc","nox","vb"];
+const LABELS = {tc:"Temp C",rh:"Humidity %",co2:"CO2 ppm",pm1:"PM1",
+ pm25:"PM2.5",pm4:"PM4",pm10:"PM10",voc:"VOC idx",nox:"NOx idx",vb:"Batt V"};
+let DEFAULT_THRESHOLDS = {
+ co2:{warn:1000,bad:2000}, pm25:{warn:12,bad:35}, pm10:{warn:54,bad:154},
+ voc:{warn:150,bad:250}, nox:{warn:50,bad:150},
+ tc:{lo_bad:12,lo_warn:16,warn:27,bad:31},
+ rh:{lo_bad:20,lo_warn:30,warn:60,bad:70}};
+let rows = [];          // merged samples {ts,src,tc,...}
+let gaps = [];          // {src, from, to}
+let episodes = [];      // threshold episodes
+let httpBase = null, bleIO = null, aiSession = null;
+const $ = id => document.getElementById(id);
+const chip = (id,txt,on)=>{const c=$(id);c.textContent=txt;
+ c.classList.toggle("on",!!on);};
+// visible status everywhere: busy=true adds a spinner, err=true goes red
+function setStatus(id,msg,busy=false,err=false){
+ const el=$(id);el.textContent=msg;
+ el.classList.toggle("spin",!!busy&&!!msg);
+ el.classList.toggle("err",!!err);
+}
+
+/* ============================ IndexedDB ============================ */
+const idb = {
+ db:null,
+ open(){return new Promise((res,rej)=>{
+  const r=indexedDB.open("envhub",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("files",{keyPath:"day"});
+  r.onsuccess=()=>{idb.db=r.result;res();};r.onerror=()=>rej(r.error);});},
+ put(day,csv){return new Promise((res,rej)=>{
+  const t=idb.db.transaction("files","readwrite");
+  t.objectStore("files").put({day,csv,saved:Date.now()});
+  t.oncomplete=res;t.onerror=()=>rej(t.error);});},
+ all(){return new Promise((res,rej)=>{
+  const r=idb.db.transaction("files").objectStore("files").getAll();
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
+ del(day){return new Promise((res,rej)=>{
+  const t=idb.db.transaction("files","readwrite");
+  t.objectStore("files").delete(day);t.oncomplete=res;
+  t.onerror=()=>rej(t.error);});},
+};
+
+/* ============================ CSV parse ============================ */
+function parseCSV(text){
+ const out=[]; const lines=text.split(/\r?\n/);
+ let head=null;
+ for(const line of lines){
+  if(!line.trim())continue;
+  const cells=line.split(",");
+  if(cells[0]==="ts"){head=cells;continue;}
+  if(!head)head=["ts","src","tc","rh","co2","pm1","pm25","pm4","pm10","voc","nox","vb","flags"];
+  const r={};
+  head.forEach((k,i)=>{
+   const v=cells[i];
+   if(k==="src")r.src=v||"?";
+   else if(v!==""&&v!==undefined)r[k]=Number(v);
+  });
+  if(Number.isFinite(r.ts))out.push(r);
+ }
+ return out;
+}
+function dayOf(ts){return new Date(ts*1000).toISOString().slice(0,10);}
+
+/* ======================= dataset list / merge ====================== */
+async function refreshFiles(){
+ const files=await idb.all();
+ const tb=$("files").querySelector("tbody");tb.innerHTML="";
+ files.sort((a,b)=>a.day<b.day?-1:1);
+ for(const f of files){
+  const parsed=parseCSV(f.csv);
+  const srcs=[...new Set(parsed.map(r=>r.src))];
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${f.day}</td><td>${parsed.length}</td>
+   <td>${srcs.join(", ")}</td><td></td>`;
+  const del=document.createElement("button");del.className="sec";
+  del.textContent="x";
+  del.onclick=async()=>{await idb.del(f.day);refreshFiles();};
+  tr.lastElementChild.appendChild(del);
+  tb.appendChild(tr);
+ }
+}
+async function loadAll(){
+ const files=await idb.all();
+ const seen=new Set();rows=[];
+ for(const f of files)for(const r of parseCSV(f.csv)){
+  const k=r.ts+"|"+r.src;
+  if(!seen.has(k)){seen.add(k);rows.push(r);}
+ }
+ rows.sort((a,b)=>a.ts-b.ts);
+ findGaps();
+ $("load-status").textContent=
+  `${rows.length} samples, ${new Set(rows.map(r=>r.src)).size} sources, `+
+  `${gaps.length} gaps`;
+ const any=rows.length>0;
+ $("chartsec").hidden=$("analysis").hidden=$("ai").hidden=!any;
+ if(any){buildMetricPicks();draw();warmAI();}
+}
+function findGaps(){
+ gaps=[];const bySrc={};
+ for(const r of rows)(bySrc[r.src]=bySrc[r.src]||[]).push(r.ts);
+ for(const [src,ts] of Object.entries(bySrc)){
+  const d=[];for(let i=1;i<ts.length;i++)d.push(ts[i]-ts[i-1]);
+  d.sort((a,b)=>a-b);
+  const med=d[Math.floor(d.length/2)]||60;
+  const lim=Math.max(med*4,900); // inactivity: >4x median or >15min
+  for(let i=1;i<ts.length;i++)
+   if(ts[i]-ts[i-1]>lim)gaps.push({src,from:ts[i-1],to:ts[i]});
+ }
+ $("gapnote").textContent=gaps.length?
+  "shaded = data gaps (device off / node silent): "+gaps.slice(0,6).map(g=>
+   `${g.src} ${fmtDur(g.to-g.from)} @ ${iso(g.from)}`).join("; ")+
+   (gaps.length>6?` +${gaps.length-6} more`:"") : "";
+}
+const iso=ts=>new Date(ts*1000).toISOString().replace("T"," ").slice(0,16);
+function fmtDur(s){if(s<90)return Math.round(s)+"s";
+ if(s<5400)return Math.round(s/60)+"m";
+ if(s<172800)return (s/3600).toFixed(1)+"h";return (s/86400).toFixed(1)+"d";}
+
+/* ============================== charts ============================= */
+let picked=new Set(["co2","rh","tc","pm25"]);
+function buildMetricPicks(){
+ const have=new Set();
+ rows.forEach(r=>METRICS.forEach(m=>{if(r[m]!=null)have.add(m);}));
+ const box=$("metric-picks");box.innerHTML="";
+ for(const m of METRICS){ if(!have.has(m))continue;
+  const l=document.createElement("label");
+  l.innerHTML=`<input type=checkbox ${picked.has(m)?"checked":""}> ${LABELS[m]}`;
+  l.firstChild.onchange=e=>{e.target.checked?picked.add(m):picked.delete(m);draw();};
+  box.appendChild(l);
+ }
+}
+let _plotlyLoading=null;
+function ensurePlotly(){
+ if(window.Plotly)return Promise.resolve(true);
+ if(!_plotlyLoading)
+  _plotlyLoading=new Promise(res=>{const s=document.createElement("script");
+   s.src="https://cdn.plot.ly/plotly-2.35.2.min.js";
+   s.onload=()=>res(true);
+   s.onerror=()=>{_plotlyLoading=null;$("gapnote").textContent=
+    "Plotly unavailable (offline before first cache?) - charts disabled";
+    res(false);};
+   document.head.appendChild(s);});
+ return _plotlyLoading;
+}
+async function draw(){
+ if(!window.Plotly)setStatus("gapnote","loading chart library...",true);
+ if(!await ensurePlotly())return;
+ findGaps(); // restores the gap note text
+ const dark=matchMedia("(prefers-color-scheme:dark)").matches;
+ const box=$("charts");box.innerHTML="";
+ const srcs=[...new Set(rows.map(r=>r.src))];
+ for(const m of picked){
+  const div=document.createElement("div");div.className="plot";
+  box.appendChild(div);
+  const traces=srcs.map(src=>({
+   name:src,mode:"lines",connectgaps:false,
+   x:rows.filter(r=>r.src===src&&r[m]!=null).map(r=>new Date(r.ts*1000)),
+   y:rows.filter(r=>r.src===src&&r[m]!=null).map(r=>r[m])}));
+  const th=getThresholds()[m]||{};
+  const shapes=gaps.map(g=>({type:"rect",xref:"x",yref:"paper",
+   x0:new Date(g.from*1000),x1:new Date(g.to*1000),y0:0,y1:1,
+   fillcolor:dark?"rgba(255,255,255,.07)":"rgba(0,0,0,.06)",line:{width:0}}));
+  for(const [k,col] of [["warn","#e6b400"],["bad","#d33"]])
+   if(th[k]!=null)shapes.push({type:"line",xref:"paper",x0:0,x1:1,
+    y0:th[k],y1:th[k],line:{color:col,dash:"dot",width:1}});
+  for(const [k,col] of [["lo_warn","#e6b400"],["lo_bad","#d33"]])
+   if(th[k]!=null)shapes.push({type:"line",xref:"paper",x0:0,x1:1,
+    y0:th[k],y1:th[k],line:{color:col,dash:"dot",width:1}});
+  Plotly.newPlot(div,traces,{title:{text:LABELS[m],font:{size:13}},
+   margin:{t:30,l:45,r:10,b:30},height:260,shapes,
+   paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
+   font:{color:dark?"#ddd":"#222"},showlegend:srcs.length>1,
+   legend:{orientation:"h"}},{displayModeBar:false,responsive:true});
+ }
+}
+
+/* ======================= threshold episodes ======================== */
+function getThresholds(){
+ try{return JSON.parse($("thrbox").value);}catch(e){return DEFAULT_THRESHOLDS;}
+}
+function classify(v,th){
+ if(v==null||!th)return 0;
+ if(th.bad!=null&&v>=th.bad)return 2;
+ if(th.lo_bad!=null&&v<=th.lo_bad)return 2;
+ if(th.warn!=null&&v>=th.warn)return 1;
+ if(th.lo_warn!=null&&v<=th.lo_warn)return 1;
+ return 0;
+}
+function findEpisodes(){
+ const th=getThresholds();episodes=[];
+ const bySrc={};
+ for(const r of rows)(bySrc[r.src]=bySrc[r.src]||[]).push(r);
+ for(const [src,rs] of Object.entries(bySrc))
+  for(const m of METRICS){
+   if(!th[m])continue;
+   let cur=null;
+   for(const r of rs){
+    const v=r[m];if(v==null)continue;
+    const st=classify(v,th[m]);
+    if(cur&&st>0){cur.end=r.ts;cur.level=Math.max(cur.level,st);
+     cur.peak=Math.abs(v)>Math.abs(cur.peak)?v:cur.peak;cur.n++;}
+    else if(!cur&&st>0)cur={src,metric:m,start:r.ts,end:r.ts,level:st,peak:v,n:1};
+    else if(cur&&st===0){episodes.push(cur);cur=null;}
+   }
+   if(cur)episodes.push(Object.assign(cur,{ongoing:true}));
+  }
+ episodes.sort((a,b)=>(b.level-a.level)||((b.end-b.start)-(a.end-a.start)));
+ renderEpisodes();
+}
+function renderEpisodes(){
+ const t=$("episodes");t.hidden=!episodes.length;
+ const tb=t.querySelector("tbody");tb.innerHTML="";
+ for(const e of episodes.slice(0,80)){
+  const tr=document.createElement("tr");
+  tr.className=e.level===2?"bad-row":"warn-row";
+  tr.innerHTML=`<td>${e.src}</td><td>${LABELS[e.metric]||e.metric}</td>
+   <td>${e.level===2?"BAD":"warn"}</td><td>${iso(e.start)}</td>
+   <td>${fmtDur(e.end-e.start)}${e.ongoing?" (ongoing)":""}</td>
+   <td>${e.peak}</td>`;
+  tb.appendChild(tr);
+ }
+ const bad=episodes.filter(e=>e.level===2);
+ const badH=bad.reduce((s,e)=>s+(e.end-e.start),0)/3600;
+ $("epi-summary").textContent=episodes.length?
+  `${episodes.length} episodes (${bad.length} BAD, ${badH.toFixed(1)}h total beyond 'bad' thresholds)`:
+  "everything within thresholds for the loaded range";
+}
+
+/* ========================= Pyodide analysis ======================== */
+const DEFAULT_PY=`# sustained-shift detection per source+metric.
+# Buckets each series into 2h windows and flags windows whose mean moved
+# more than 3 robust sigmas (MAD) from the median of the preceding 24h.
+# 'series' is {"src|metric": {"t": [...epoch], "v": [...]}} - return JSON-able.
+import numpy as np
+W = 7200        # window seconds
+BASE = 12       # baseline = previous 12 windows (24h)
+THRESH = 3.0    # robust sigmas
+def analyze(series):
+    out = []
+    for key, s in series.items():
+        t = np.array(s["t"], float)
+        v = np.array(s["v"], float)
+        if len(v) < 50:
+            continue
+        idx = ((t - t.min()) // W).astype(int)
+        means, times = [], []
+        for i in np.unique(idx):
+            sel = idx == i
+            means.append(v[sel].mean())
+            times.append(t[sel][0])
+        means = np.array(means)
+        hits = []
+        for i in range(3, len(means)):
+            base = means[max(0, i - BASE):i]
+            med = np.median(base)
+            mad = np.median(np.abs(base - med)) * 1.4826 + 1e-9
+            z = (means[i] - med) / mad
+            if abs(z) > THRESH:
+                hits.append({"series": key, "ts": float(times[i]),
+                             "dir": "up" if z > 0 else "down",
+                             "shift": round(float(means[i] - med), 2),
+                             "window_mean": round(float(means[i]), 2)})
+        # keep the strongest, then drop same-direction neighbours
+        hits.sort(key=lambda c: -abs(c["shift"]))
+        keep = sorted(hits[:8], key=lambda c: c["ts"])
+        merged = []
+        for c in keep:
+            if merged and c["dir"] == merged[-1]["dir"] \\
+                    and c["ts"] - merged[-1]["ts"] <= 2 * W:
+                continue
+            merged.append(c)
+        out += merged
+    return out
+`;
+let pyodide=null;
+async function runPy(){
+ if(!rows.length){setStatus("pystatus","load & merge a dataset first",false,true);return;}
+ $("btn-py").disabled=true;
+ setStatus("pystatus","loading Pyodide (~10MB first time, then cached)...",true);
+ try{
+  if(!pyodide){
+   if(!window.loadPyodide){
+    await new Promise((res,rej)=>{const s=document.createElement("script");
+     s.src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js";
+     s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+   }
+   pyodide=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.26.2/full/"});
+   await pyodide.loadPackage("numpy");
+  }
+  const series={};
+  for(const r of rows)for(const m of METRICS){
+   if(r[m]==null)continue;
+   const k=r.src+"|"+m;
+   (series[k]=series[k]||{t:[],v:[]});
+   series[k].t.push(r.ts);series[k].v.push(r[m]);
+  }
+  pyodide.globals.set("series_json",JSON.stringify(series));
+  setStatus("pystatus","running analysis...",true);
+  const code=$("pybox").value+"\nimport json\n"+
+   "result_json = json.dumps(analyze(json.loads(series_json)))";
+  await pyodide.runPythonAsync(code);
+  const res=JSON.parse(pyodide.globals.get("result_json"));
+  setStatus("pystatus",`${res.length} change points`);
+  $("pyout").innerHTML=res.length?
+   "<table><tr><th>series</th><th>when</th><th>dir</th><th>shift</th><th>level</th></tr>"+
+   res.slice(0,60).map(c=>`<tr><td>${c.series}</td><td>${iso(c.ts)}</td>`+
+    `<td>${c.dir}</td><td>${c.shift??""}</td><td>${c.window_mean??c.value??""}</td></tr>`)
+    .join("")+"</table>":
+   "<span class=mut>no significant shifts found</span>";
+  window._changes=res;
+ }catch(e){setStatus("pystatus","Pyodide failed: "+e,false,true);}
+ finally{$("btn-py").disabled=false;}
+}
+
+/* ============================ transports =========================== */
+async function httpConnect(){
+ const base=($("baseurl").value||location.origin).replace(/\/$/,"");
+ setStatus("conn-note","connecting to "+base+"...",true);
+ try{
+  const r=await fetch(base+"/api/latest",{signal:AbortSignal.timeout(6000)});
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  httpBase=base;chip("chip-http","http: on",true);
+  $("btn-sync").disabled=false;
+  setStatus("conn-note","connected");
+  try{const cfg=await(await fetch(base+"/api/config")).json();
+   if(cfg.thresholds)DEFAULT_THRESHOLDS=cfg.thresholds;
+   $("thrbox").value=JSON.stringify(DEFAULT_THRESHOLDS,null,1);}catch(e){}
+ }catch(e){
+  chip("chip-http","http: fail",false);
+  setStatus("conn-note",(location.protocol==="https:")?
+   "HTTPS pages can't fetch a plain-http device (mixed content) - use BLE, or open the copy served by the device itself.":
+   "device unreachable: "+e,false,true);
+ }
+}
+/* --- BLE (Nordic UART) --- */
+const UART={svc:"6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+ rx:"6e400002-b5a3-f393-e0a9-e50e24dcca9e",
+ tx:"6e400003-b5a3-f393-e0a9-e50e24dcca9e"};
+async function bleConnect(){
+ if(!navigator.bluetooth){setStatus("conn-note",
+  "Web Bluetooth unavailable (needs Chrome + HTTPS).",false,true);return;}
+ setStatus("conn-note","choose the ENVHUB device in the picker...",true);
+ try{
+  const dev=await navigator.bluetooth.requestDevice(
+   {filters:[{services:[UART.svc]}],optionalServices:[UART.svc]});
+  const gatt=await dev.gatt.connect();
+  const svc=await gatt.getPrimaryService(UART.svc);
+  const rx=await svc.getCharacteristic(UART.rx);
+  const tx=await svc.getCharacteristic(UART.tx);
+  let buf="";const waiters=[];
+  await tx.startNotifications();
+  tx.addEventListener("characteristicvaluechanged",e=>{
+   buf+=new TextDecoder().decode(e.target.value);
+   let i;while((i=buf.indexOf("\n"))>=0){
+    const line=buf.slice(0,i);buf=buf.slice(i+1);
+    if(waiters.length)waiters.shift()(line);
+   }});
+  bleIO={
+   async cmd(s){await rx.writeValue(new TextEncoder().encode(s+"\n"));},
+   line(timeout=8000){return new Promise((res,rej)=>{
+    const t=setTimeout(()=>rej(new Error("ble timeout")),timeout);
+    waiters.push(l=>{clearTimeout(t);res(l);});});},
+  };
+  dev.addEventListener("gattserverdisconnected",()=>{
+   bleIO=null;chip("chip-ble","ble: off",false);
+   setStatus("conn-note","BLE disconnected",false,true);});
+  chip("chip-ble","ble: on",true);$("btn-sync").disabled=false;
+  setStatus("conn-note","BLE connected");
+ }catch(e){setStatus("conn-note","BLE: "+e,false,true);}
+}
+async function bleJSON(cmd){
+ await bleIO.cmd(cmd);return JSON.parse(await bleIO.line());
+}
+async function bleDay(day){
+ await bleIO.cmd("hist "+day);
+ let first=await bleIO.line(15000);
+ if(!first.startsWith("#BEGIN")){ // error JSON
+  throw new Error("no data for "+day);}
+ let csv="";
+ for(;;){const l=await bleIO.line(15000);
+  if(l.startsWith("#END"))break;csv+=l+"\n";}
+ return csv;
+}
+/* --- sync --- */
+async function sync(){
+ setStatus("sync-status","listing days...",true);
+ try{
+  let days;
+  if(httpBase)days=(await(await fetch(httpBase+"/api/history")).json()).days;
+  else if(bleIO)days=(await bleJSON("days")).days;
+  else throw new Error("not connected");
+  const have=new Set((await idb.all()).map(f=>f.day));
+  const today=dayOf(Date.now()/1000);
+  let n=0;
+  for(const d of days){
+   if(have.has(d)&&d!==today)continue; // today may still be growing
+   setStatus("sync-status","fetching "+d+(bleIO&&!httpBase?" over BLE (slow)":"")+"...",true);
+   const csv=httpBase?
+    await(await fetch(httpBase+"/api/history?day="+d)).text():
+    await bleDay(d);
+   await idb.put(d,csv);n++;
+  }
+  setStatus("sync-status",`synced ${n} file(s) of ${days.length}`);
+  refreshFiles();
+ }catch(e){setStatus("sync-status","sync failed: "+e,false,true);}
+}
+
+/* ====================== built-in AI assistant ====================== */
+const SYSTEM_PROMPT=`You are the analyst for a home environmental monitoring
+hub (CO2 ppm, temperature C, relative humidity %, particulates ug/m3, VOC and
+NOx indices, node battery volts). You are given computed statistics: per-metric
+ranges, out-of-spec episodes (warn = outside comfortable range, bad = well
+beyond acceptable), data gaps, and detected change points. Answer the user's
+question plainly and briefly. Users speak casually: phrases like "totally
+fucked" or "how bad" mean "how far beyond acceptable limits and for how long".
+Give: 1) what happened with numbers (peaks, durations), 2) a severity verdict -
+one of: fine / briefly out of range / bad / severely out of range for an
+excessive period, 3) anything they should check. If data gaps overlap the
+period, say the record is incomplete. Do not invent data not in the stats.`;
+function aiContext(){
+ const perMetric={};
+ for(const m of METRICS){
+  const vs=rows.filter(r=>r[m]!=null);
+  if(!vs.length)continue;
+  const nums=vs.map(r=>r[m]);
+  perMetric[m]={min:Math.min(...nums),max:Math.max(...nums),
+   mean:+(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2),
+   latest:nums[nums.length-1]};
+ }
+ if(!episodes.length)findEpisodes();
+ return JSON.stringify({
+  range:{from:iso(rows[0].ts),to:iso(rows[rows.length-1].ts)},
+  sources:[...new Set(rows.map(r=>r.src))],
+  thresholds:getThresholds(),
+  stats:perMetric,
+  episodes:episodes.slice(0,25).map(e=>({zone:e.src,metric:e.metric,
+   level:e.level===2?"bad":"warn",start:iso(e.start),
+   hours:+((e.end-e.start)/3600).toFixed(2),peak:e.peak,
+   ongoing:!!e.ongoing})),
+  gaps:gaps.slice(0,10).map(g=>({zone:g.src,from:iso(g.from),
+   hours:+((g.to-g.from)/3600).toFixed(2)})),
+  change_points:(window._changes||[]).slice(0,15),
+ });
+}
+async function warmAI(){
+ if(!("LanguageModel" in self)){chip("chip-ai","ai: unsupported",false);
+  setStatus("aistatus",
+   "Built-in AI unavailable: needs recent Chrome/Edge with Gemini Nano "+
+   "(chrome://flags > 'Prompt API for Gemini Nano', or Chrome 131+). "+
+   "Threshold + change analysis still work.",false,true);
+  return null;}
+ try{
+  setStatus("aistatus","checking on-device model...",true);
+  const avail=await LanguageModel.availability(
+   {expectedInputs:[{type:"text",languages:["en"]}],
+    expectedOutputs:[{type:"text",languages:["en"]}]});
+  chip("chip-ai","ai: "+avail,avail==="available");
+  if(avail==="unavailable"){
+   setStatus("aistatus","On-device model unavailable on this browser/OS.",
+    false,true);
+   return null;}
+  // pre-warm per do's & don'ts: create early with system prompt
+  setStatus("aistatus",avail==="available"?
+   "loading model into memory...":"downloading on-device model...",true);
+  aiSession=await LanguageModel.create({
+   initialPrompts:[{role:"system",content:SYSTEM_PROMPT}],
+   expectedInputs:[{type:"text",languages:["en"]}],
+   expectedOutputs:[{type:"text",languages:["en"]}],
+   monitor(m){m.addEventListener("downloadprogress",e=>{
+    setStatus("aistatus",
+     "downloading model: "+Math.round(e.loaded*100)+"%",true);
+    chip("chip-ai","ai: downloading",false);});},
+  });
+  chip("chip-ai","ai: ready",true);setStatus("aistatus","model ready");
+  return aiSession;
+ }catch(e){chip("chip-ai","ai: error",false);
+  setStatus("aistatus","AI init failed: "+e,false,true);
+  return null;}
+}
+let asking=false;
+async function ask(){
+ const q=$("question").value.trim();
+ if(asking)return;
+ if(!q){setStatus("aistatus","type or speak a question first",false,true);
+  return;}
+ if(!rows.length){
+  setStatus("aistatus","no data loaded",false,true);
+  $("answer").textContent=
+   "Load data first: sync from the device (or drop CSVs), then "+
+   "'Load & merge all'. Then ask again.";
+  return;}
+ asking=true;$("askbtn").disabled=true;
+ const t0=Date.now();
+ try{
+  if(!aiSession){
+   $("answer").textContent="";
+   if(!(await warmAI())){asking=false;$("askbtn").disabled=false;return;}
+  }
+  setStatus("aistatus","computing statistics...",true);
+  const ctx=aiContext();
+  setStatus("aistatus","submitting to on-device model...",true);
+  // clone the pre-warmed session so unrelated questions don't accumulate
+  const s=await aiSession.clone();
+  const stream=s.promptStreaming(
+   "DATA (computed statistics):\n"+ctx+"\n\nQUESTION: "+q);
+  setStatus("aistatus","waiting for first token...",true);
+  let full="";
+  for await (const chunk of stream){
+   if(!full)setStatus("aistatus","answering...",true);
+   full+=chunk;
+   $("answer").textContent=full;} // textContent: output stays plain text
+  s.destroy();
+  setStatus("aistatus","done in "+((Date.now()-t0)/1000).toFixed(1)+"s");
+  if(!full)setStatus("aistatus","model returned nothing - try rephrasing",
+   false,true);
+ }catch(e){
+  setStatus("aistatus","AI failed: "+e,false,true);
+  if(!$("answer").textContent)$("answer").textContent=
+   "The on-device model errored ("+e+"). The threshold/change tables "+
+   "above still have the numbers.";
+ }finally{asking=false;$("askbtn").disabled=false;}
+}
+/* --- voice --- */
+function mic(){
+ const SR=self.SpeechRecognition||self.webkitSpeechRecognition;
+ if(!SR){setStatus("aistatus","speech recognition unavailable in this browser",
+  false,true);return;}
+ const rec=new SR();rec.lang="en-GB";rec.interimResults=true;
+ $("micbtn").classList.add("rec");
+ setStatus("aistatus","listening... (tap speak again to cancel)",true);
+ rec.onresult=e=>{
+  $("question").value=[...e.results].map(r=>r[0].transcript).join("");};
+ rec.onend=()=>{$("micbtn").classList.remove("rec");
+  if($("question").value.trim()){setStatus("aistatus","heard it - asking...",true);ask();}
+  else setStatus("aistatus","didn't catch anything - try again",false,true);};
+ rec.onerror=e=>{$("micbtn").classList.remove("rec");
+  setStatus("aistatus","speech error: "+(e.error||e),false,true);};
+ rec.start();
+}
+
+/* =========================== service worker ======================== */
+if("serviceWorker" in navigator && isSecureContext){
+ navigator.serviceWorker.register("sw.js").then(
+  ()=>chip("chip-sw","offline cache: on",true),
+  ()=>chip("chip-sw","offline cache: failed",false));
+}else chip("chip-sw","offline cache: n/a (http)",false);
+
+/* ============================== wiring ============================= */
+$("btn-http").onclick=httpConnect;
+$("btn-ble").onclick=bleConnect;
+$("btn-sync").onclick=sync;
+$("btn-load").onclick=loadAll;
+$("btn-episodes").onclick=findEpisodes;
+$("btn-thr").onclick=()=>{$("thrbox").hidden=!$("thrbox").hidden;};
+$("btn-py").onclick=runPy;
+$("btn-pyedit").onclick=()=>{$("pybox").hidden=!$("pybox").hidden;};
+$("askbtn").onclick=ask;
+$("micbtn").onclick=mic;
+$("question").addEventListener("keydown",e=>{if(e.key==="Enter")ask();});
+$("filein").onchange=async e=>{
+ for(const f of e.target.files)
+  await idb.put(f.name.replace(/\.csv$/,""),await f.text());
+ refreshFiles();};
+const drop=$("drop");
+drop.ondragover=e=>{e.preventDefault();drop.classList.add("over");};
+drop.ondragleave=()=>drop.classList.remove("over");
+drop.ondrop=async e=>{
+ e.preventDefault();drop.classList.remove("over");
+ for(const f of e.dataTransfer.files)
+  await idb.put(f.name.replace(/\.csv$/,""),await f.text());
+ refreshFiles();};
+
+$("thrbox").value=JSON.stringify(DEFAULT_THRESHOLDS,null,1);
+$("pybox").value=DEFAULT_PY;
+if(location.protocol.startsWith("http"))$("baseurl").value=location.origin;
+idb.open().then(refreshFiles);
+if(location.hostname&&location.protocol==="http:")httpConnect();
+</script>
+</body>
+</html>

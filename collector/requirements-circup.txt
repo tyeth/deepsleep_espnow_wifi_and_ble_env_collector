@@ -1,0 +1,10 @@
+# Install onto CIRCUITPY with:  circup install -r requirements-circup.txt
+adafruit_jd79667
+adafruit_il0373
+adafruit_display_text
+adafruit_sen6x
+adafruit_httpserver
+adafruit_ntp
+adafruit_ble
+adafruit_max1704x
+adafruit_lc709203f

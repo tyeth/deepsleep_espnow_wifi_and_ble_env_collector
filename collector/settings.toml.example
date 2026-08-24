@@ -1,0 +1,7 @@
+# Copy to settings.toml on the CIRCUITPY drive and fill in.
+# CircuitPython auto-connects when CIRCUITPY_WIFI_SSID is set.
+CIRCUITPY_WIFI_SSID = "your-ssid"
+CIRCUITPY_WIFI_PASSWORD = "your-password"
+
+# Optional: keep the USB drive name obvious
+# CIRCUITPY_WEB_API_PASSWORD = ""

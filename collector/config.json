@@ -1,0 +1,35 @@
+{
+  "display_profile": "auto",
+  "display_interval_s": 120,
+  "ap_enabled": true,
+  "ap_ssid": "ENVHUB",
+  "ap_password": "",
+  "sample_interval_s": 15,
+  "record_interval_s": 60,
+  "sd_flush_interval_s": 600,
+  "sd_flush_max_pending": 24,
+  "flash_min_free_kb": 50,
+  "flash_record_multiplier": 5,
+  "node_default_interval_s": 120,
+  "node_stale_s": 600,
+  "trend_window_s": 600,
+  "co2_cal_target_ppm": 420,
+  "host_vcc_unplugged_v": 4.35,
+  "node_batt_warn_v": 3.5,
+  "node_batt_crit_v": 3.3,
+  "timezone_offset_h": 0,
+  "zones": {
+    "local": "Room"
+  },
+  "node_metrics": {},
+  "node_intervals": {},
+  "thresholds": {
+    "co2":  {"warn": 1000, "bad": 2000},
+    "pm25": {"warn": 12,   "bad": 35},
+    "pm10": {"warn": 54,   "bad": 154},
+    "voc":  {"warn": 150,  "bad": 250},
+    "nox":  {"warn": 50,   "bad": 150},
+    "tc":   {"lo_bad": 12, "lo_warn": 16, "warn": 27, "bad": 31},
+    "rh":   {"lo_bad": 20, "lo_warn": 30, "warn": 60, "bad": 70}
+  }
+}

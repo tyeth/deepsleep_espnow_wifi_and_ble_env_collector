@@ -1,0 +1,17 @@
+# Install onto the node's CIRCUITPY with:  circup install -r requirements-circup.txt
+# (only the driver matching the node's sensor is actually required)
+adafruit_scd4x
+adafruit_scd30
+adafruit_sen6x
+adafruit_max1704x
+adafruit_lc709203f
+neopixel
+# only if wifi_fallback is enabled:
+adafruit_requests
+adafruit_connection_manager
+
+# SEN5x nodes: the Sensirion SEN5x driver lives in a custom circup bundle
+# (see https://adafruit-playground.com/u/tyeth/pages/creating-a-circuitpython-library-bundle-for-circup):
+#   circup bundle-add good-enough-technology/circuitpython_goodenough_bundle
+#   circup install sensirion_i2c_sen5x
+# (node_sensors.py falls back to a minimal built-in SEN5x driver without it)
