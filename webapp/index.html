@@ -578,12 +578,24 @@ function aiContext(){
   change_points:(window._changes||[]).slice(0,15),
  });
 }
+function aiDiagnostics(extra){
+ const bits=[];
+ if(!isSecureContext)bits.push(
+  "NOT a secure context - serve over HTTPS (tools/serve_webapp.py) or localhost.");
+ else bits.push("secure context OK ("+location.protocol+"//"+location.host+")");
+ bits.push("LanguageModel API "+("LanguageModel" in self?"present":"MISSING"));
+ if(extra)bits.push(extra);
+ bits.push("Checklist: Chrome 131+ (or Canary with chrome://flags/"+
+  "#prompt-api-for-gemini-nano + #optimization-guide-on-device-model = "+
+  "'Enabled BypassPerfRequirement'); then chrome://components > "+
+  "'Optimization Guide On Device Model' > Check for update (~2GB, needs "+
+  "22GB free disk); state visible at chrome://on-device-internals. "+
+  "Threshold + change analysis work regardless.");
+ return bits.join(" | ");
+}
 async function warmAI(){
  if(!("LanguageModel" in self)){chip("chip-ai","ai: unsupported",false);
-  setStatus("aistatus",
-   "Built-in AI unavailable: needs recent Chrome/Edge with Gemini Nano "+
-   "(chrome://flags > 'Prompt API for Gemini Nano', or Chrome 131+). "+
-   "Threshold + change analysis still work.",false,true);
+  setStatus("aistatus",aiDiagnostics(),false,true);
   return null;}
  try{
   setStatus("aistatus","checking on-device model...",true);
@@ -592,8 +604,8 @@ async function warmAI(){
     expectedOutputs:[{type:"text",languages:["en"]}]});
   chip("chip-ai","ai: "+avail,avail==="available");
   if(avail==="unavailable"){
-   setStatus("aistatus","On-device model unavailable on this browser/OS.",
-    false,true);
+   setStatus("aistatus",
+    aiDiagnostics("availability() returned 'unavailable'"),false,true);
    return null;}
   // pre-warm per do's & don'ts: create early with system prompt
   setStatus("aistatus",avail==="available"?

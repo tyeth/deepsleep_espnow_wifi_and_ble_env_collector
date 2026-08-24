@@ -8,6 +8,28 @@ the hub's datasets. It is deliberately hosted **two ways**:
 | On the device (portal/captive AP) | `http://<hub-ip>/` | HTTP API (same-origin) | n/a (it *is* local) | no (insecure context) | no (insecure context) |
 | GitHub Pages (HTTPS) | your Pages URL | **web-BLE** (mixed content blocks plain-http fetches) | yes, after first load | yes | yes |
 
+## Local development over HTTPS
+
+```sh
+python tools/serve_webapp.py           # https://localhost:8443 (+ LAN IPs)
+python tools/serve_webapp.py --trust   # also add the cert to the Windows
+                                       # user trust store (confirmation popup)
+```
+
+Generates a reusable self-signed cert (SANs: localhost + this machine's
+LAN IPs) into `tools/.localcert/`. Without `--trust`, click through
+Chrome's warning (Advanced → Proceed, or type `thisisunsafe`) — note the
+service worker (offline cache) only registers with a *trusted* cert.
+
+**Built-in AI troubleshooting**: `http://localhost` is already a secure
+context, so if the AI panel says *unavailable* the blocker is Chrome
+itself, not TLS. The panel prints a diagnostics line; checklist: Chrome
+131+ (or Canary/Dev with `chrome://flags/#prompt-api-for-gemini-nano` and
+`#optimization-guide-on-device-model` = *Enabled BypassPerfRequirement*),
+then `chrome://components` → **Optimization Guide On Device Model** →
+*Check for update* (~2GB download, wants ~22GB free disk), state at
+`chrome://on-device-internals`.
+
 ## Deploying
 
 * **Device**: copy `index.html` and `sw.js` to the SD card as
