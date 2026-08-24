@@ -585,11 +585,13 @@ function aiDiagnostics(extra){
  else bits.push("secure context OK ("+location.protocol+"//"+location.host+")");
  bits.push("LanguageModel API "+("LanguageModel" in self?"present":"MISSING"));
  if(extra)bits.push(extra);
- bits.push("Checklist: Chrome 131+ (or Canary with chrome://flags/"+
-  "#prompt-api-for-gemini-nano + #optimization-guide-on-device-model = "+
-  "'Enabled BypassPerfRequirement'); then chrome://components > "+
-  "'Optimization Guide On Device Model' > Check for update (~2GB, needs "+
-  "22GB free disk); state visible at chrome://on-device-internals. "+
+ bits.push("Checklist: use a NORMAL browser profile (built-in AI is "+
+  "disabled in Incognito/Guest/sandboxed windows); Chrome 131+ (or Canary "+
+  "with chrome://flags/#prompt-api-for-gemini-nano + "+
+  "#optimization-guide-on-device-model = 'Enabled BypassPerfRequirement'); "+
+  "then chrome://components > 'Optimization Guide On Device Model' > "+
+  "Check for update (~2GB, needs 22GB free disk); state visible at "+
+  "chrome://on-device-internals. "+
   "Threshold + change analysis work regardless.");
  return bits.join(" | ");
 }
