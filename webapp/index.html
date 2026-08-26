@@ -339,11 +339,15 @@ function buildMetricPicks(){
    On github.io the CDN goes first (internet is there); on the hub, vendor/ goes first. */
 const ON_PAGES=/github\.io$/.test(location.hostname);
 function orderSources(local,cdn){return ON_PAGES?[cdn,local]:[local,cdn];}
-function loadScript(urls,{timeout=20000,retries=1}={}){
+function loadScript(urls,{timeout=20000,retries=1,status=null}={}){
+ // per-source timeout: a 1 MB bundle from the hub takes ~6 s over http but can take a
+ // minute over the C6's single TLS session, so local sources get a long timeout
  return new Promise(async res=>{
   for(const u of urls)for(let a=0;a<=retries;a++){
+   const local=!/^https?:/.test(u);
+   if(status)setStatus(status,`loading ${u.split("/").pop()} from ${local?"the hub":"the CDN"}${local&&location.protocol==="https:"?" (over https this can take a minute)":""}...`,true);
    const ok=await new Promise(r=>{const s=document.createElement("script");
-    const t=setTimeout(()=>{s.remove();r(false);},timeout);
+    const t=setTimeout(()=>{s.remove();r(false);},local?120000:timeout);
     s.onload=()=>{clearTimeout(t);r(true);};s.onerror=()=>{clearTimeout(t);s.remove();r(false);};
     s.src=u;document.head.appendChild(s);});
    if(ok){res(u);return;}
@@ -354,10 +358,11 @@ function ensurePlotly(){
  if(window.Plotly)return Promise.resolve(true);
  if(!_plotlyLoading)
   _plotlyLoading=new Promise(async res=>{
-   const src=await loadScript(orderSources("vendor/plotly.min.js","https://cdn.plot.ly/plotly-basic-2.35.2.min.js"));
-   if(!src){_plotlyLoading=null;$("gapnote").textContent=
-    "Plotly failed to load (no vendor/plotly.min.js on the hub and no internet) - retry: Load & merge";res(false);return;}
-   res(true);});
+   const srcs=orderSources("vendor/plotly.min.js","https://cdn.plot.ly/plotly-basic-2.35.2.min.js");
+   const src=await loadScript(srcs,{status:"gapnote"});
+   if(!src){_plotlyLoading=null;setStatus("gapnote",
+    "Plotly failed to load from "+srcs.join(" and ")+" (timed out or missing) - press Load & merge to retry",false,true);res(false);return;}
+   setStatus("gapnote","");res(true);});
  return _plotlyLoading;
 }
 async function draw(){
