@@ -9,10 +9,11 @@
  * Only active on secure origins (the GitHub Pages copy); the device-hosted
  * plain-http copy never registers it.
  */
-const CACHE = "envhub-v12";
+const CACHE = "envhub-v13";
 const SHELL = [
   "./",
   "./index.html",
+  "./ai_tools.js",
   "./manifest.json",
   "./icon.svg",
   "./sample/days.json",
@@ -23,8 +24,8 @@ const SHELL = [
 // entry scripts wanted on every load: precache best-effort so going
 // offline right after the first visit still leaves charts working
 const CDN_PRECACHE = [
-  "https://cdn.plot.ly/plotly-2.35.2.min.js",
-  "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js",
+  "https://cdn.plot.ly/plotly-basic-2.35.2.min.js",
+  "https://cdn.jsdelivr.net/pyodide/v314.0.6/full/pyodide.js",
 ];
 const CDN_HOSTS = ["cdn.plot.ly", "cdn.jsdelivr.net"];
 
