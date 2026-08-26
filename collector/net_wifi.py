@@ -74,7 +74,7 @@ _TYPES = {
 }
 _MAX_BODY = 8192   # POST /api/cert carries a PEM chain + key (~5.5 KB)
 _IDLE_S = 8          # drop a plain connection that goes quiet this long
-_TLS_IDLE_NOREQ_S = 2.5   # TLS session that never sent a request (browser preconnect): free the slot fast
+_TLS_IDLE_NOREQ_S = 10    # TLS session with no request yet: the handshake itself spans ~2-3 s of polls on the C6
 _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
 _MAX_CONNS = 6
