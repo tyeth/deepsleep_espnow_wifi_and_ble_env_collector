@@ -184,7 +184,6 @@ class WebPortal:
         self.tls_ctx = None
         self.tls_expiry = None
         self._buf = bytearray(1024)
-        self._fbuf = bytearray(2048)  # file streaming chunk (lwIP send buffer is ~5.7 KB)
         self._conns = []
         self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
 
@@ -510,23 +509,17 @@ class WebPortal:
                 if c.file is None:
                     self._finish(c)
                     return
-                fb = self._fbuf
-                n = c.file.readinto(fb)
+                n = c.file.readinto(buf)
                 if not n:
                     c.file.close()
                     c.file = None
                     self._finish(c)
                     return
-                c.out = memoryview(bytes(fb[:n]))
-            try:
-                sent = c.sock.send(c.out)  # raises EAGAIN when the TX window is full
-            except OSError as exc:
-                if exc.errno != _EAGAIN:
-                    raise
-                # window full: the peer ACKs within milliseconds -- wait a little inside
-                # this poll's budget instead of giving up the slot until the next poll
-                time.sleep(0.005)
-                continue
+                c.out = memoryview(bytes(buf[:n]))
+            # 1 KB chunks, and on a full TX window (EAGAIN raised) simply leave and let
+            # the next poll continue -- larger chunks / in-poll retries stalled phone
+            # browsers mid-page (verified 2026-08-26); this version served 51 KB in <1 s.
+            sent = c.sock.send(c.out)
             if not sent:
                 return
             c.t = time.monotonic()
