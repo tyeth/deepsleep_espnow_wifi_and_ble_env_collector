@@ -184,7 +184,7 @@ class WebPortal:
         self.tls_ctx = None
         self.tls_expiry = None
         self._buf = bytearray(1024)
-        self._fbuf = bytearray(4096)  # file streaming chunk
+        self._fbuf = bytearray(2048)  # file streaming chunk (lwIP send buffer is ~5.7 KB)
         self._conns = []
         self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
 

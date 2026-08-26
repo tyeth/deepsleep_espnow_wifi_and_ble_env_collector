@@ -51,6 +51,15 @@ a{color:var(--acc)}
 </style>
 </head>
 <body>
+<!-- Static first paint: no JS needed. Stays visible (with working links) if the rest
+     of this page stalls while loading over the hub's radio; app JS hides it when ready. -->
+<div id="boot" style="padding:.8em 1em;background:var(--card);border-bottom:1px solid var(--line)">
+ <strong>ENVHUB</strong> &mdash; loading the analyzer&hellip;
+ <span class="mut">If this stays here, the page is still downloading from the hub. Links:</span>
+ <a href="http://192.168.4.1/">http (fast)</a> &middot;
+ <a href="https://192dot168dot4dot1.gundryconsultancy.com/">https (secure: AI, BLE)</a> &middot;
+ <a href="/api/latest">latest data (JSON)</a>
+</div>
 <header>
  <h1>Env Hub Analyzer</h1>
  <span class="chip" id="chip-http">http: off</span>
@@ -325,22 +334,30 @@ function buildMetricPicks(){
   box.appendChild(l);
  }
 }
+/* Load a script from a list of sources: first that works wins. Each attempt has a
+   timeout (a stalled fetch over the hub radio must not hang forever) and one retry.
+   On github.io the CDN goes first (internet is there); on the hub, vendor/ goes first. */
+const ON_PAGES=/github\.io$/.test(location.hostname);
+function orderSources(local,cdn){return ON_PAGES?[cdn,local]:[local,cdn];}
+function loadScript(urls,{timeout=20000,retries=1}={}){
+ return new Promise(async res=>{
+  for(const u of urls)for(let a=0;a<=retries;a++){
+   const ok=await new Promise(r=>{const s=document.createElement("script");
+    const t=setTimeout(()=>{s.remove();r(false);},timeout);
+    s.onload=()=>{clearTimeout(t);r(true);};s.onerror=()=>{clearTimeout(t);s.remove();r(false);};
+    s.src=u;document.head.appendChild(s);});
+   if(ok){res(u);return;}
+  }
+  res(null);});}
 let _plotlyLoading=null;
 function ensurePlotly(){
  if(window.Plotly)return Promise.resolve(true);
  if(!_plotlyLoading)
-  _plotlyLoading=new Promise(res=>{const s=document.createElement("script");
-   // vendor copy on the hub (SD card first, then user flash) keeps charts working
-   // with no internet; the CDN is the fallback when hosted or the file is absent
-   s.src="vendor/plotly.min.js";
-   s.onerror=()=>{s.onerror=()=>{_plotlyLoading=null;$("gapnote").textContent=
-    "Plotly failed to load (no vendor/plotly.min.js on the hub and no internet)";res(false);};
-    s.src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js";};
-   s.onload=()=>res(true);
-   s.onerror=()=>{_plotlyLoading=null;$("gapnote").textContent=
-    "Plotly unavailable (offline before first cache?) - charts disabled";
-    res(false);};
-   document.head.appendChild(s);});
+  _plotlyLoading=new Promise(async res=>{
+   const src=await loadScript(orderSources("vendor/plotly.min.js","https://cdn.plot.ly/plotly-basic-2.35.2.min.js"));
+   if(!src){_plotlyLoading=null;$("gapnote").textContent=
+    "Plotly failed to load (no vendor/plotly.min.js on the hub and no internet) - retry: Load & merge";res(false);return;}
+   res(true);});
  return _plotlyLoading;
 }
 async function draw(){
@@ -480,10 +497,9 @@ function ensurePyodide(){
  if(!_pyLoading)
   _pyLoading=(async()=>{
    if(!window.loadPyodide){
-    await new Promise((res,rej)=>{const s=document.createElement("script");
-     s.src="vendor/pyodide/pyodide.js";  // SD card copy; falls back to the CDN
-     s.onerror=()=>{s.onerror=null;window._pyIndex="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/";s.src=window._pyIndex+"pyodide.js";};
-     s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+    const src=await loadScript(orderSources("vendor/pyodide/pyodide.js","https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"),{timeout:60000});
+    if(!src)throw new Error("pyodide.js not loadable (no vendor/pyodide on the hub and no internet)");
+    window._pyIndex=src.replace(/pyodide\.js$/,"");
    }
    const py=await loadPyodide({indexURL:window._pyIndex||"vendor/pyodide/"});
    await py.loadPackage("numpy");
@@ -1064,6 +1080,7 @@ async function loadDemo(){
    " (demo dataset loaded - try the AI below)");
  }catch(e){setStatus("load-status","demo load failed: "+e,false,true);}
 }
+$("boot").hidden=true; // app JS is running: static boot panel no longer needed
 idb.open().then(async()=>{
  const imported=await importFromHash();
  await refreshFiles();
