@@ -48,6 +48,10 @@ a{color:var(--acc)}
  vertical-align:-.1em}
 @keyframes sp{to{transform:rotate(360deg)}}
 .err{color:#c92a2a;font-weight:600}
+#how{margin-top:.5em;font-size:.88em}#how summary{cursor:pointer;color:var(--mut)}
+#how code{display:block;white-space:pre-wrap;font-family:ui-monospace,monospace;
+ background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:.3em .5em;margin:.2em 0}
+#how .step{margin:.4em 0}#how table{font-size:.85em}
 </style>
 </head>
 <body>
@@ -156,6 +160,19 @@ a{color:var(--acc)}
  </div>
  <div class="mut" id="aistatus"></div>
  <div id="answer"></div>
+ <!-- transparency: every SQL query the model asked for, post-validation, with row counts -->
+ <details id="how" hidden><summary>how I got this</summary><div id="how-body"></div></details>
+ <!-- no Prompt API (Chrome for Android, other browsers): canned questions on the same
+      local sqlite engine, so the query side stays useful without the model -->
+ <div id="canned" class="row" hidden>
+  <span class="mut">no on-device model here - canned questions:</span>
+  <select id="cq-what"></select>
+  <select id="cq-metric"></select>
+  <select id="cq-zone"></select>
+  <label class="mut">from <select id="cq-from"></select></label>
+  <label class="mut">to <select id="cq-to"></select></label>
+  <button id="cq-run">Run</button>
+ </div>
 </section>
 
 <section id="calsec">
@@ -196,6 +213,7 @@ a{color:var(--acc)}
  use BLE there, or open the device-hosted copy.
 </footer>
 
+<script src="ai_tools.js"></script>
 <script>
 "use strict";
 /* ============================== state ============================== */
@@ -290,6 +308,7 @@ async function loadAll(){
   if(!seen.has(k)){seen.add(k);rows.push(r);}
  }
  rows.sort((a,b)=>a.ts-b.ts);
+ dataVersion++; // sqlite tables + AI schema doc are rebuilt lazily on the next question
  findGaps();
  $("load-status").textContent=
   `${rows.length} samples, ${new Set(rows.map(r=>r.src)).size} sources, `+
@@ -297,7 +316,8 @@ async function loadAll(){
  const any=rows.length>0;
  $("chartsec").hidden=$("analysis").hidden=$("ai").hidden=!any;
  if(any){buildMetricPicks();draw();
-  if(!aiSession)setStatus("aistatus",
+  if(!("LanguageModel" in self)||!isSecureContext)showCanned(true); // no Prompt API: canned queries
+  else if(!aiSession)setStatus("aistatus",
    "tap 'enable AI' in the header to load the on-device model",false);}
 }
 function findGaps(){
@@ -495,6 +515,9 @@ def analyze(series):
         out += merged
     return out
 `;
+// pinned Pyodide (Python 3.14, sqlite3 + lzma bundled, numpy 2.4 in its lockfile);
+// the same prefix is pre-cached by sw.js and mirrored to the hub's vendor/pyodide/
+const PYODIDE_CDN="https://cdn.jsdelivr.net/pyodide/v314.0.6/full/";
 let pyodide=null,_pyLoading=null;
 function ensurePyodide(){
  // single-flight: the user click and the background warm-up share one load
@@ -502,12 +525,15 @@ function ensurePyodide(){
  if(!_pyLoading)
   _pyLoading=(async()=>{
    if(!window.loadPyodide){
-    const src=await loadScript(orderSources("vendor/pyodide/pyodide.js","https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"),{timeout:60000});
+    const src=await loadScript(orderSources("vendor/pyodide/pyodide.js",PYODIDE_CDN+"pyodide.js"),{timeout:60000});
     if(!src)throw new Error("pyodide.js not loadable (no vendor/pyodide on the hub and no internet)");
     window._pyIndex=src.replace(/pyodide\.js$/,"");
    }
    const py=await loadPyodide({indexURL:window._pyIndex||"vendor/pyodide/"});
    await py.loadPackage("numpy");
+   // sqlite3 is bundled in the stdlib from Pyodide 314.0.0 (2026-06-09); an older
+   // vendor/pyodide tree on the hub (0.2x) still needs it as a package
+   if(!/^314\./.test(py.version||""))await py.loadPackage("sqlite3");
    pyodide=py;
    return py;
   })().catch(e=>{_pyLoading=null;throw e;}); // allow retry when back online
@@ -739,73 +765,141 @@ async function sync(){
 }
 
 /* ====================== built-in AI assistant ====================== */
-const SYSTEM_PROMPT=`You are the analyst for a home environmental monitoring
-hub (CO2 ppm, temperature C, relative humidity %, particulates ug/m3, VOC and
-NOx, node battery volts). You are given computed statistics: per-metric
-ranges, out-of-spec episodes (warn = outside comfortable range, bad = well
-beyond acceptable), data gaps, and detected change points. Out-of-spec runs
-BOTH ways: values BELOW the normal range are also warn/bad - low temperature,
-low humidity, low battery volts, and CO2 below ~400ppm (physically implausible
-indoors, so it indicates a sensor or calibration fault rather than good air).
-VOC and NOx are Sensirion INDEX values, NOT ppm/ppb concentrations: the VOC
-index settles to a baseline of 100 once the sensor is warmed up (higher =
-worse than the recent norm, lower = better), and the NOx index settles to a
-baseline of 1. NOx is rarely relevant indoors - ignore it unless the user
-asks about it specifically or it deviates wildly from 1. Answer the user's
-question plainly and briefly. Users speak casually: phrases like "totally
-fucked" or "how bad" mean "how far beyond acceptable limits and for how long".
-Give: 1) what happened with numbers (peaks, durations), 2) a severity verdict -
-one of: fine / briefly out of range / bad / severely out of range for an
-excessive period, 3) anything they should check. If data gaps overlap the
-period, say the record is incomplete. Do not invent data not in the stats.`;
-function aiContext(){
- const perMetric={};
- for(const m of METRICS){
-  const vs=rows.filter(r=>r[m]!=null);
-  if(!vs.length)continue;
-  const nums=vs.map(r=>r[m]);
-  perMetric[m]={min:Math.min(...nums),max:Math.max(...nums),
-   mean:+(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(2),
-   latest:nums[nums.length-1]};
- }
- if(!episodes.length)findEpisodes();
- return JSON.stringify({
-  range:{from:iso(rows[0].ts),to:iso(rows[rows.length-1].ts)},
-  sources:[...new Set(rows.map(r=>r.src))],
-  thresholds:getThresholds(),
-  stats:perMetric,
-  episodes:episodes.slice(0,25).map(e=>({zone:e.src,metric:e.metric,
-   level:e.level===2?"bad":"warn",start:iso(e.start),
-   hours:+((e.end-e.start)/3600).toFixed(2),peak:e.peak,
-   ongoing:!!e.ongoing})),
-  gaps:gaps.slice(0,10).map(g=>({zone:g.src,from:iso(g.from),
-   hours:+((g.to-g.from)/3600).toFixed(2)})),
-  change_points:(window._changes||[]).slice(0,15),
- });
+// Tool loop: the model (Gemini Nano via the Prompt API) answers by asking for
+// SQL over the loaded rows, which live in an in-memory sqlite3 db inside Pyodide.
+// Pure helpers (validator, schema doc, prompt, canned queries) are in ai_tools.js.
+const T=window.EnvAiTools;
+const SQL_MAX_ROWS=50,TOOL_ITER=3,AI_QUOTA_FRACTION=0.8;
+// Python side, run once: builds the tables and serves gated queries with a ~2 s budget
+const SQL_SETUP_PY=String.raw`
+import sqlite3, json, time
+_ENV = {}
+def env_build(rows_json, days_json, zones_json, thr_json):
+    """Rebuild every table from JSON handed over by JS (one executemany each)."""
+    db = _ENV.get("db") or sqlite3.connect(":memory:")
+    db.execute("PRAGMA query_only = OFF")
+    cols = json.loads(rows_json)["cols"]; rows = json.loads(rows_json)["rows"]
+    for t in ("readings", "days", "zones", "thresholds"):
+        db.execute("DROP TABLE IF EXISTS " + t)
+    db.execute("CREATE TABLE readings (ts INTEGER, src TEXT, " +
+               ", ".join(c + " REAL" for c in cols[2:-1]) + ", flags INTEGER)")
+    db.executemany("INSERT INTO readings VALUES (" + ",".join("?" * len(cols)) + ")", rows)
+    db.execute("CREATE INDEX ix_ts ON readings(ts)")
+    db.execute("CREATE INDEX ix_src ON readings(src, ts)")
+    db.execute("CREATE TABLE days (day TEXT, rows INTEGER, sources TEXT)")
+    db.executemany("INSERT INTO days VALUES (?,?,?)", json.loads(days_json))
+    db.execute("CREATE TABLE zones (src TEXT, rows INTEGER, first_ts INTEGER, last_ts INTEGER)")
+    db.executemany("INSERT INTO zones VALUES (?,?,?,?)", json.loads(zones_json))
+    db.execute("CREATE TABLE thresholds (metric TEXT, lo_bad REAL, lo_warn REAL, warn REAL, bad REAL)")
+    db.executemany("INSERT INTO thresholds VALUES (?,?,?,?,?)", json.loads(thr_json))
+    db.commit()
+    db.execute("PRAGMA query_only = ON")   # belt and braces: validator or not, no writes
+    _ENV["db"] = db
+    return len(rows)
+
+def env_query(sql, max_rows=50, budget_s=2.0):
+    """Run one gated SELECT; abort via progress handler if it runs past budget_s."""
+    db = _ENV["db"]
+    t0 = time.time()
+    db.set_progress_handler(lambda: 1 if time.time() - t0 > budget_s else 0, 5000)
+    try:
+        cur = db.execute(sql)
+        cols = [d[0] for d in cur.description or []]
+        out = cur.fetchmany(max_rows + 1)
+    finally:
+        db.set_progress_handler(None, 0)
+    cell = lambda v: round(v, 3) if isinstance(v, float) else v
+    return json.dumps({"cols": cols, "rows": [[cell(v) for v in r] for r in out[:max_rows]],
+                       "row_count": len(out), "truncated": len(out) > max_rows,
+                       "ms": int((time.time() - t0) * 1000)})
+`;
+let dataVersion=0,sqlReady=null,sqlStamp=-1;
+// summary of the loaded dataset used for the schema doc + session staleness checks
+function dataMeta(){
+ const srcs=[...new Set(rows.map(r=>r.src))];
+ const days=new Set(rows.map(r=>dayOf(r.ts)));
+ return {sources:srcs,rows:rows.length,days:days.size,
+  from:rows.length?iso(rows[0].ts):"-",to:rows.length?iso(rows[rows.length-1].ts):"-",
+  tzOffsetMin:-new Date().getTimezoneOffset()};
+}
+// single-flight: load Pyodide (+sqlite3) once, (re)build the tables when the dataset changed
+function ensureSqlDb(){
+ if(sqlReady&&sqlStamp===dataVersion)return sqlReady;
+ sqlStamp=dataVersion;
+ sqlReady=(async()=>{
+  const py=await ensurePyodide();
+  if(!py._sqlSetup){await py.runPythonAsync(SQL_SETUP_PY);py._sqlSetup=true;}
+  const cols=["ts","src",...METRICS,"flags"];
+  py.globals.set("rows_json",JSON.stringify({cols,rows:rows.map(r=>cols.map(c=>r[c]??null))}));
+  const byDay={},byZone={};
+  for(const r of rows){
+   const d=dayOf(r.ts);(byDay[d]=byDay[d]||{n:0,s:new Set()}).n++;byDay[d].s.add(r.src);
+   const z=(byZone[r.src]=byZone[r.src]||{n:0,a:r.ts,b:r.ts});z.n++;z.a=Math.min(z.a,r.ts);z.b=Math.max(z.b,r.ts);
+  }
+  py.globals.set("days_json",JSON.stringify(Object.entries(byDay).map(([d,v])=>[d,v.n,[...v.s].join(",")])));
+  py.globals.set("zones_json",JSON.stringify(Object.entries(byZone).map(([s,z])=>[s,z.n,z.a,z.b])));
+  const th=getThresholds();
+  py.globals.set("thr_json",JSON.stringify(Object.entries(th).map(([m,t])=>[m,t.lo_bad??null,t.lo_warn??null,t.warn??null,t.bad??null])));
+  await py.runPythonAsync("_n = env_build(rows_json, days_json, zones_json, thr_json)");
+  py.globals.set("rows_json",null); // free the big string
+  return py;
+ })().catch(e=>{sqlReady=null;throw e;});
+ return sqlReady;
+}
+// the tool: validate, run in Pyodide, return {sql, cols, rows, row_count, truncated, ms}
+async function sqlTool(sql){
+ const safe=T.validateSql(sql,T.SQL_TABLES,SQL_MAX_ROWS);
+ const py=await ensureSqlDb();
+ py.globals.set("q_sql",safe);
+ await py.runPythonAsync("_out = env_query(q_sql, "+SQL_MAX_ROWS+")");
+ return {sql:safe,...JSON.parse(py.globals.get("_out"))};
+}
+// render tool results as a small table (textContent only: model/data output is untrusted)
+function resultTable(res){
+ const t=document.createElement("table");
+ const tr=document.createElement("tr");
+ for(const c of res.cols){const th=document.createElement("th");th.textContent=c;tr.appendChild(th);}
+ t.appendChild(tr);
+ for(const r of res.rows){const row=document.createElement("tr");
+  for(const v of r){const td=document.createElement("td");td.textContent=v==null?"":String(v);row.appendChild(td);}
+  t.appendChild(row);}
+ return t;
+}
+// the "how I got this" block: every query the model asked for, with row counts and errors
+function showSteps(steps){
+ const d=$("how"),box=$("how-body");box.textContent="";
+ d.hidden=!steps.length;if(!steps.length)return;
+ d.querySelector("summary").textContent=`how I got this (${steps.length} quer${steps.length===1?"y":"ies"})`;
+ steps.forEach((s,i)=>{
+  const p=document.createElement("div");p.className="step";
+  const h=document.createElement("div");h.className="mut";
+  h.textContent=`${i+1}. ${s.reason||""}${s.error?" - REFUSED/FAILED: "+s.error:` - ${s.row_count} row(s)${s.truncated?" (truncated)":""}, ${s.ms} ms`}`;
+  const c=document.createElement("code");c.textContent=s.sql;
+  p.appendChild(h);p.appendChild(c);
+  if(s.rows&&s.rows.length)p.appendChild(resultTable({cols:s.cols,rows:s.rows.slice(0,10)}));
+  box.appendChild(p);});
 }
 function aiDiagnostics(extra){
+ // status text when the Prompt API is missing/unavailable (facts per docs/research-web-ai-and-pyodide-query.md)
  const bits=[];
  if(!isSecureContext)bits.push(
   "NOT a secure context - serve over HTTPS (tools/serve_webapp.py) or localhost.");
  else bits.push("secure context OK ("+location.protocol+"//"+location.host+")");
  bits.push("LanguageModel API "+("LanguageModel" in self?"present":"MISSING"));
- bits.push("(the ~2GB model is a ONE-TIME download managed by Chrome; "+
-  "once chrome://on-device-internals shows it ready, questions work "+
-  "fully offline)");
  if(extra)bits.push(extra);
- bits.push("Checklist: use a NORMAL browser profile (built-in AI is "+
-  "disabled in Incognito/Guest/sandboxed windows); Chrome 131+ (or Canary "+
-  "with chrome://flags/#prompt-api-for-gemini-nano + "+
-  "#optimization-guide-on-device-model = 'Enabled BypassPerfRequirement'); "+
-  "then chrome://components > 'Optimization Guide On Device Model' > "+
-  "Check for update (~2GB, needs 22GB free disk); state visible at "+
-  "chrome://on-device-internals. "+
-  "Threshold + change analysis work regardless.");
+ bits.push("The Prompt API is stable in desktop Chrome 148+ (Windows, macOS 13+, Linux, "+
+  "Chromebook Plus) in a normal profile (not Incognito/Guest); it needs ~22GB free disk "+
+  "and a GPU with >4GB VRAM or 16GB RAM. Chrome for Android/iOS do not have it yet "+
+  "(chromestatus 5888755098583040). The model is a one-time download managed by Chrome "+
+  "(state: chrome://on-device-internals); afterwards questions work fully offline. "+
+  "Without the model, the canned queries below still run on the same local SQL engine.");
  return bits.join(" | ");
 }
+let aiStamp=-1;
+// create the pre-warmed session (system prompt = domain guidance + live schema doc)
 async function warmAI(){
  if(!("LanguageModel" in self)){chip("chip-ai","ai: unsupported",false);
-  setStatus("aistatus",aiDiagnostics(),false,true);
+  setStatus("aistatus",aiDiagnostics(),false,true);showCanned(true);
   return null;}
  try{
   setStatus("aistatus","checking on-device model...",true);
@@ -815,13 +909,14 @@ async function warmAI(){
   chip("chip-ai","ai: "+avail,avail==="available");
   if(avail==="unavailable"){
    setStatus("aistatus",
-    aiDiagnostics("availability() returned 'unavailable'"),false,true);
+    aiDiagnostics("availability() returned 'unavailable'"),false,true);showCanned(true);
    return null;}
   // pre-warm per do's & don'ts: create early with system prompt
   setStatus("aistatus",avail==="available"?
    "loading model into memory...":"downloading on-device model...",true);
+  if(aiSession){try{aiSession.destroy();}catch(e){}}
   aiSession=await LanguageModel.create({
-   initialPrompts:[{role:"system",content:SYSTEM_PROMPT}],
+   initialPrompts:[{role:"system",content:T.buildSystemPrompt(dataMeta())}],
    expectedInputs:[{type:"text",languages:["en"]}],
    expectedOutputs:[{type:"text",languages:["en"]}],
    monitor(m){m.addEventListener("downloadprogress",e=>{
@@ -829,11 +924,52 @@ async function warmAI(){
      "downloading model: "+Math.round(e.loaded*100)+"%",true);
     chip("chip-ai","ai: downloading",false);});},
   });
+  aiStamp=dataVersion;
   chip("chip-ai","ai: ready",true);setStatus("aistatus","model ready");
   return aiSession;
  }catch(e){chip("chip-ai","ai: error",false);
   setStatus("aistatus","AI init failed: "+e,false,true);
   return null;}
+}
+// tokens used / window, across the renamed (contextUsage) and old (inputUsage) properties
+function quota(s){return {used:s.contextUsage??s.inputUsage??0,window:s.contextWindow??s.inputQuota??Infinity};}
+// one constrained turn; falls back to plain JSON prompting on browsers without responseConstraint
+async function promptJSON(s,text){
+ try{return await s.prompt(text,{responseConstraint:T.TOOL_SCHEMA,omitResponseConstraintInput:true});}
+ catch(e){if(!/constraint|schema|NotSupported|TypeError/i.test(String(e)))throw e;
+  return await s.prompt(text+"\nReply with a single JSON object only.");}
+}
+// decide -> query -> answer loop (max TOOL_ITER queries), returns {text, steps}
+async function askWithTools(q){
+ const steps=[];let s=await aiSession.clone();
+ let turn=`QUESTION: ${q}`;
+ try{
+  for(let i=0;i<=TOOL_ITER;i++){
+   const {used,window:win}=quota(s);
+   if(used>win*AI_QUOTA_FRACTION){s.destroy();s=await aiSession.clone();} // near quota: fresh clone
+   setStatus("aistatus",i?"model is reading the results...":"model is deciding what to query...",true);
+   let reply;
+   try{reply=T.classifyReply(T.parseToolReply(await promptJSON(s,turn)));}
+   catch(e){turn=`Your reply was not valid (${e.message}). Answer QUESTION: ${q} with {"answer":...} using the tool_result(s) you already have.`;
+    if(i===TOOL_ITER)break;continue;}
+   if(reply.kind==="answer")return {text:reply.text,steps};
+   if(i===TOOL_ITER)break;
+   setStatus("aistatus","querying your data...",true);
+   let step={reason:reply.reason,sql:reply.query};
+   try{step={reason:reply.reason,...(await sqlTool(reply.query))};}
+   catch(e){step.error=String(e.message||e);}
+   steps.push(step);showSteps(steps);
+   const payload=step.error?{tool_error:step.error,query:step.sql}:{tool_result:T.capToolResult(step)};
+   turn=JSON.stringify(payload)+`\nQUESTION: ${q}\n`+(steps.length>=TOOL_ITER?
+    'You have used all your queries: reply with {"answer":...} now.':
+    'Reply with {"answer":...} if you have enough, or one more {"tool":"sql",...}.');
+  }
+  // out of iterations: force a prose answer from whatever was gathered
+  setStatus("aistatus","summarising...",true);
+  const gathered=steps.filter(x=>!x.error).map(x=>JSON.stringify(T.capToolResult(x,20,600))).join("\n");
+  const text=await s.prompt(`Using only these query results:\n${gathered||"(none succeeded)"}\nAnswer briefly in plain prose: ${q}`);
+  return {text,steps};
+ }finally{s.destroy();}
 }
 let asking=false;
 async function ask(){
@@ -850,33 +986,57 @@ async function ask(){
  asking=true;$("askbtn").disabled=true;
  const t0=Date.now();
  try{
-  if(!aiSession){
+  if(!aiSession||aiStamp!==dataVersion){ // no session yet, or the schema doc is stale
    $("answer").textContent="";
    if(!(await warmAI())){asking=false;$("askbtn").disabled=false;return;}
   }
-  setStatus("aistatus","computing statistics...",true);
-  const ctx=aiContext();
-  setStatus("aistatus","submitting to on-device model...",true);
-  // clone the pre-warmed session so unrelated questions don't accumulate
-  const s=await aiSession.clone();
-  const stream=s.promptStreaming(
-   "DATA (computed statistics):\n"+ctx+"\n\nQUESTION: "+q);
-  setStatus("aistatus","waiting for first token...",true);
-  let full="";
-  for await (const chunk of stream){
-   if(!full)setStatus("aistatus","answering...",true);
-   full+=chunk;
-   $("answer").textContent=full;} // textContent: output stays plain text
-  s.destroy();
-  setStatus("aistatus","done in "+((Date.now()-t0)/1000).toFixed(1)+"s");
-  if(!full)setStatus("aistatus","model returned nothing - try rephrasing",
+  showSteps([]);
+  setStatus("aistatus","loading the query engine (Pyodide + sqlite3)...",true);
+  await ensureSqlDb();
+  const {text,steps}=await askWithTools(q);
+  $("answer").textContent=text; // textContent: output stays plain text
+  showSteps(steps);
+  setStatus("aistatus",`done in ${((Date.now()-t0)/1000).toFixed(1)}s, ${steps.length} quer${steps.length===1?"y":"ies"}`);
+  if(!text)setStatus("aistatus","model returned nothing - try rephrasing",
    false,true);
  }catch(e){
   setStatus("aistatus","AI failed: "+e,false,true);
   if(!$("answer").textContent)$("answer").textContent=
    "The on-device model errored ("+e+"). The threshold/change tables "+
-   "above still have the numbers.";
+   "above still have the numbers, and the canned queries below work without the model.";
+  showCanned(true);
  }finally{asking=false;$("askbtn").disabled=false;}
+}
+/* --- deterministic fallback (no Prompt API, e.g. Chrome for Android) --- */
+// show the canned-query row and fill its selects from the loaded dataset
+function showCanned(on){
+ const box=$("canned");box.hidden=!on;if(!on||!rows.length)return;
+ const fill=(id,opts)=>{const s=$(id);const cur=s.value;s.textContent="";
+  for(const [v,l] of opts){const o=document.createElement("option");o.value=v;o.textContent=l;s.appendChild(o);}
+  if([...s.options].some(o=>o.value===cur))s.value=cur;};
+ fill("cq-what",T.CANNED.map(c=>[c.id,c.label]));
+ const have=METRICS.filter(m=>rows.some(r=>r[m]!=null));
+ fill("cq-metric",have.map(m=>[m,LABELS[m]]));
+ fill("cq-zone",[["","all zones"],...[...new Set(rows.map(r=>r.src))].map(s=>[s,s])]);
+ const days=[...new Set(rows.map(r=>dayOf(r.ts)))].sort();
+ fill("cq-from",days.map(d=>[d,d]));fill("cq-to",days.map(d=>[d,d]));
+ if(!$("cq-to").value||$("cq-to").selectedIndex<0)$("cq-to").value=days[days.length-1];
+}
+// run the selected canned question through the same validated sqlite path
+async function runCanned(){
+ const c=T.CANNED.find(x=>x.id===$("cq-what").value);if(!c)return;
+ const m=$("cq-metric").value,z=$("cq-zone").value;
+ const a=Math.floor(Date.parse($("cq-from").value+"T00:00:00Z")/1000),b=Math.floor(Date.parse($("cq-to").value+"T23:59:59Z")/1000);
+ if(!(a<=b)){setStatus("aistatus","'from' must not be after 'to'",false,true);return;}
+ setStatus("aistatus","running query...",true);$("cq-run").disabled=true;
+ try{
+  const res=await sqlTool(c.sql(m,z?` AND src = '${z.replace(/'/g,"''")}'`:"",a,b));
+  $("answer").textContent=`${c.label} - ${LABELS[m]} ${z||"all zones"} ${$("cq-from").value}..${$("cq-to").value} (${res.row_count} row(s))`;
+  $("answer").appendChild(resultTable(res));
+  showSteps([{reason:c.label,...res}]);
+  setStatus("aistatus",`done in ${res.ms} ms`);
+ }catch(e){setStatus("aistatus","query failed: "+e,false,true);}
+ finally{$("cq-run").disabled=false;}
 }
 /* --- voice --- */
 function mic(){
@@ -902,8 +1062,10 @@ if("serviceWorker" in navigator && isSecureContext){
   // verify the heavyweights actually made it into the cache: opaque
   // no-cors responses used to be skipped, which silently broke offline
   try{
-   const c=await caches.open("envhub-v3");
-   const plotly=await c.match("https://cdn.plot.ly/plotly-2.35.2.min.js",
+   // the cache name is versioned in sw.js (CACHE = "envhub-vNN"): find the current one
+   const name=(await caches.keys()).filter(k=>k.startsWith("envhub-")).sort().pop();
+   const c=await caches.open(name||"envhub-");
+   const plotly=await c.match("https://cdn.plot.ly/plotly-basic-2.35.2.min.js",
                               {ignoreVary:true});
    chip("chip-sw",plotly?"offline: ready":"offline cache: on",true);
   }catch(e){chip("chip-sw","offline cache: on",true);}
@@ -957,6 +1119,7 @@ $("btn-py").onclick=runPy;
 $("btn-pyedit").onclick=()=>{$("pybox").hidden=!$("pybox").hidden;};
 $("askbtn").onclick=ask;
 $("micbtn").onclick=mic;
+$("cq-run").onclick=runCanned;
 // header AI controls: model creation must happen inside a user gesture
 function showAi(){$("ai").hidden=false;$("ai").scrollIntoView({behavior:"smooth",block:"start"});}
 $("btn-ai").onclick=async()=>{
