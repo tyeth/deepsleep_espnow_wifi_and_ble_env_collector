@@ -61,7 +61,7 @@ or frequently updated pieces go on the card. Vendor bundles are loaded from
 | File | Where | Notes |
 |---|---|---|
 | `www/vendor/plotly.min.js` | flash (1.1 MB, plotly-**basic**) or SD | charts are line traces; the basic dist suffices |
-| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection / future offline Python |
+| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection + the AI query engine (sqlite3). Mirror **v314.0.6** (`cdn.jsdelivr.net/pyodide/v314.0.6/full/`: `pyodide.js`, `pyodide.asm.js/.wasm`, `python_stdlib.zip`, `pyodide-lock.json`, the `numpy` wheel); sqlite3 is bundled in that stdlib. An older 0.26.x tree still works — the app then also loads its `sqlite3` package |
 | `certs/fullchain.pem`, `certs/key.pem` | SD (`/sd/certs`) first, then flash `/certs` | HTTPS certificate for `192dot168dot4dot1.gundryconsultancy.com`; renewable via the page's *sync cert* / *upload* or auto when online |
 
 ## Install
