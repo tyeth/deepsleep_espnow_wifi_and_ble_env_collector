@@ -51,6 +51,19 @@ driver's resolution whitelist) — the panel shows 384x180 of that buffer
 ~20 s, and EPaperDisplay's defaults (40/180 s) are needlessly
 conservative for this panel. SEN66 on I2C/STEMMA QT.
 
+## Web app assets on the hub (offline, no internet on the AP)
+
+The analyzer is served by the hub from `/sd/www` (preferred) or `/www` on
+flash, per file: an SD card copy of any file overrides the flash copy, so big
+or frequently updated pieces go on the card. Vendor bundles are loaded from
+`vendor/` first and only fall back to the CDN when that fails:
+
+| File | Where | Notes |
+|---|---|---|
+| `www/vendor/plotly.min.js` | flash (1.1 MB, plotly-**basic**) or SD | charts are line traces; the basic dist suffices |
+| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection / future offline Python |
+| `certs/fullchain.pem`, `certs/key.pem` | SD (`/sd/certs`) first, then flash `/certs` | HTTPS certificate for `192dot168dot4dot1.gundryconsultancy.com`; renewable via the page's *sync cert* / *upload* or auto when online |
+
 ## Install
 
 Libraries are staged **into the repo** with circup's `--path` mode (no
