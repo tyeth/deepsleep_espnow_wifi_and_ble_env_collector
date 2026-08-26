@@ -79,7 +79,7 @@ _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for foll
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
 _MAX_CONNS = 6
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
-_TLS_MIN_GC = 10 * 1024     # Python heap needed by wrap_socket + a request
+_TLS_WRAP_GIVEUP_S = 4      # how long to keep retrying wrap_socket on MemoryError
 _EAGAIN = 11
 HTTP_DEBUG = True  # print one line per request (path, bytes, ms) -- bring-up aid
 
@@ -172,6 +172,7 @@ class WebPortal:
         self.tls_expiry = None
         self._buf = bytearray(1024)
         self._conns = []
+        self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
 
     # -- routing ------------------------------------------------------------
 
@@ -367,25 +368,35 @@ class WebPortal:
         # and would stall any transfer already in flight on another session.
         # (Delaying accepts -- spacing handshakes or waiting for http to go idle -- made
         # Chrome abandon connections before their handshake finished; accept promptly.)
-        if self.tls and not any(c.tls for c in self._conns) and _idf_free() > _TLS_MIN_FREE:
+        if self.tls and not any(c.tls for c in self._conns) and not self._tls_pending                 and _idf_free() > _TLS_MIN_FREE:
             try:
                 sock, _addr = self.tls.accept()
+                self._tls_pending.append((sock, time.monotonic()))
             except OSError:
-                sock = None  # nothing pending
-            if sock is not None:
-                try:
-                    import gc
-                    gc.collect()  # wrap_socket needs a few KB of contiguous gc heap
-                    if gc.mem_free() < _TLS_MIN_GC:
-                        raise MemoryError("gc heap low (%d)" % gc.mem_free())
-                    tls_sock = self.tls_ctx.wrap_socket(sock, server_side=True)
-                    tls_sock.setblocking(False)
-                    c = _Conn(tls_sock)
-                    c.tls = True
-                    self._conns.append(c)
-                except (MemoryError, OSError) as exc:
-                    print("HTTPS: cannot start TLS session:", exc)
+                pass  # nothing pending
+        # Wrap parked TLS sockets: wrap_socket needs a few KB of contiguous Python heap
+        # and can fail transiently -- retry over a few polls rather than closing the
+        # connection (a close shows up in the browser as "connection reset").
+        if self._tls_pending and not any(c.tls for c in self._conns):
+            sock, t0 = self._tls_pending[0]
+            import gc
+            gc.collect()
+            try:
+                tls_sock = self.tls_ctx.wrap_socket(sock, server_side=True)
+                tls_sock.setblocking(False)
+                c = _Conn(tls_sock)
+                c.tls = True
+                self._conns.append(c)
+                self._tls_pending.pop(0)
+            except MemoryError:
+                if time.monotonic() - t0 > _TLS_WRAP_GIVEUP_S:
+                    print("HTTPS: no heap for a TLS session after %.0fs, dropping" % _TLS_WRAP_GIVEUP_S)
                     sock.close()
+                    self._tls_pending.pop(0)
+            except OSError as exc:
+                print("HTTPS: cannot start TLS session:", exc)
+                sock.close()
+                self._tls_pending.pop(0)
         if not self._conns:
             return
         deadline = time.monotonic() + _POLL_BUDGET_MS / 1000
