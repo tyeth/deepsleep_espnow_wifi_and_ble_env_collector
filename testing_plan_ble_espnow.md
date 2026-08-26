@@ -68,7 +68,7 @@ Starter client: `tools/ble_smoke.py` (works on Windows too, best on Pi).
 
 ## BLE test suite (scriptable with bleak)
 
-1. **Scan/advertise**: `ENVHUB` visible; Nordic UART service UUID
+1. **Scan/advertise**: `ENVHUB-xxxx` visible (xxxx = last 2 MAC bytes; override with `ENVHUB_BLE_NAME` / `ble_name`); Nordic UART service UUID
    (`6e400001-…`) in the advertisement; note RSSI. Re-appears within 5 s
    of a client disconnect (net_ble re-advertises).
 2. **Command matrix** (connect, subscribe TX notify, send line, expect one

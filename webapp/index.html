@@ -58,15 +58,33 @@ a{color:var(--acc)}
  <span class="chip" id="chip-sw">offline cache: -</span>
  <span class="chip" id="chip-ai">ai: -</span>
  <span class="chip" id="chip-net" hidden style="background:var(--warn);color:var(--fg)">OFFLINE</span>
+ <!-- The Prompt API needs a user activation before the model may be created /
+      downloaded, so AI is opt-in from the header rather than auto-started. -->
+ <span id="ai-ctl">
+  <!-- Served from the hub over plain http the page is not a secure context, so the
+       built-in AI is unavailable; hand the stored data to the HTTPS-hosted copy of
+       this app via a URL fragment (never sent to any server) and use the AI there. -->
+  <button id="btn-handoff" class="sec" hidden title="open the hosted analyzer with this data">analyze with AI &#8599;</button>
+  <!-- hub serves http (fast) and https (secure context: AI, web-BLE); offer the switch -->
+  <a id="lnk-secure" class="sec" hidden style="padding:.45em .9em;border-radius:6px;text-decoration:none;font-size:.92em">switch to secure (AI) &#128274;</a>
+  <a id="lnk-fast" class="sec" hidden style="padding:.45em .9em;border-radius:6px;text-decoration:none;font-size:.92em">switch to fast http &#9889;</a>
+  <button id="btn-ai" class="sec" title="load the on-device model (Chrome built-in AI)">enable AI</button>
+  <button id="hdr-mic" class="sec" title="ask by voice">&#127908; speak</button>
+  <button id="hdr-ask" class="sec" title="ask about your data">Ask</button>
+ </span>
 </header>
 <main>
 
 <section id="connect">
  <h2>Device</h2>
  <div class="row">
-  <input id="baseurl" size="24" placeholder="http://192.168.4.1">
+  <input id="baseurl" size="40" placeholder="https://192dot168dot4dot1.gundryconsultancy.com">
   <button id="btn-http">Connect HTTP</button>
   <button id="btn-ble" class="sec">Connect BLE</button>
+  <span class="mut" style="margin-left:1em">HTTPS cert:</span>
+  <button id="btn-cert" class="sec" title="fetch the latest 192dot168dot4dot1 certificate (needs internet) and install it on the hub">sync cert</button>
+  <label class="sec" style="cursor:pointer" title="fallback: pick ssl.combined + ssl.key downloaded by hand">upload <input type="file" id="certfiles" multiple hidden></label>
+  <span class="mut" id="cert-note"></span>
   <button id="btn-time" class="sec" title="set the hub clock from this browser">Sync clock</button>
   <span class="mut" id="conn-note"></span>
  </div>
@@ -76,29 +94,7 @@ a{color:var(--acc)}
  </div>
 </section>
 
-<section id="calsec">
- <h2>CO2 reference calibration <span class="mut">(ASC is off everywhere - this is the sensor's only correction)</span></h2>
- <div class="row">
-  <label>sensor <select id="cal-src"><option value="local">local (hub SEN66)</option></select></label>
-  <button id="btn-cal1" class="sec">Step 1: arm &amp; read the setup guide</button>
-  <button id="btn-calstat" class="sec">Status</button>
- </div>
- <div id="cal-guide" class="mut" style="white-space:pre-wrap"></div>
- <div class="row">
-  <label>when <select id="cal-when">
-   <option value="4am">next 04:00 local (best urban reference, 60 min)</option>
-   <option value="now">now (3 min - only if truly outdoors)</option>
-   <option value="custom">custom time...</option></select></label>
-  <input id="cal-custom" type="datetime-local" hidden>
-  <label>window <input id="cal-dur" type="number" min="2" max="360" size="4" placeholder="min"> min</label>
-  <label>mode <select id="cal-mode">
-   <option value="frc">reference (FRC to target, stability-gated)</option>
-   <option value="asc">ASC 48 h (sensor self-calibrates; ventilate every night; USB power)</option></select></label>
-  <label><input id="cal-dry" type="checkbox"> dry run (check stability, don't write)</label>
-  <button id="btn-cal2">Step 2: schedule</button>
- </div>
- <div class="mut" id="cal-status"></div>
-</section>
+
 
 <section id="data">
  <h2>Datasets</h2>
@@ -151,6 +147,32 @@ a{color:var(--acc)}
  </div>
  <div class="mut" id="aistatus"></div>
  <div id="answer"></div>
+</section>
+
+<section id="calsec">
+<details>
+ <summary><h2 style="display:inline">CO2 reference calibration</h2> <span class="mut">(ASC is off everywhere - this is the sensor's only correction; rarely needed)</span></summary>
+ <div class="row">
+  <label>sensor <select id="cal-src"><option value="local">local (hub SEN66)</option></select></label>
+  <button id="btn-cal1" class="sec">Step 1: arm &amp; read the setup guide</button>
+  <button id="btn-calstat" class="sec">Status</button>
+ </div>
+ <div id="cal-guide" class="mut" style="white-space:pre-wrap"></div>
+ <div class="row">
+  <label>when <select id="cal-when">
+   <option value="4am">next 04:00 local (best urban reference, 60 min)</option>
+   <option value="now">now (3 min - only if truly outdoors)</option>
+   <option value="custom">custom time...</option></select></label>
+  <input id="cal-custom" type="datetime-local" hidden>
+  <label>window <input id="cal-dur" type="number" min="2" max="360" size="4" placeholder="min"> min</label>
+  <label>mode <select id="cal-mode">
+   <option value="frc">reference (FRC to target, stability-gated)</option>
+   <option value="asc">ASC 48 h (sensor self-calibrates; ventilate every night; USB power)</option></select></label>
+  <label><input id="cal-dry" type="checkbox"> dry run (check stability, don't write)</label>
+  <button id="btn-cal2">Step 2: schedule</button>
+ </div>
+ <div class="mut" id="cal-status"></div>
+</details>
 </section>
 
 <footer class="mut" style="padding:0 1em 2em">
@@ -265,7 +287,9 @@ async function loadAll(){
   `${gaps.length} gaps`;
  const any=rows.length>0;
  $("chartsec").hidden=$("analysis").hidden=$("ai").hidden=!any;
- if(any){buildMetricPicks();draw();warmAI();}
+ if(any){buildMetricPicks();draw();
+  if(!aiSession)setStatus("aistatus",
+   "tap 'enable AI' in the header to load the on-device model",false);}
 }
 function findGaps(){
  gaps=[];const bySrc={};
@@ -495,7 +519,10 @@ async function runPy(){
 
 /* ============================ transports =========================== */
 async function httpConnect(){
- const base=($("baseurl").value||location.origin).replace(/\/$/,"");
+ let base=($("baseurl").value||location.origin).replace(/\/$/,"");
+ // served over HTTPS (hub cert) a plain-http base is mixed content and blocked --
+ // Chrome restores the old http://192.168.4.1 into the box; use this origin instead
+ if(location.protocol==="https:"&&/^http:\/\//.test(base)){base=location.origin;$("baseurl").value=base;}
  setStatus("conn-note","connecting to "+base+"...",true);
  try{
   const r=await fetch(base+"/api/latest",{signal:AbortSignal.timeout(6000)});
@@ -504,6 +531,11 @@ async function httpConnect(){
   try{calFillSources(await r.clone().json());}catch(e){}
   $("btn-sync").disabled=false;
   setStatus("conn-note","connected");
+  // hub reachable both ways: offer the other flavour (http = fast, https = secure context)
+  fetch(base+"/api/cert",{signal:AbortSignal.timeout(6000)}).then(r=>r.json()).then(c=>{
+   if(c.secure_url&&location.protocol==="http:"){$("lnk-secure").href=c.secure_url;$("lnk-secure").hidden=false;}
+   if(location.protocol==="https:"){$("lnk-fast").href="http://192.168.4.1/";$("lnk-fast").hidden=false;}
+  }).catch(()=>{});
   syncClock(true); // hub may have no RTC battery: sync on every connect
   try{const cfg=await(await fetch(base+"/api/config")).json();
    if(cfg.thresholds)DEFAULT_THRESHOLDS=cfg.thresholds;
@@ -898,6 +930,97 @@ $("btn-py").onclick=runPy;
 $("btn-pyedit").onclick=()=>{$("pybox").hidden=!$("pybox").hidden;};
 $("askbtn").onclick=ask;
 $("micbtn").onclick=mic;
+// header AI controls: model creation must happen inside a user gesture
+function showAi(){$("ai").hidden=false;$("ai").scrollIntoView({behavior:"smooth",block:"start"});}
+$("btn-ai").onclick=async()=>{
+ const b=$("btn-ai");b.disabled=true;b.textContent="loading AI...";showAi();
+ const ok=await warmAI();
+ b.textContent=ok?"AI ready":"enable AI";b.disabled=!!ok;};
+$("hdr-mic").onclick=()=>{showAi();mic();};
+$("hdr-ask").onclick=()=>{showAi();$("question").focus();};
+
+/* ================= data handoff hub(http) -> hosted app(https) ============
+   The hub serves this page over plain http (no secure context: no built-in
+   AI, no web-BLE), and the https-hosted copy cannot fetch http://hub (mixed
+   content). Bridge: put the stored day files in the URL *fragment* of the
+   hosted app -- fragments never leave the browser -- and import them there. */
+const HOSTED_APP="https://tyeth.github.io/espnow_wifi_and_ble_env_collector/";
+const HUB_HTTPS="https://192dot168dot4dot1.gundryconsultancy.com";
+const b64u={enc:b=>btoa(String.fromCharCode(...b)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""),
+ dec:s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0))};
+async function gzip(bytes,mode){ // mode "gzip"|"gunzip"; falls back to identity
+ if(!("CompressionStream" in self))return {bytes,z:false};
+ const S=mode==="gzip"?new CompressionStream("gzip"):new DecompressionStream("gzip");
+ const out=await new Response(new Blob([bytes]).stream().pipeThrough(S)).arrayBuffer();
+ return {bytes:new Uint8Array(out),z:true};}
+async function handoff(){
+ const files=(await idb.all()).sort((a,b)=>a.day<b.day?1:-1); // newest first
+ if(!files.length){setStatus("conn-note","sync some days first (Sync button)",false,true);return;}
+ // keep the URL under ~1.5 MB: drop oldest days until it fits
+ let keep=files.slice();
+ while(keep.length){
+  const raw=new TextEncoder().encode(JSON.stringify({v:1,files:keep.map(f=>({day:f.day,csv:f.csv}))}));
+  const {bytes,z}=await gzip(raw,"gzip");
+  const payload=(z?"gz.":"raw.")+b64u.enc(bytes);
+  if(payload.length<1500000||keep.length===1){
+   setStatus("conn-note",`handing ${keep.length} day(s) to the hosted analyzer...`);
+   location.assign(HOSTED_APP+"#import="+payload);return;}
+  keep.pop();}
+}
+async function importFromHash(){
+ const m=/^#import=(gz|raw)\.(.+)$/.exec(location.hash);
+ if(!m)return false;
+ history.replaceState(null,"",location.pathname+location.search); // drop the payload
+ try{
+  let bytes=b64u.dec(m[2]);
+  if(m[1]==="gz")bytes=(await gzip(bytes,"gunzip")).bytes;
+  const data=JSON.parse(new TextDecoder().decode(bytes));
+  for(const f of data.files||[])await idb.put(f.day,f.csv);
+  setStatus("load-status",`imported ${(data.files||[]).length} day(s) from the hub`);
+  return true;
+ }catch(e){setStatus("load-status","import failed: "+e,false,true);return false;}
+}
+$("btn-handoff").onclick=handoff;
+
+/* ====================== HTTPS certificate sync to the hub ======================
+   The hub's cert (192dot168dot4dot1.gundryconsultancy.com) is renewed every ~90
+   days at gundryconsultancy.com. Like the clock sync, the browser can fetch the
+   latest files while it has internet and push them to the hub (HTTPS->HTTPS or
+   BLE). Fallback: pick ssl.combined + ssl.key downloaded by hand. */
+const CERT_SRC="https://www.gundryconsultancy.com/";
+function pemChain(text,n=2){ // keep leaf + intermediate (the root is in every browser)
+ const certs=text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)||[];
+ return certs.slice(0,n).join("\n")+"\n";}
+async function pushCert(cert,key){
+ if(!/BEGIN CERTIFICATE/.test(cert)||!/PRIVATE KEY/.test(key))throw new Error("files don't look like a cert + key");
+ const body=JSON.stringify({cert,key});
+ if(httpBase){
+  const r=await fetch(httpBase+"/api/cert",{method:"POST",headers:{"Content-Type":"application/json"},body});
+  return await r.json();}
+ if(bleIO)return await bleJSON("cert "+body);   // long: paced by net_ble
+ throw new Error("connect to the hub first (HTTP or BLE)");}
+async function certSync(){
+ setStatus("cert-note","fetching latest certificate...",true);
+ try{
+  const [c,k]=await Promise.all([fetch(CERT_SRC+"ssl.combined").then(r=>r.text()),
+                                 fetch(CERT_SRC+"ssl.key").then(r=>r.text())]);
+  const res=await pushCert(pemChain(c),k);
+  setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,false,!!res.err);
+ }catch(e){setStatus("cert-note","cert sync failed ("+e+") - try 'upload' with files from "+CERT_SRC,false,true);}}
+$("btn-cert").onclick=certSync;
+$("certfiles").onchange=async e=>{
+ const files=[...e.target.files];let cert="",key="";
+ for(const f of files){const t=await f.text();if(/PRIVATE KEY/.test(t))key=t;else cert+=t;}
+ try{const res=await pushCert(pemChain(cert),key);
+  setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,false,!!res.err);
+ }catch(err){setStatus("cert-note","upload failed: "+err,false,true);}};
+if(!self.isSecureContext){ // hub-served http copy: no AI here
+ $("btn-ai").hidden=true;$("hdr-mic").hidden=true;$("hdr-ask").hidden=true;
+ $("btn-handoff").hidden=false;
+ chip("chip-ai","ai: needs https",false);
+ // the hub also serves this page over HTTPS at its certificate's hostname
+ if(/^192\.168\.4\.1$/.test(location.hostname)){$("lnk-secure").href=HUB_HTTPS+"/";$("lnk-secure").hidden=false;}}
+if(location.protocol==="https:"){$("lnk-fast").href="http://192.168.4.1/";$("lnk-fast").hidden=false;}
 $("question").addEventListener("keydown",e=>{if(e.key==="Enter")ask();});
 $("filein").onchange=async e=>{
  for(const f of e.target.files)
@@ -914,7 +1037,9 @@ drop.ondrop=async e=>{
 
 $("thrbox").value=JSON.stringify(DEFAULT_THRESHOLDS,null,1);
 $("pybox").value=DEFAULT_PY;
-if(location.protocol.startsWith("http"))$("baseurl").value=location.origin;
+// hub-served copy: talk to this origin; hosted (Pages) copy: default to the hub's
+// HTTPS hostname (resolves to 192.168.4.1 on the hub AP; https->https, no mixed content)
+$("baseurl").value=(location.protocol.startsWith("http")&&!/github\.io$/.test(location.hostname))?location.origin:HUB_HTTPS;
 
 // ?demo=1 -> pull the bundled sample dataset (webapp/sample/) into
 // IndexedDB and load it, so the charts/analysis/AI have data to chew on.
@@ -934,8 +1059,10 @@ async function loadDemo(){
  }catch(e){setStatus("load-status","demo load failed: "+e,false,true);}
 }
 idb.open().then(async()=>{
+ const imported=await importFromHash();
  await refreshFiles();
- if(new URLSearchParams(location.search).has("demo"))await loadDemo();
+ if(imported){await loadAll();findEpisodes();}
+ else if(new URLSearchParams(location.search).has("demo"))await loadDemo();
 });
 if(location.hostname&&location.protocol==="http:")httpConnect();
 </script>

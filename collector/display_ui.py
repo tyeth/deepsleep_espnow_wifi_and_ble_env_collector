@@ -20,6 +20,9 @@ import displayio
 import terminalio
 import vectorio
 
+# bitmap_label renders one bitmap per label (IDF heap) but keeps the Python
+# heap small; label.Label was measured to cost MORE overall on the C6
+# (dashboard 33.5 KB vs 39.5 KB gc free) -- keep bitmap_label.
 try:
     from adafruit_display_text import bitmap_label as label
 except ImportError:

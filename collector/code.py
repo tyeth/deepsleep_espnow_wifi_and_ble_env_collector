@@ -63,6 +63,11 @@ AP_SSID = (os.getenv("ENVHUB_AP_SSID")
            or "BASE" + envproto.short_mac(wifi.radio.mac_address))
 AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
                or _ecfg.get("ap_password", ""))
+# BLE name carries the MAC suffix so several hubs on one site stay distinct
+# (clients match on the ENVHUB prefix + Nordic UART service).
+BLE_NAME = (os.getenv("ENVHUB_BLE_NAME")
+            or _ecfg.get("ble_name")
+            or "ENVHUB-" + envproto.short_mac(wifi.radio.mac_address)[-4:])
 # BLE controller AND advertising first (before the AP -- mirroring the
 # BLE-workflow case, the only proven BLE+AP coexistence on C6). If any
 # step fails, tear BLE down completely: a half-up BLE stack costs ~65KB
@@ -76,12 +81,12 @@ if _ecfg.get("ble_enabled", True):
         from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
         from adafruit_ble.services.nordic import UARTService
         _ble_radio = BLERadio()
-        _ble_radio.name = "ENVHUB"
+        _ble_radio.name = BLE_NAME
         _ble_uart = UARTService()
         _ble_adv = ProvideServicesAdvertisement(_ble_uart)
-        _ble_adv.complete_name = "ENVHUB"
+        _ble_adv.complete_name = BLE_NAME
         _ble_radio.start_advertising(_ble_adv)
-        print("early BLE advertising as ENVHUB")
+        print("early BLE advertising as", BLE_NAME)
     except Exception as exc:
         print("early BLE failed (%s: %s); reclaiming its memory"
               % (type(exc).__name__, exc))
@@ -196,7 +201,18 @@ config = _load_json(CONFIG_FLASH)
 # Bus + storage bring-up
 # ---------------------------------------------------------------------------
 displayio.release_displays()
-spi = board.SPI()
+
+
+def _make_spi():
+    # Feathers/QT Py expose board.SPI(); bare devkits (bring-up bench) don't,
+    # so fall back to busio on free GPIOs (C6: SCK=IO6 MOSI=IO7 MISO=IO2).
+    if hasattr(board, "SPI"):
+        return board.SPI()
+    import busio
+    return busio.SPI(board.IO6, board.IO7, board.IO2)
+
+
+spi = _make_spi()
 
 # SRAM on the FeatherWing is unused -- hold its CS deselected so it never
 # answers on the shared bus.
@@ -262,7 +278,7 @@ if SD_CS is not None:
                 spi.deinit()
             except (OSError, ValueError, RuntimeError):
                 pass
-            spi = board.SPI()
+            spi = _make_spi()
         if spi.try_lock():
             spi.unlock()
             print("SPI bus verified free")
@@ -334,8 +350,13 @@ i2c = None
 local_sensor = None
 try:
     # prefer the STEMMA QT connector where it's a separate bus (QT Py)
-    i2c = (board.STEMMA_I2C() if hasattr(board, "STEMMA_I2C")
-           else board.I2C())
+    if hasattr(board, "STEMMA_I2C"):
+        i2c = board.STEMMA_I2C()
+    elif hasattr(board, "I2C"):
+        i2c = board.I2C()
+    else:  # bare devkit: SDA=IO19 SCL=IO20
+        import busio
+        i2c = busio.I2C(board.IO20, board.IO19)
     local_sensor = sensors_local.LocalSensor(i2c)
     print("SEN66:", local_sensor.product, local_sensor.serial)
 except (OSError, ValueError, RuntimeError) as exc:
@@ -853,7 +874,7 @@ _mem("after http portal")
 # alongside the softAP hard-faults the C6 core (bugs_issues_and_todos.md).
 if config.get("ble_enabled", True) and _ble_radio is not None:
     import net_ble
-    ble = net_ble.BleUartPortal(handlers, radio=_ble_radio, uart=_ble_uart,
+    ble = net_ble.BleUartPortal(handlers, name=BLE_NAME, radio=_ble_radio, uart=_ble_uart,
                                 adv=_ble_adv,
                                 use_pktbuf=config.get("ble_tx_pktbuf", False))
 else:
@@ -1104,4 +1125,7 @@ while True:
             microcontroller.reset()
         time.sleep(0.5)
 
-    time.sleep(0.05)
+    # idle slice: keep the (non-blocking) HTTP portal responsive between passes
+    for _ in range(4):
+        portal.poll()
+        time.sleep(0.05)

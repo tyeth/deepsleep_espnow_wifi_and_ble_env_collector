@@ -175,7 +175,10 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   `/api/history?day=YYYY-MM-DD` (CSV), `/api/config` (GET/POST),
   `/api/calibrate` (POST), `/api/time` (POST, browser clock sync),
   `/api/ingest` (node fallback).
-* **web-BLE**: advertises as `ENVHUB` (Nordic UART). Text commands:
+* **web-BLE**: advertises as `ENVHUB-xxxx` (xxxx = last two MAC bytes, so
+  several hubs on one site stay distinct; override via `ENVHUB_BLE_NAME` in
+  `settings.toml` or `ble_name` in config.json) with the Nordic UART
+  service. Text commands:
   `latest`, `battery`, `events`, `config`, `days`, `hist <day>` (streams a
   day's CSV between `#BEGIN`/`#END`), `set <json>`, `cal <src> <1|2>`,
   `time <epoch>`. Works with Adafruit's web bluetooth terminal and the

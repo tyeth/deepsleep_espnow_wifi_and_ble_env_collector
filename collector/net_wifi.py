@@ -4,7 +4,8 @@
 net_wifi - WiFi bring-up, NTP time sync, and the HTTP portal/REST API.
 
 Routes (all JSON unless noted):
-  GET  /                    tiny dashboard page (HTML, fetches the API)
+  GET  /                    the analyzer app from /sd/www or /www if deployed,
+                            else a tiny landing page linking to the hosted app
   GET  /api/latest          latest values for every source + alert states
   GET  /api/battery         host + node battery concerns
   GET  /api/events          active out-of-spec + tail of events.csv
@@ -16,30 +17,41 @@ Routes (all JSON unless noted):
                              "duration_s","target_ppm","dry",
                              "mode":"frc"|"asc"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
+  POST /api/time            {"epoch": ...} browser clock sync
 
 The command handlers themselves live in code.py (shared with BLE); this
-module just wires HTTP to them.
+module wires HTTP to them with a deliberately small non-blocking server on
+socketpool: adafruit_httpserver cost ~46 KB of heap on the C6, which is the
+difference between the wifi driver having TX buffers or not. Phones open
+several connections per page (some speculative, never used), so every
+connection is progressed a little on each poll() and nothing ever blocks the
+main loop.
 """
 
 import json
+import time
 
 import wifi
 
 try:
     import socketpool
-    from adafruit_httpserver import (
-        GET,
-        POST,
-        FileResponse,
-        JSONResponse,
-        Redirect,
-        Request,
-        Response,
-        Server,
-    )
     _HAVE_HTTP = True
 except ImportError:
     _HAVE_HTTP = False
+
+# Hosted analyzer (HTTPS, web-BLE). Browsers block plain-http API calls from
+# it, so on the AP the app is served from /www when present; this is the
+# fallback landing page.
+APP_URL = "https://tyeth.github.io/espnow_wifi_and_ble_env_collector/"
+
+# HTTPS on the AP: a public Let's Encrypt certificate for a hostname that resolves
+# to 192.168.4.1 (the captive DNS answers every name with the AP address). With it
+# the hub-served app is a secure context (built-in AI, web-BLE, service worker)
+# and no mixed-content problem exists. Files live on flash so they can be renewed
+# (cert lasts ~90 days; sidecar cert_meta.json holds not_after for the check).
+import certstore
+
+TLS_HOST = certstore.HOST
 
 # OS captive-portal connectivity probes: answering these with a redirect to
 # the portal makes phones/laptops pop the page when they join our AP.
@@ -55,42 +67,22 @@ _CAPTIVE_PROBES = (
     "/success.txt",               # Firefox
 )
 
-_PAGE = """<!doctype html><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<title>Env Hub</title>
-<style>body{font-family:system-ui;margin:1em;background:#fafafa}
-h1{font-size:1.2em}table{border-collapse:collapse;width:100%}
-td,th{padding:.3em .5em;border-bottom:1px solid #ddd;text-align:left}
-.warn{background:#ffe680}.bad{background:#ff9a8a}
-.banner{padding:.5em;border-radius:6px;margin:.5em 0;font-weight:600}
-.banner.warn{background:#ffe680}.banner.bad{background:#ff9a8a}
-small{color:#666}</style>
-<h1>Env Hub</h1><div id=b></div><div id=t>loading...</div>
-<p><small>auto-refresh 30s &middot; <a href=/api/latest>latest</a> &middot;
-<a href=/api/events>events</a> &middot; <a href=/api/battery>battery</a> &middot;
-<a href=/api/config>config</a></small></p>
-<script>
-async function load(){
- try{
-  const d=await (await fetch('/api/latest')).json();
-  const bt=await (await fetch('/api/battery')).json();
-  let bh='';
-  if(bt.host&&bt.host.unplugged)bh+=`<div class="banner ${bt.host.crit?'bad':'warn'}">Hub on battery ${bt.host.v??''}V</div>`;
-  for(const n of bt.nodes||[])bh+=`<div class="banner ${n.crit?'bad':'warn'}">${n.src} battery low ${n.v}V</div>`;
-  for(const a of d.abnormal||[])bh+=`<div class="banner ${a.state}">${a.src} ${a.metric} ${a.state} for ${a.for}</div>`;
-  document.getElementById('b').innerHTML=bh;
-  let h='<table><tr><th>zone</th><th>CO2</th><th>PM2.5</th><th>T</th><th>RH</th><th>VOC</th><th>NOx</th><th>batt</th><th>age</th></tr>';
-  for(const[s,e]of Object.entries(d.sources)){
-   const m=e.m||{},st=e.states||{};
-   const c=k=>st[k]==2?' class=bad':st[k]==1?' class=warn':'';
-   const f=(k,d=1)=>m[k]==null?'--':(+m[k]).toFixed(d);
-   h+=`<tr><td>${e.zone||s}</td><td${c('co2')}>${f('co2',0)}</td><td${c('pm25')}>${f('pm25')}</td><td${c('tc')}>${f('tc')}</td><td${c('rh')}>${f('rh')}</td><td${c('voc')}>${f('voc',0)}</td><td${c('nox')}>${f('nox',0)}</td><td>${e.vb??'--'}</td><td>${e.age??''}</td></tr>`;
-  }
-  document.getElementById('t').innerHTML=h+'</table>';
- }catch(e){document.getElementById('t').textContent='fetch failed: '+e;}
+_TYPES = {
+    "html": "text/html", "js": "text/javascript", "css": "text/css",
+    "json": "application/json", "svg": "image/svg+xml", "csv": "text/csv",
+    "png": "image/png", "txt": "text/plain",
 }
-load();setInterval(load,30000);
-</script>"""
+_MAX_BODY = 8192   # POST /api/cert carries a PEM chain + key (~5.5 KB)
+_IDLE_S = 8          # drop a plain connection that goes quiet this long
+_TLS_IDLE_NOREQ_S = 2.5   # TLS session that never sent a request (browser preconnect): free the slot fast
+_TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
+_POLL_BUDGET_MS = 150  # max time spent in one poll()
+_MAX_CONNS = 6
+_TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
+_TLS_2ND_FREE = 36 * 1024   # ... and for a second concurrent session
+_TLS_MIN_GC = 10 * 1024     # Python heap needed by wrap_socket + a request
+_EAGAIN = 11
+HTTP_DEBUG = True  # print one line per request (path, bytes, ms) -- bring-up aid
 
 
 def connect(ssid, password, tz_offset_h=0):
@@ -117,8 +109,8 @@ def connect(ssid, password, tz_offset_h=0):
 
 def _find_app_root():
     """The full analysis web app is deployed to /sd/www (preferred, big
-    vendor files fit there) or /www on flash; fall back to the tiny
-    embedded dashboard when neither exists."""
+    vendor files fit there) or /www on flash; fall back to the landing page
+    when neither exists."""
     import os
     for root in ("/sd/www", "/www"):
         try:
@@ -127,6 +119,43 @@ def _find_app_root():
         except OSError:
             pass
     return None
+
+
+def _idf_free():
+    try:
+        import espidf
+        return espidf.heap_caps_get_free_size()
+    except ImportError:
+        return 1 << 30
+
+
+def _json(obj):
+    return 200, "application/json", json.dumps(obj).encode()
+
+
+def _parse_json(body):
+    try:
+        return json.loads(body)
+    except ValueError:
+        return None
+
+
+class _Conn:
+    """One client connection progressed incrementally by WebPortal.poll()."""
+    __slots__ = ("sock", "req", "out", "file", "t", "done", "t0", "path", "sent", "tls", "keep")
+
+    def __init__(self, sock):
+        self.sock = sock
+        self.req = b""      # request bytes received so far
+        self.out = None     # pending response bytes (memoryview) or None
+        self.file = None    # open file being streamed after `out`
+        self.t = time.monotonic()
+        self.t0 = self.t
+        self.path = None
+        self.sent = 0
+        self.tls = False
+        self.keep = False   # HTTP keep-alive: serve further requests on this TLS connection
+        self.done = False
 
 
 class WebPortal:
@@ -139,123 +168,352 @@ class WebPortal:
         self.portal_host = portal_host  # AP IP for captive redirects
         self.port = port
         self.app_root = None
+        self.tls = None
+        self.tls_ctx = None
+        self.tls_expiry = None
+        self._buf = bytearray(1024)
+        self._conns = []
+
+    # -- routing ------------------------------------------------------------
+
+    def _route(self, method, path, query, body):
+        h = self.handlers
+        if path == "/" or path == "/index.html" or path == "/sw.js":
+            if self.app_root:
+                return ("file", self.app_root + ("/index.html" if path != "/sw.js" else "/sw.js"))
+            if path == "/sw.js":
+                return 200, "text/javascript", b"// no app deployed"
+            return 200, "text/html", (
+                b"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
+                b"<title>ENVHUB</title><h1>ENVHUB</h1><p>Data API: <a href=/api/latest>/api/latest</a></p>"
+                b"<p>Analyzer app: <a href='" + APP_URL.encode() + b"'>" + APP_URL.encode() + b"</a></p>")
+        if path in _CAPTIVE_PROBES:
+            return 302, self._portal_url(), b""
+        if method == "GET":
+            if path == "/api/latest":
+                return _json(h["latest"]())
+            if path == "/api/battery":
+                return _json(h["battery"]())
+            if path == "/api/events":
+                return _json(h["events"]())
+            if path == "/api/config":
+                return _json(h["config_get"]())
+            if path == "/api/calibrate":
+                return _json(h["cal_status"]())
+            if path == "/api/cert":
+                return _json(self.cert_status())
+            if path == "/api/history":
+                day = query.get("day")
+                days = h["list_days"]()
+                if not day:
+                    return _json({"days": days})
+                if day not in days:
+                    return _json({"err": "no such day", "days": days})
+                return ("file", "%s/%s.csv" % (h["data_dir"](), day))
+            if self.app_root and "/.." not in path:
+                return ("file", self.app_root + path)
+        elif method == "POST":
+            if path == "/api/ingest":
+                return _json(h["ingest"](body))
+            data = _parse_json(body)
+            if data is None:
+                return _json({"err": "bad json"})
+            if path == "/api/config":
+                return _json(h["config_set"](data))
+            if path == "/api/cert":
+                return _json(self.install_cert(data.get("cert", ""), data.get("key", "")))
+            if path == "/api/time":
+                return _json(h["time_set"](data.get("epoch")))
+            if path == "/api/calibrate":
+                try:
+                    step = int(data.get("step", 1))
+                except (TypeError, ValueError):
+                    return _json({"err": "bad step"})
+                return _json(h["calibrate"](data.get("src", "local"), step, data))
+        return 404, "text/plain", b"not found"
+
+    def _portal_url(self):
+        # Captive-portal probes land on the plain-http page: first paint + data in
+        # <1 s. HTTPS (needed for the built-in AI / web-BLE) is one click away in the
+        # page header -- an RSA-2048 handshake costs the C6 ~1.3 s of CPU each, so it
+        # must not sit on the critical path for every phone that joins.
+        return "http://%s%s/" % (self.portal_host or "192.168.4.1",
+                                 "" if self.port == 80 else ":%d" % self.port)
+
+    def secure_url(self):
+        return ("https://%s/" % TLS_HOST) if self.tls else None
+
+    def _start_tls(self, pool):
+        """Listen on :443 with the flash-resident certificate. Returns the wrapped listener or None."""
+        found = certstore.resolve()   # /sd/certs first, then /certs on flash
+        if not found:
+            print("HTTPS: no certificate in /sd/certs or /certs, http only")
+            return None
+        cert_path, key_path = found
+        import gc
+        import ssl
+        tls = None
+        for attempt in (1, 2):
+            # mbedTLS/PSA key import wants a sizeable contiguous block: collect first,
+            # and retry once -- the failure mode is a bare GENERIC_ERROR when starved
+            gc.collect()
+            try:
+                ctx = ssl.SSLContext()
+                # SSLContext() attaches the CA bundle, which as a *server* makes mbedTLS demand
+                # a client certificate; clearing the CA store gives VERIFY_NONE.
+                ctx.load_verify_locations(cadata="")
+                ctx.load_cert_chain(cert_path, key_path)
+                raw = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
+                raw.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
+                raw.bind(("0.0.0.0", 443))
+                raw.listen(2)
+                raw.setblocking(False)
+                # Do NOT wrap the listener: a wrapped listener keeps a full mbedTLS context
+                # (record buffers) resident and starved the wifi driver (DHCP ACKs failed).
+                # Each accepted socket is wrapped on demand instead; the handshake then runs
+                # incrementally inside the non-blocking state machine (first recv).
+                self.tls_ctx = ctx
+                tls = raw
+                break
+            except (OSError, ValueError, MemoryError, RuntimeError) as exc:
+                try:
+                    import espidf
+                    heap = "idf_free=%d largest=%d" % (espidf.heap_caps_get_free_size(),
+                                                       espidf.heap_caps_get_largest_free_block())
+                except ImportError:
+                    heap = ""
+                print("HTTPS start failed (try %d): %s %s" % (attempt, exc, heap))
+                try:
+                    raw.close()
+                except Exception:
+                    pass
+                time.sleep(0.5)
+        if tls is None:
+            return None
+        self.tls_expiry = certstore.not_after(cert_path)
+        print("HTTPS portal on port 443 as %s (cert from %s)" % (TLS_HOST, cert_path))
+        self.check_cert()
+        return tls
+
+    def cert_status(self):
+        found = certstore.resolve()
+        return {"host": TLS_HOST, "https": bool(self.tls), "secure_url": self.secure_url(),
+                "source": found[0] if found else None,
+                "days_left": certstore.days_left(found[0]) if found else None}
+
+    def install_cert(self, cert, key):
+        """Write a new chain + key to flash (/certs), validated, atomic. Takes effect on next boot."""
+        ok = certstore.install(cert, key)
+        if not ok:
+            return {"err": "certificate rejected (not a valid, unexpired PEM chain + key)"}
+        st = self.cert_status()
+        st["note"] = "installed to /certs; restart the hub to use it"
+        return st
+
+    def check_cert(self):
+        """Warn when the clock is synced and the certificate is (nearly) expired.
+        Returns days left, or None when unknown."""
+        if not self.tls_expiry:
+            return None
+        now = time.time()
+        if now < 1700000000:  # clock not synced yet (no RTC battery)
+            return None
+        days = (self.tls_expiry - now) / 86400
+        if days < 0:
+            print("HTTPS: certificate EXPIRED %.0f days ago -- renew /certs (%s)" % (-days, TLS_HOST))
+        elif days < 14:
+            print("HTTPS: certificate expires in %.0f days -- renew /certs soon" % days)
+        return days
+
+    # -- server -------------------------------------------------------------
 
     def start(self, ap_active=False):
         if not _HAVE_HTTP or not (wifi.radio.connected or ap_active):
             return False
-        pool = socketpool.SocketPool(wifi.radio)
-        server = Server(pool, debug=False)
-        h = self.handlers
         self.app_root = _find_app_root()
-        app_root = self.app_root
-        portal_url = "http://%s%s/" % (
-            self.portal_host or "192.168.4.1",
-            "" if self.port == 80 else ":%d" % self.port)
-
-        @server.route("/", GET)
-        def index(request: Request):
-            if app_root:
-                return FileResponse(request, "index.html", root_path=app_root)
-            return Response(request, _PAGE, content_type="text/html")
-
-        @server.route("/sw.js", GET)
-        def sw(request: Request):
-            if app_root:
-                return FileResponse(request, "sw.js", root_path=app_root)
-            return Response(request, "// no app deployed",
-                            content_type="text/javascript")
-
-        @server.route("/mini", GET)
-        def mini(request: Request):
-            return Response(request, _PAGE, content_type="text/html")
-
-        def captive(request: Request):
-            return Redirect(request, portal_url)
-
-        for probe in _CAPTIVE_PROBES:
-            server.route(probe, GET)(captive)
-
-        @server.route("/api/latest", GET)
-        def latest(request: Request):
-            return JSONResponse(request, h["latest"]())
-
-        @server.route("/api/battery", GET)
-        def batt(request: Request):
-            return JSONResponse(request, h["battery"]())
-
-        @server.route("/api/events", GET)
-        def events(request: Request):
-            return JSONResponse(request, h["events"]())
-
-        @server.route("/api/config", GET)
-        def config_get(request: Request):
-            return JSONResponse(request, h["config_get"]())
-
-        @server.route("/api/config", POST)
-        def config_post(request: Request):
-            try:
-                body = json.loads(request.body)
-            except ValueError:
-                return JSONResponse(request, {"err": "bad json"})
-            return JSONResponse(request, h["config_set"](body))
-
-        @server.route("/api/calibrate", GET)
-        def calibrate_status(request: Request):
-            return JSONResponse(request, h["cal_status"]())
-
-        @server.route("/api/calibrate", POST)
-        def calibrate(request: Request):
-            try:
-                body = json.loads(request.body)
-            except ValueError:
-                return JSONResponse(request, {"err": "bad json"})
-            try:
-                step = int(body.get("step", 1))
-            except (TypeError, ValueError):
-                return JSONResponse(request, {"err": "bad step"})
-            return JSONResponse(
-                request,
-                h["calibrate"](body.get("src", "local"), step, body),
-            )
-
-        @server.route("/api/ingest", POST)
-        def ingest(request: Request):
-            return JSONResponse(request, h["ingest"](request.body))
-
-        @server.route("/api/time", POST)
-        def time_post(request: Request):
-            try:
-                body = json.loads(request.body)
-            except ValueError:
-                return JSONResponse(request, {"err": "bad json"})
-            return JSONResponse(request, h["time_set"](body.get("epoch")))
-
-        @server.route("/api/history", GET)
-        def history(request: Request):
-            day = request.query_params.get("day")
-            days = h["list_days"]()
-            if not day:
-                return JSONResponse(request, {"days": days})
-            if day not in days:
-                return JSONResponse(request, {"err": "no such day", "days": days})
-            return FileResponse(request, "%s.csv" % day,
-                                root_path=h["data_dir"](),
-                                content_type="text/csv")
-
+        pool = socketpool.SocketPool(wifi.radio)
         try:
+            s = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
+            s.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
             # 0.0.0.0 serves both the STA (home WiFi) and AP interfaces
-            server.start("0.0.0.0", port=self.port)
+            s.bind(("0.0.0.0", self.port))
+            s.listen(4)
+            s.setblocking(False)
             print("HTTP portal on port", self.port)
         except OSError as exc:
             print("HTTP server start failed:", exc)
             return False
-        self.server = server
+        self.server = s
+        self.tls = self._start_tls(pool)
         self.ok = True
         return True
 
     def poll(self):
-        if self.server:
+        if not self.server:
+            return
+        # accept everything pending (non-blocking)
+        while len(self._conns) < _MAX_CONNS:
             try:
-                self.server.poll()
+                sock, _addr = self.server.accept()
+            except OSError:
+                break
+            sock.setblocking(False)
+            self._conns.append(_Conn(sock))
+        # https: accept() performs the TLS handshake (blocking, ~1 s); the served
+        # connection then joins the same non-blocking state machine
+        # Only start a TLS session when there is IDF headroom for its ~16 KB of
+        # buffers (allocated as several small pieces) and no other session is open; otherwise leave the connection in the
+        # listen backlog -- the browser waits and retries instead of seeing a reset.
+        n_tls = sum(1 for c in self._conns if c.tls)
+        free = _idf_free() if self.tls else 0
+        if self.tls and ((n_tls == 0 and free > _TLS_MIN_FREE) or (n_tls == 1 and free > _TLS_2ND_FREE)):
+            try:
+                sock, _addr = self.tls.accept()
+            except OSError:
+                sock = None  # nothing pending
+            if sock is not None:
+                try:
+                    import gc
+                    gc.collect()  # wrap_socket needs a few KB of contiguous gc heap
+                    if gc.mem_free() < _TLS_MIN_GC:
+                        raise MemoryError("gc heap low (%d)" % gc.mem_free())
+                    tls_sock = self.tls_ctx.wrap_socket(sock, server_side=True)
+                    tls_sock.setblocking(False)
+                    c = _Conn(tls_sock)
+                    c.tls = True
+                    self._conns.append(c)
+                except (MemoryError, OSError) as exc:
+                    print("HTTPS: cannot start TLS session:", exc)
+                    sock.close()
+        if not self._conns:
+            return
+        deadline = time.monotonic() + _POLL_BUDGET_MS / 1000
+        now = time.monotonic()
+        for c in self._conns:
+            try:
+                self._step(c, deadline)
             except OSError as exc:
-                print("HTTP poll error:", exc)
+                if exc.errno != _EAGAIN:
+                    c.done = True
+                    if exc.errno not in (104, 128, 32):  # reset / not connected / pipe: normal client hang-ups
+                        print("HTTP conn error:", exc)
+            except Exception as exc:  # a handler bug must not kill the server
+                print("HTTP handler error:", type(exc).__name__, exc)
+                c.done = True
+            if not c.done:
+                limit = _IDLE_S
+                if c.tls:
+                    limit = _TLS_KEEPALIVE_S if c.keep else _TLS_IDLE_NOREQ_S
+                if now - c.t > limit:
+                    c.done = True
+            if time.monotonic() > deadline:
+                break
+        # close finished connections
+        keep = []
+        for c in self._conns:
+            if c.done:
+                if c.file:
+                    c.file.close()
+                c.sock.close()
+                if HTTP_DEBUG:
+                    print("%s %s %d B %d ms%s" % ("HTTPS" if c.tls else "HTTP", c.path, c.sent, int((time.monotonic() - c.t0) * 1000),
+                                                    "" if c.out is None else " (incomplete)"))
+            else:
+                keep.append(c)
+        self._conns = keep
+
+    def _step(self, c, deadline):
+        buf = self._buf
+        if c.out is None:
+            # ---- receive phase (non-blocking; EAGAIN propagates = nothing yet)
+            n = c.sock.recv_into(buf)
+            if n == 0:
+                c.done = True  # peer closed without a request
+                return
+            c.t = time.monotonic()
+            c.req += bytes(buf[:n])
+            if b"\r\n\r\n" not in c.req:
+                if len(c.req) > _MAX_BODY:
+                    c.done = True
+                return
+            header, _, body = c.req.partition(b"\r\n\r\n")
+            length = 0
+            conn_hdr = b""
+            for ln in header.split(b"\r\n")[1:]:
+                low = ln[:15].lower()
+                if low == b"content-length:":
+                    length = int(ln[15:].strip())
+                elif low[:11] == b"connection:":
+                    conn_hdr = ln[11:].strip().lower()
+            if len(body) < min(length, _MAX_BODY):
+                return  # body still arriving
+            try:
+                method, target, _ver = header.split(b"\r\n")[0].decode().split(" ", 2)
+            except ValueError:
+                c.out = memoryview(self._head(400, "text/plain", 11) + b"bad request")
+                return
+            path, _, qs = target.partition("?")
+            query = {}
+            for kv in qs.split("&"):
+                if kv:
+                    k, _, v = kv.partition("=")
+                    query[k] = v
+            resp = self._route(method, path, query, body)
+            c.req = b""
+            c.path = path
+            # keep TLS connections open for the follow-up requests (html -> icon -> api)
+            # so they reuse one ~1.3 s RSA handshake; plain http stays one-shot
+            c.keep = c.tls and conn_hdr != b"close"
+            ka = c.keep
+            if resp[0] == "file":
+                import os
+                try:
+                    size = os.stat(resp[1])[6]
+                    c.file = open(resp[1], "rb")
+                    ext = resp[1].rsplit(".", 1)[-1]
+                    c.out = memoryview(self._head(200, _TYPES.get(ext, "application/octet-stream"), size, keep=ka))
+                except OSError:
+                    c.out = memoryview(self._head(404, "text/plain", 9, keep=ka) + b"not found")
+            elif resp[0] == 302:  # resp[1] carries the Location
+                c.out = memoryview(self._head(302, "text/html", 0, b"Location: %s\r\n" % resp[1].encode(), keep=ka))
+            else:
+                c.out = memoryview(self._head(resp[0], resp[1], len(resp[2]), keep=ka) + resp[2])
+        # ---- send phase: push as much as the socket takes within the budget
+        while time.monotonic() < deadline:
+            if len(c.out) == 0:
+                if c.file is None:
+                    self._finish(c)
+                    return
+                n = c.file.readinto(buf)
+                if not n:
+                    c.file.close()
+                    c.file = None
+                    self._finish(c)
+                    return
+                c.out = memoryview(bytes(buf[:n]))
+            sent = c.sock.send(c.out)  # raises EAGAIN when the TX window is full
+            if not sent:
+                return
+            c.t = time.monotonic()
+            c.sent += sent
+            c.out = c.out[sent:]
+
+    def _finish(self, c):
+        """Response fully sent: close, or (keep-alive) log it and await the next request."""
+        c.out = None
+        if c.keep:
+            if HTTP_DEBUG:
+                print("%s %s %d B %d ms (keep-alive)" % ("HTTPS" if c.tls else "HTTP", c.path, c.sent,
+                                                          int((time.monotonic() - c.t0) * 1000)))
+            c.path = None
+            c.sent = 0
+            c.t0 = c.t = time.monotonic()
+        else:
+            c.done = True
+
+    @staticmethod
+    def _head(status, ctype, length, extra=b"", keep=False):
+        reason = {200: "OK", 302: "Found", 400: "Bad Request", 404: "Not Found"}.get(status, "OK")
+        return (b"HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n"
+                b"Access-Control-Allow-Origin: *\r\nConnection: %s\r\n%s\r\n"
+                % (status, reason, ctype, length, b"keep-alive" if keep else b"close", extra))

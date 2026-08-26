@@ -49,10 +49,19 @@ class Repl:
 
     def enter_raw(self):
         self.s.write(INTERRUPT + INTERRUPT)
-        time.sleep(0.3)
-        self.s.reset_input_buffer()
-        self.s.write(RAW_ON)
-        self._read_until(b"raw REPL", timeout=5)
+        # Wait for the normal prompt: with wifi/BLE up, teardown after Ctrl-C can take
+        # well over a second and a Ctrl-A sent too early is silently dropped.
+        last = None
+        for _ in range(10):
+            time.sleep(0.5)
+            self.s.reset_input_buffer()
+            self.s.write(RAW_ON)
+            try:
+                self._read_until(b"raw REPL", timeout=1.5)
+                return
+            except TimeoutError as exc:
+                last = exc
+        raise last
 
     def exit_raw(self):
         self.s.write(RAW_OFF)
