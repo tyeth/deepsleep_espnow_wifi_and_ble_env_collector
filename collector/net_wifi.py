@@ -79,8 +79,8 @@ _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for foll
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
 _MAX_CONNS = 6
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
-_TLS_2ND_FREE = 36 * 1024   # ... and for a second concurrent session
 _TLS_MIN_GC = 10 * 1024     # Python heap needed by wrap_socket + a request
+_TLS_MIN_GAP_S = 5          # minimum spacing between TLS handshakes (each blocks ~1.3 s)
 _EAGAIN = 11
 HTTP_DEBUG = True  # print one line per request (path, bytes, ms) -- bring-up aid
 
@@ -173,6 +173,7 @@ class WebPortal:
         self.tls_expiry = None
         self._buf = bytearray(1024)
         self._conns = []
+        self._last_tls = 0
 
     # -- routing ------------------------------------------------------------
 
@@ -364,9 +365,13 @@ class WebPortal:
         # Only start a TLS session when there is IDF headroom for its ~16 KB of
         # buffers (allocated as several small pieces) and no other session is open; otherwise leave the connection in the
         # listen backlog -- the browser waits and retries instead of seeing a reset.
-        n_tls = sum(1 for c in self._conns if c.tls)
-        free = _idf_free() if self.tls else 0
-        if self.tls and ((n_tls == 0 and free > _TLS_MIN_FREE) or (n_tls == 1 and free > _TLS_2ND_FREE)):
+        # Strictly one TLS session at a time: a handshake blocks the loop ~1.3 s (RSA)
+        # and would stall any transfer already in flight on another session.
+        # ... and never while a plain-http request is being served (keeps the fast path
+        # fast), at most one handshake per _TLS_MIN_GAP_S.
+        now = time.monotonic()
+        if (self.tls and not self._conns and now - self._last_tls > _TLS_MIN_GAP_S
+                and _idf_free() > _TLS_MIN_FREE):
             try:
                 sock, _addr = self.tls.accept()
             except OSError:
@@ -378,6 +383,7 @@ class WebPortal:
                     if gc.mem_free() < _TLS_MIN_GC:
                         raise MemoryError("gc heap low (%d)" % gc.mem_free())
                     tls_sock = self.tls_ctx.wrap_socket(sock, server_side=True)
+                    self._last_tls = now
                     tls_sock.setblocking(False)
                     c = _Conn(tls_sock)
                     c.tls = True
