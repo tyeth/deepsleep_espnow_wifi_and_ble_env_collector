@@ -240,3 +240,81 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 * [ ] Adafruit IO upload of averaged subsets (future).
 * [ ] Wire the eInk BUSY line (D7?) on a future revision — with no busy
       pin the driver flies blind through 20 s refreshes.
+
+## 2026-08-26 devkit bench session (C6 + S3 devkits, self-built CircuitPython)
+
+Bench: ESP32-C6-DevKitC-1-N8 (muselab nano, NeoPixel GPIO8) as the **hub**,
+ESP32-S3-DevKitC-1-N8 (no PSRAM) as station/node client; both dual-USB
+(UART bridge COM13/COM14 for esptool + IDF logs, native COM17/COM21 for the
+REPL). CircuitPython built in WSL from `tyeth/circuitpython` (`wifi-ap-debug`
+branch = bench firmware with ESP_LOGW instrumentation; `espressif-radio-heap-
+reserve` = clean upstream-candidate branch). Tools/logs: `C:\dev\python\
+circuitpython\cp-debug-tools\` (bench.py, repro_code.py, cleanlog.py, probes).
+
+### Root cause found (issues 0, 5, 6, 10)
+CircuitPython's espressif port lets the auto-growing Python heap take the
+**entire** largest free IDF block (`gc_get_max_new_split()` ->
+`heap_caps_get_largest_free_block()`, no reserve). With the collector running,
+the wifi driver had ~8 KB left:
+* `esp_now_send` -> `0x3067 ESP_ERR_ESPNOW_NO_MEM` with `idf_free=7884
+  largest=7680` (issue 10, reproduced **without BLE**).
+* phone associates, DHCP server builds the ACK, `udp_sendto result -1` ->
+  "obtaining IP address" forever (issue 0).
+* `start_ap` hard fault instead of MemoryError when the blob's alloc fails
+  (issue 1, same mechanism).
+Bare radio scripts with ~180 KB free never failed: AP + DHCP + ESP-NOW + BLE
+coexisted in every ordering, so issues 5/6 were symptoms, not radio bugs.
+**Fix (firmware)**: reserve IDF heap while wifi/BLE are enabled
+(`CIRCUITPY_ESP_RADIO_HEAP_RESERVE`, 32 KB default in the clean branch, 40 KB
+on the bench build). Also: softAP DHCP server auto-starts (`start_dhcp_ap()`
+returns `ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED`); the collector's call is a
+harmless no-op.
+
+### Collector memory (probe `mem_probe.py`, C6)
+`import wifi` 41 KB; `bitmap_label` 17 KB; dashboard 24 KB gc + 65 KB IDF;
+helper modules 24 KB; **`adafruit_httpserver` 46 KB**. Replaced the latter
+with a ~300-line non-blocking socketpool server (`net_wifi.py`): collector
+went from OOM to 54 KB free (32 KB reserve). `.mpy` shipping saves ~6 KB.
+`label.Label` instead of `bitmap_label` was WORSE (more gc) - reverted.
+
+### HTTPS on the hub (secure context for the built-in AI / web-BLE)
+Public Let's Encrypt cert for `192dot168dot4dot1.gundryconsultancy.com`
+(files SD `/sd/certs` first, then flash `/certs`; `certstore.py` parses
+`notAfter` from the PEM, `POST /api/cert` installs, renewal from
+gundryconsultancy.com when online). Findings on CircuitPython server TLS:
+* `CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=2048` (CP default) cannot send a 3.7 KB
+  chain -> `PSA_ERROR_BUFFER_TOO_SMALL` surfaces as `OSError(138)`; bench
+  firmware uses OUT=4096, IN=4096.
+* `ssl.SSLContext()` attaches the CA bundle -> as a *server* it demands a
+  client certificate (`MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE`); clear with
+  `ctx.load_verify_locations(cadata="")`.
+* handshake only happens in `accept()` on a wrapped listener, or implicitly on
+  first recv of a wrapped accepted socket; a wrapped *listener* keeps a full
+  mbedTLS context resident and starved DHCP again -> wrap per connection.
+* RSA-2048 handshake ~1.3 s of blocking CPU on the C6 (HW MPI is already on);
+  phone Chrome opens several connections and abandons the slow ones
+  (`MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE`, `EPIPE 141`).
+Status at end of day: phone reached the secure page (isSecureContext true)
+several times but not reliably; the last regression was self-inflicted (a
+2.5 s "no request yet" timeout killing sessions mid-handshake - raised to
+10 s at e881526, untested). Session tickets + HW SHA/AES firmware commit was
+reverted on the bench build pending a controlled retest. Captive portal now
+lands on plain http (fast); https is a header link.
+
+### Web app
+Header: enable AI (user activation), speak/Ask, http<->https switch, hub->
+hosted handoff via URL fragment; cert sync/upload; default base URL = hub
+https hostname; CO2 calibration collapsed at the end. Pages (HTTPS) can call
+the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
+
+### Open items
+* HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
+* `node packet error: OverflowError overflow converting long int to machine
+  word` in the collector's node packet parsing.
+* Plotly/Pyodide from `/sd/www/vendor` before CDN.
+* BLE + ESP-NOW coexistence retest under the new heap headroom.
+* Upstream: PR from `espressif-radio-heap-reserve` (reserve + server session
+  tickets; builds on stock C6 layout), issue for the PSA/`errno 138` mapping
+  and the 2 KB out-buffer.
+* Tomorrow: HITL host SBC with Ethernet uplink so the agent can join the hub
+  AP itself and drive the browser tests.
