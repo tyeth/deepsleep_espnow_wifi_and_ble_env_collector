@@ -308,6 +308,24 @@ https hostname; CO2 calibration collapsed at the end. Pages (HTTPS) can call
 the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
 
 ### Open items
+* [ ] **Cert sync CORS fallback** (web app `certSync()`): the direct
+      `fetch("https://www.gundryconsultancy.com/ssl.combined")` only works if
+      that server sends CORS headers. Supplement with a CORS-fixer proxy
+      fallback, e.g. allorigins (`GET https://api.allorigins.win/get?url=<enc>`
+      -> JSON `{contents}`), used only when the direct fetch throws; verify the
+      PEM parses (`-----BEGIN CERTIFICATE-----` x2 + PRIVATE KEY) before
+      pushing to the hub, and keep the file-upload path as the last resort.
+      Note the proxy sees the private key in transit -- acceptable only because
+      the key is already published on that site; prefer fixing CORS on the
+      server. Suggested shape:
+      ```js
+      async function fetchViaCors(url){
+        const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+        if(!r.ok)throw new Error("proxy "+r.status);
+        return (await r.json()).contents;
+      }
+      // in certSync(): try direct fetch; on TypeError (CORS) -> fetchViaCors(url)
+      ```
 * HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
 * `node packet error: OverflowError overflow converting long int to machine
   word` in the collector's node packet parsing.
