@@ -32,7 +32,14 @@ EOT = b"\x04"
 
 class Repl:
     def __init__(self, port, baud=115200):
-        self.s = serial.Serial(port, baud, timeout=2)
+        # Open without asserting RTS: on the ESP32-C6's USB-Serial/JTAG port the default
+        # DTR+RTS toggle at open resets the chip (rst:0x15). DTR alone is needed so
+        # CircuitPython treats the console as connected.
+        self.s = serial.Serial()
+        self.s.port, self.s.baudrate, self.s.timeout = port, baud, 2
+        self.s.dtr = True
+        self.s.rts = False
+        self.s.open()
         time.sleep(0.3)
         self.s.reset_input_buffer()
 
