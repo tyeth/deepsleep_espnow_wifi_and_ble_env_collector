@@ -128,6 +128,19 @@ def _idf_free():
         return 1 << 30
 
 
+def _static(path):
+    """Static app files: the SD card copy wins (big vendor bundles, manual updates),
+    then user flash. Returns the first existing path, else the flash path (-> 404)."""
+    import os
+    for root in ("/sd/www", "/www"):
+        try:
+            os.stat(root + path)
+            return root + path
+        except OSError:
+            continue
+    return "/www" + path
+
+
 def _json(obj):
     return 200, "application/json", json.dumps(obj).encode()
 
@@ -180,7 +193,7 @@ class WebPortal:
         h = self.handlers
         if path == "/" or path == "/index.html" or path == "/sw.js":
             if self.app_root:
-                return ("file", self.app_root + ("/index.html" if path != "/sw.js" else "/sw.js"))
+                return ("file", _static("/index.html" if path != "/sw.js" else "/sw.js"))
             if path == "/sw.js":
                 return 200, "text/javascript", b"// no app deployed"
             return 200, "text/html", (
@@ -211,7 +224,7 @@ class WebPortal:
                     return _json({"err": "no such day", "days": days})
                 return ("file", "%s/%s.csv" % (h["data_dir"](), day))
             if self.app_root and "/.." not in path:
-                return ("file", self.app_root + path)
+                return ("file", _static(path))
         elif method == "POST":
             if path == "/api/ingest":
                 return _json(h["ingest"](body))

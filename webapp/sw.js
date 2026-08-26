@@ -9,7 +9,7 @@
  * Only active on secure origins (the GitHub Pages copy); the device-hosted
  * plain-http copy never registers it.
  */
-const CACHE = "envhub-v9";
+const CACHE = "envhub-v10";
 const SHELL = [
   "./",
   "./index.html",

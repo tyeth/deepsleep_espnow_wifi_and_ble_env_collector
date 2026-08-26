@@ -330,7 +330,12 @@ function ensurePlotly(){
  if(window.Plotly)return Promise.resolve(true);
  if(!_plotlyLoading)
   _plotlyLoading=new Promise(res=>{const s=document.createElement("script");
-   s.src="https://cdn.plot.ly/plotly-2.35.2.min.js";
+   // vendor copy on the hub (SD card first, then user flash) keeps charts working
+   // with no internet; the CDN is the fallback when hosted or the file is absent
+   s.src="vendor/plotly.min.js";
+   s.onerror=()=>{s.onerror=()=>{_plotlyLoading=null;$("gapnote").textContent=
+    "Plotly failed to load (no vendor/plotly.min.js on the hub and no internet)";res(false);};
+    s.src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js";};
    s.onload=()=>res(true);
    s.onerror=()=>{_plotlyLoading=null;$("gapnote").textContent=
     "Plotly unavailable (offline before first cache?) - charts disabled";
@@ -476,10 +481,11 @@ function ensurePyodide(){
   _pyLoading=(async()=>{
    if(!window.loadPyodide){
     await new Promise((res,rej)=>{const s=document.createElement("script");
-     s.src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js";
+     s.src="vendor/pyodide/pyodide.js";  // SD card copy; falls back to the CDN
+     s.onerror=()=>{s.onerror=null;window._pyIndex="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/";s.src=window._pyIndex+"pyodide.js";};
      s.onload=res;s.onerror=rej;document.head.appendChild(s);});
    }
-   const py=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.26.2/full/"});
+   const py=await loadPyodide({indexURL:window._pyIndex||"vendor/pyodide/"});
    await py.loadPackage("numpy");
    pyodide=py;
    return py;
