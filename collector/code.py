@@ -135,13 +135,19 @@ except Exception as exc:
     print("early ESP-NOW failed:", type(exc).__name__, exc)
 
 ap_started = False
+# The softAP's channel is also the ESP-NOW channel (one radio, one home
+# channel; a connected station overrides it). Configurable so the mesh can
+# sit away from a busy channel -- and so the bench can prove that nodes
+# find a hub that is not on channel 1.
+AP_CHANNEL = int(_ecfg.get("ap_channel", 1) or 1)
 if _ecfg.get("ap_enabled", True):
     try:
         wifi.radio.enabled = True
         if AP_PASSWORD and len(AP_PASSWORD) >= 8:
-            wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
+            wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD,
+                                channel=AP_CHANNEL)
         else:
-            wifi.radio.start_ap(ssid=AP_SSID)
+            wifi.radio.start_ap(ssid=AP_SSID, channel=AP_CHANNEL)
         # CP 10.3-a4 does NOT auto-start the softAP DHCP server: without
         # this, phones associate and immediately drop (no lease)
         try:
@@ -380,6 +386,7 @@ if HTTP_WANTED:
         password=AP_PASSWORD,
         enabled=config.get("ap_enabled", True),
         already_active=ap_started,
+        channel=AP_CHANNEL,
     )
     print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
     # the portal starts the AP itself when the early start failed: the hub

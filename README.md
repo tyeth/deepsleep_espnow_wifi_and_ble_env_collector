@@ -269,6 +269,8 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   `ap_password` ≥8 chars to secure, or `ENVHUB_AP_*` in settings.toml). A
   tiny DNS server answers every lookup with the hub's IP and the OS
   connectivity probes are redirected, so joining the AP pops the portal.
+  `ap_channel` (default 1) is also the ESP-NOW channel: nodes hunt for it,
+  so the mesh can be moved off a busy channel with one setting.
 * **WiFi portal**: `http://<hub-ip>/` (AP side: `http://192.168.4.1/`) —
   serves the full Analyzer app when `webapp/` is deployed to `/sd/www/`
   (or flash `/www/`), else a minimal dashboard (always at `/mini`).

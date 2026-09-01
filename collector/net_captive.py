@@ -28,7 +28,7 @@ AP_IP = "192.168.4.1"  # CircuitPython softAP default
 
 class CaptivePortal:
     def __init__(self, ssid="ENVHUB", password="", enabled=True,
-                 already_active=False):
+                 already_active=False, channel=1):
         self.enabled = enabled
         self.ap_active = already_active
         self.dns_queries = 0
@@ -43,11 +43,12 @@ class CaptivePortal:
             try:
                 wifi.radio.enabled = True
                 if password and len(password) >= 8:
-                    wifi.radio.start_ap(ssid=ssid, password=password)
+                    wifi.radio.start_ap(ssid=ssid, password=password,
+                                        channel=channel)
                 else:
                     if password:
                         print("AP password <8 chars; starting OPEN network")
-                    wifi.radio.start_ap(ssid=ssid)
+                    wifi.radio.start_ap(ssid=ssid, channel=channel)
                 try:
                     # softAP DHCP is NOT auto-started on CP 10.3-a4
                     wifi.radio.start_dhcp_ap()
