@@ -18,10 +18,15 @@ Scenarios print the lines that matter and end with PASS/FAIL, so a run can
 be judged without reading the whole console.
 
 Serial rules learned on this bench, applied throughout:
-  * DTR must be asserted or CircuitPython writes nothing to its USB console.
-  * RTS must NOT move: it resets the C6 USB-Serial/JTAG (rst:0x15).
-  * Opening a UART-bridge port resets the board (auto-reset circuit); the
-    native USB port re-enumerates when that happens.
+  * On the CONSOLE port, DTR must be asserted or CircuitPython writes
+    nothing at all.
+  * On a UART BRIDGE, DTR must NOT be asserted: it drives IO0, and the board
+    then boots into safe mode ("You pressed the BOOT button at start up")
+    and stays there until the line is released.
+  * RTS must NOT move: it drives EN (and resets the C6 USB-Serial/JTAG,
+    rst:0x15).
+  * Opening a UART-bridge port resets the board anyway; the native USB port
+    re-enumerates when that happens, so a capture on it dies.
 """
 
 import argparse
@@ -38,10 +43,19 @@ UART_HINTS = (("CP2102", "UART bridge"), ("CH34", "UART bridge"),
               ("Single Serial", "UART bridge"))
 
 
-def open_port(port, timeout=0.2):
+def open_port(port, timeout=0.2, uart_bridge=None):
+    """Open a board port with the handshake lines the port type needs.
+
+    Console (native USB): DTR asserted, or CircuitPython writes nothing.
+    UART bridge (CP2102N/CH34x): BOTH lines released -- the auto-reset
+    circuit drives EN from RTS and IO0 from DTR, so asserting DTR here holds
+    the board in "BOOT button pressed" and it comes up in safe mode.
+    """
+    if uart_bridge is None:
+        uart_bridge = "USB" in port          # /dev/ttyUSB* is a bridge
     s = serial.Serial()
     s.port, s.baudrate, s.timeout = port, 115200, timeout
-    s.dtr = True     # CircuitPython only writes to a console it thinks is open
+    s.dtr = not uart_bridge
     s.rts = False    # moving RTS resets the C6 USB-Serial/JTAG
     s.open()
     time.sleep(0.3)
