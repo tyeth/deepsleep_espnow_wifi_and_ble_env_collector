@@ -807,9 +807,15 @@ def h_storage(body=None):
     """Read or set who owns the filesystem: the MCU (so the hub can log) or
     a host PC (so you can drag files onto CIRCUITPY).
 
+    Both directions take effect IMMEDIATELY, no restart:
+    `unsafe_disable_usb_drive()` hands the flash to the hub, and
+    `enable_usb_drive()` -- which CircuitPython documents as usable after
+    code.py starts, to reverse exactly that -- hands the drive back. Pass
+    {"now": false} to only record the choice for the next boot.
+
     Only boards with USB mass storage have the choice at all; the C6 has no
-    drive, so it is always the MCU's. Takes effect at the next boot, which
-    is what makes it safe -- see collector/boot.py.
+    drive, so it is always the MCU's. collector/boot.py applies the saved
+    choice at power-up, where the safe (non-"unsafe") call is available.
     """
     has_msc = True
     try:
@@ -835,27 +841,35 @@ def h_storage(body=None):
     state["note"] = ("the hub keeps the filesystem and no drive appears"
                      if want == "mcu" else
                      "a computer gets the drive and the hub stops logging")
-    # "now": take the drive immediately instead of waiting for a boot. Only
-    # possible in this direction -- handing it BACK to a computer needs the
-    # boot-time call. The warning is real: a host part-way through a write
-    # loses it, which is why CircuitPython calls this one unsafe.
-    if want == "mcu" and body.get("now"):
-        try:
-            import storage as _st
+    if not body.get("now", True):
+        state["applied"] = False
+        state["note"] += " (saved for the next boot)"
+        return state
+    try:
+        import storage as _st
+        if want == "mcu":
+            # the unsafe variant by name because a host part-way through a
+            # write loses it -- which is why the page asks first
             _st.unsafe_disable_usb_drive()
             _st.remount("/", readonly=False)
             store.read_only = False
             store.root = store._pick_root()
-            state["applied"] = True
-            state["store"] = store.mode
-            print("storage: USB drive ejected on request; logging to",
-                  store.root)
-        except Exception as exc:
-            state["applied"] = False
-            state["err"] = "%s: %s" % (type(exc).__name__, exc)
-            state["reset_required"] = True
-    else:
-        state["reset_required"] = True
+            print("storage: drive ejected; the hub is logging to", store.root)
+        else:
+            # give it back: stop writing first, then let the host see it
+            store.flush()
+            _st.remount("/", readonly=True)
+            _st.enable_usb_drive()
+            store.read_only = True
+            print("storage: drive handed back to the host; hub logging "
+                  "paused (buffering in RAM)")
+        state["applied"] = True
+        state["effective"] = want
+        state["store"] = store.mode
+    except Exception as exc:
+        state["applied"] = False
+        state["err"] = "%s: %s" % (type(exc).__name__, exc)
+        state["reset_required"] = True   # the boot-time path still will
     return state
 
 

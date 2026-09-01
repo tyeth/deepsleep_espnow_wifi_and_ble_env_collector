@@ -112,10 +112,13 @@ on a computer. Three ways to change that:
 
 The web page has the switch too (*filesystem: hub logs (MCU) / PC drive*,
 with a warning on each), over `GET`/`POST /api/storage`
-(`{"owner":"mcu"|"pc","now":true}`). `"now"` ejects a mounted drive
-straight away rather than waiting for a restart — only in that direction,
-since handing the drive *back* needs the boot-time call. It is the
-"unsafe" variant by name because a host part-way through a write loses it.
+(`{"owner":"mcu"|"pc"}`). **Both directions take effect immediately, with
+no restart**: `unsafe_disable_usb_drive()` hands the flash to the hub, and
+`enable_usb_drive()` — which CircuitPython supports after `code.py` starts,
+precisely to reverse that — hands the drive back. Pass `{"now": false}` to
+only record the choice for the next boot. The eject is the "unsafe" call by
+name because a host part-way through a write loses it, which is what the
+page warns about.
 
 Whatever the setting, a read-only hub still **serves the history it
 already has**, reports `"store": "flash (read-only)"` in `GET

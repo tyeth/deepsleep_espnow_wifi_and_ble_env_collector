@@ -669,17 +669,18 @@ function storageShow(st){
 async function storageSet(owner){
  if(!httpBase){setStatus("storage-note","connect over HTTP first",false,true);return;}
  const warn=owner==="pc"
-  ?"Give the CIRCUITPY drive to a computer?\n\nThe hub stops logging until you switch back (readings buffer in RAM and are eventually dropped). Takes effect after a restart."
-  :"Let the hub own its flash?\n\nThe USB drive disappears from any computer immediately, so drag-and-drop deploys stop working until you switch back (or hold BOOT at power-up).\n\nAnything a computer is writing right now would be lost.";
+  ?"Hand the CIRCUITPY drive back to a computer?\n\nIt reappears straight away. The hub stops logging while a computer holds it - readings buffer in RAM and are eventually dropped."
+  :"Let the hub own its flash?\n\nThe USB drive disappears from any computer straight away, so drag-and-drop deploys stop working until you switch back.\n\nAnything a computer is writing at that moment would be lost.";
  if(!confirm(warn))return;
  setStatus("storage-note","applying...",true);
  try{
   const r=await (await fetch(httpBase+"/api/storage",{method:"POST",
-    body:JSON.stringify({owner,now:owner==="mcu"})})).json();
+    body:JSON.stringify({owner,now:true})})).json();
   if(r.err){setStatus("storage-note",r.err,false,true);return;}
   storageShow(r);
   if(r.reset_required)setStatus("storage-note",
-    (r.note||"")+" - restart the hub for it to take effect",false,true);
+    (r.note||"")+" - could not switch live, so it will apply at the next "
+    +"restart",false,true);
  }catch(e){setStatus("storage-note","failed: "+e.message,false,true);}
 }
 
