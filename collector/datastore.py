@@ -141,10 +141,18 @@ class DataStore:
 
     def __init__(self, roots=("/sd", "/saves", "/"), flush_interval_s=600,
                  flush_max_pending=24, min_free_bytes=50 * 1024,
-                 allow_usb_release=False):
+                 allow_usb_release=False, ram_lines=200, ram_events=100):
         self.roots = roots
         self.allow_usb_release = allow_usb_release
         self._usb_released = False
+        # While storage is unwritable -- a computer holding the drive, a
+        # missing card -- readings queue here and are written in full the
+        # moment it comes back (flush() re-probes every time, and
+        # autoreload is off so a host edit cannot restart us and lose
+        # them). Only past these caps does anything get dropped.
+        self.ram_lines = ram_lines
+        self.ram_events = ram_events
+        self._warned_full = False
         self.flush_interval_s = flush_interval_s
         self.flush_max_pending = flush_max_pending
         self.min_free_bytes = min_free_bytes
@@ -347,11 +355,21 @@ class DataStore:
                 f.write(line)
 
     def _drop_bounded(self):
-        # keep data bounded in RAM; drop oldest records (never events first)
-        while len(self._pending) > 200:
+        """Bound the RAM queue. Nothing is dropped until it is genuinely
+        full: everything queued is written as soon as storage returns."""
+        over = (len(self._pending) > self.ram_lines
+                or len(self._pending_events) > self.ram_events)
+        if over and not self._warned_full:
+            self._warned_full = True
+            print("storage: RAM buffer full (%d readings, %d events); "
+                  "dropping the oldest from here on"
+                  % (len(self._pending), len(self._pending_events)))
+        # drop oldest records first, events last -- they are the rarer and
+        # more valuable ones
+        while len(self._pending) > self.ram_lines:
             self._pending.pop(0)
             self.dropped_lines += 1
-        while len(self._pending_events) > 100:
+        while len(self._pending_events) > self.ram_events:
             self._pending_events.pop(0)
             self.dropped_lines += 1
 

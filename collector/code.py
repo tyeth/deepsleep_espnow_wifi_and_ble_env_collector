@@ -431,6 +431,10 @@ store = datastore.DataStore(
     # computer holds the USB drive, take the drive back. Set false on a
     # bench rig where drag-and-drop deploys matter more than the readings.
     allow_usb_release=config.get("release_usb_drive", True),
+    # how much to hold in RAM while storage is unwritable before the oldest
+    # readings start falling off the end (a PSRAM board can afford plenty)
+    ram_lines=config.get("ram_buffer_lines", 200),
+    ram_events=config.get("ram_buffer_events", 100),
 )
 print("storage:", store.mode, store.root)
 _mem("after storage")
@@ -514,6 +518,10 @@ def h_latest():
     # storage state belongs in the status a phone can see: "ram" or
     # "(read-only)" is why history looks empty
     mesh["store"] = store.mode
+    if store.pending_count():
+        mesh["buffered"] = store.pending_count()   # waiting for storage
+    if store.dropped_lines:
+        mesh["dropped"] = store.dropped_lines
     if hub.last_error:
         mesh["err"] = hub.last_error
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
