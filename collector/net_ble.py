@@ -64,6 +64,7 @@ class BleUartPortal:
         self.connected = False
         self._rxbuf = b""
         self._pb = None
+        self._name = name   # re-applied at every re-advertise (see poll)
         if not enabled:
             print("BLE disabled by config")
             return
@@ -75,6 +76,13 @@ class BleUartPortal:
             self.uart = uart or UARTService()
             if adv is not None:
                 self.adv = adv  # early block already started advertising
+                if self.radio.name != name:
+                    # someone (CircuitPython's own workflow, or a teardown)
+                    # has taken the name back; put ours in place so the next
+                    # re-advertise uses it
+                    print("BLE adapter name is %r, expected %r; correcting"
+                          % (self.radio.name, name))
+                    self.radio.name = name
             else:
                 self.radio.name = name
                 self.adv = ProvideServicesAdvertisement(self.uart)
@@ -278,8 +286,19 @@ class BleUartPortal:
                 # disconnect and a one-shot restart can be missed/fail
                 if not self.radio.advertising:
                     try:
+                        # Re-apply the name every time. The adapter reverts to
+                        # CircuitPython's own CIRCUITPY{mac} after a teardown
+                        # or a soft reload, so a re-advertise that trusts the
+                        # name set at startup comes back with the wrong one --
+                        # observed as "correct first time, CIRCUITPYxxxx after
+                        # a reboot, only a hard reset fixing it".
+                        if self.radio.name != self._name:
+                            print("BLE name was %r; restoring %r"
+                                  % (self.radio.name, self._name))
+                            self.radio.name = self._name
+                        self.adv.complete_name = self._name
                         self.radio.start_advertising(self.adv)
-                        print("BLE re-advertising")
+                        print("BLE re-advertising as", self._name)
                     except Exception as exc:
                         print("BLE re-advertise failed:", exc)
                 return
