@@ -406,6 +406,12 @@ practical ones you need before touching the boards.
   before you flash: code, modules, `lib/`, `certs/`, `www/`.
 * **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
   a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
+* **`python -m py_compile` does not prove the board will accept it.**
+  CircuitPython lacks syntax CPython has, and you find out at boot as a bare
+  `SyntaxError: invalid syntax` with a line number — after the deploy. The
+  one that caught us was dict-literal `**` unpacking (`{"err": e, **state}`).
+  `python tools/check_cp_syntax.py` runs every device source through
+  mpy-cross; do that before deploying.
 
 **Talking to a board**
 
