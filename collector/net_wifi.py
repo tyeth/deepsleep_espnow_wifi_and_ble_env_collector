@@ -134,11 +134,15 @@ def _static(path):
     then user flash. Returns the first existing path, else the flash path (-> 404)."""
     import os
     for root in ("/sd/www", "/www"):
-        try:
-            os.stat(root + path)
-            return root + path
-        except OSError:
-            continue
+        for name in (root + path, root + path + ".gz"):
+            # a .gz twin may be the only copy of a big bundle (a 4MB board
+            # fits gzipped Plotly and not the plain 1.1MB one); the caller
+            # picks the encoding, this only decides which root wins
+            try:
+                os.stat(name)
+                return root + path
+            except OSError:
+                continue
     return "/www" + path
 
 
@@ -613,7 +617,9 @@ class WebPortal:
         if gz_ok:
             # A pre-compressed twin (plotly.min.js.gz) is ~3x smaller, which
             # over the AP is the difference between a 20 s wait and a 7 s
-            # one. The board never compresses anything itself.
+            # one -- and on a 4 MB board it is the difference between the
+            # bundle fitting in the filesystem at all. The .gz may be the
+            # ONLY copy; the board never compresses anything itself.
             try:
                 os.stat(path + ".gz")
                 path += ".gz"
@@ -623,14 +629,32 @@ class WebPortal:
         try:
             st = os.stat(path)
         except OSError:
+            if not enc:
+                try:      # only the compressed copy is on the board
+                    os.stat(path + ".gz")
+                    return self._head(
+                        406, "text/plain", 38, keep=ka)                     \
+                        + b"only a gzipped copy exists on the hub"
+                except OSError:
+                    pass
             return self._head(404, "text/plain", 9, keep=ka) + b"not found"
         size = st[6]
         etag = b'"%x-%x"' % (size, st[8] if len(st) > 8 else 0)
-        # vendor bundles are versioned by their filename and never change in
-        # place; everything else revalidates, which the ETag makes cheap
-        immutable = "/vendor/" in path
-        cache = (b"public, max-age=31536000, immutable" if immutable
-                 else b"public, max-age=300")
+        # Cache hard. Serving these over the AP costs tens of seconds
+        # (Plotly, and far more for Pyodide off the SD card), and they are
+        # only replaced by a deliberate redeploy:
+        #   vendor bundles   a year, immutable  (versioned by filename)
+        #   other assets     a year, revalidated by ETag when the browser
+        #                    does check
+        #   entry points     always revalidated, so a redeploy is picked up
+        #                    -- the ETag makes that a 304, not a download
+        name = path.rsplit("/", 1)[-1]
+        if name in ("index.html", "sw.js") or name.endswith(".html"):
+            cache = b"no-cache"
+        elif "/vendor/" in path:
+            cache = b"public, max-age=31536000, immutable"
+        else:
+            cache = b"public, max-age=31536000"
         common = (b"ETag: %s\r\nCache-Control: %s\r\nAccept-Ranges: bytes\r\n"
                   b"Vary: Accept-Encoding\r\n%s" % (etag, cache, enc))
         if inm and etag in inm:
@@ -686,6 +710,7 @@ class WebPortal:
     def _head(status, ctype, length, extra=b"", keep=False):
         reason = {200: "OK", 206: "Partial Content", 302: "Found",
                   304: "Not Modified", 400: "Bad Request", 404: "Not Found",
+                  406: "Not Acceptable",
                   416: "Range Not Satisfiable"}.get(status, "OK")
         # CircuitPython's bytes %-formatting accepts str operands; CPython
         # (where tools/test_http_headers.py runs) does not

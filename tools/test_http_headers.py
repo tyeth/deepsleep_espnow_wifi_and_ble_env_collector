@@ -134,14 +134,34 @@ def main():
     check("the two have different ETags", gz_etag != h.get("etag"))
     os.remove(big + ".gz")
 
-    print("a file outside vendor/ revalidates instead of being immutable")
+    print("cache lifetimes: long for assets, always revalidate the entry points")
     plain = HERE.replace("\\", "/") + "/_httptest/index.html"
     with open(plain, "wb") as f:
         f.write(b"<!doctype html>")
     status, h, _ = head_for(portal, plain)
-    check("max-age but not immutable",
-          "max-age" in h.get("cache-control", "")
-          and "immutable" not in h.get("cache-control", ""))
+    check("index.html is no-cache (a redeploy must be seen)",
+          h.get("cache-control") == "no-cache")
+    icon = HERE.replace("\\", "/") + "/_httptest/icon.svg"
+    with open(icon, "wb") as f:
+        f.write(b"<svg/>")
+    status, h, _ = head_for(portal, icon)
+    check("other assets get a year, revalidated by ETag",
+          h.get("cache-control") == "public, max-age=31536000")
+    status, h, _ = head_for(portal, big)
+    check("vendor bundles get a year, immutable",
+          h.get("cache-control") == "public, max-age=31536000, immutable")
+
+    print("a gzip-only asset (the 4MB board holds plotly.min.js.gz only)")
+    gz_only = tmp + "/pyodide.js"
+    with open(gz_only + ".gz", "wb") as f:
+        f.write(b"z" * 900)
+    status, h, c = head_for(portal, gz_only, gz_ok=True)
+    check("served to a gzip-capable browser",
+          status == 200 and h.get("content-encoding") == "gzip")
+    status, h, c = head_for(portal, gz_only, gz_ok=False)
+    check("a browser without gzip is told plainly, not 404", status == 406)
+    os.remove(gz_only + ".gz")
+    os.remove(icon)
 
     print("a missing file")
     status, h, c = head_for(portal, tmp + "/nope.js")
