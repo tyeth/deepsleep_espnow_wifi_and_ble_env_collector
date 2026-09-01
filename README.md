@@ -316,6 +316,13 @@ practical ones you need before touching the boards.
   for a few ms instead.
 * **The MAC-layer ACK is not delivery** — see the confirmation scheme in
   *Node behaviour*.
+* **A BLE advertisement that overflows 31 bytes is not an error** -- and
+  that is the trap. A legacy advertising PDU holds 31 bytes: flags (3) plus
+  a 128-bit service UUID (18) leaves **8 characters for the name**. Go over
+  and CircuitPython advertises with BLE 5 extended PDUs instead, silently:
+  the board reports `advertising == True` while older scanners (a Pi 3's
+  4.2 controller, plenty of phones) see nothing at all. `net_ble.py` now
+  measures the advert and trims the name; node names are `S-{mac-hex}`.
 * **`_bleio`'s outgoing notification queue is ~5 packets deep and drops
   silently** on the C6: long replies truncate at exactly 100 bytes unless
   you pace them (`net_ble.py` sends 20 B every 50 ms). `PacketBuffer.write`

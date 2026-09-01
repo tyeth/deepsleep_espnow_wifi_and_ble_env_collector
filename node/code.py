@@ -922,7 +922,9 @@ if _pending:
 # false) keeps it up for the whole wait instead.
 # --------------------------------------------------------------------------
 BLE_CONFIG_S = int(config.get("ble_config_s", 0))
-BLE_NAME = "SENSOR-" + envproto.short_mac(wifi.radio.mac_address)
+# 8 characters is the most a legacy advertisement can carry alongside the
+# Nordic-UART service UUID (see net_ble): "S-" + the MAC tail.
+BLE_NAME = "S-" + envproto.short_mac(wifi.radio.mac_address)
 
 
 def h_ble_latest():

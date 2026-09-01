@@ -79,6 +79,18 @@ class BleUartPortal:
                 self.radio.name = name
                 self.adv = ProvideServicesAdvertisement(self.uart)
                 self.adv.complete_name = name
+                # A legacy advertising PDU holds 31 bytes: flags (3) plus a
+                # 128-bit service UUID (18) leaves just 8 for the name.
+                # Overflow is NOT an error here -- CircuitPython quietly
+                # advertises with BLE 5 extended PDUs instead, which older
+                # scanners never see (a Pi 3's 4.2 controller saw nothing at
+                # all while the board insisted `advertising == True`).
+                if len(bytes(self.adv)) > 31:
+                    short = name[:8]
+                    self.adv.complete_name = short
+                    print("BLE: advert %d bytes, too long for legacy "
+                          "scanners; name %r -> %r"
+                          % (len(bytes(self.adv)), name, short))
                 self.radio.start_advertising(self.adv)
             self.ok = True
             # PacketBuffer TX gives true flow control (no dropped
