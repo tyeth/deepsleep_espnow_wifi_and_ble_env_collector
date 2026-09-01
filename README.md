@@ -136,6 +136,16 @@ readings continue to queue. If the host never lets go, eject the drive
 there or hold BOOT at power-up; the choice is already saved in NVM, so the
 next boot applies it.
 
+Measured on the bench, both directions applying live:
+
+```
+store: 'flash (read-only)'  buffered: 1
+POST {"owner":"mcu"} -> {"applied": true, "effective": "mcu", "store": "flash"}
+store: 'flash'              (the buffered reading written, no restart)
+POST {"owner":"pc"}  -> {"applied": true, "effective": "pc"}
+                        (CIRCUITPY back on the host ~2 s later)
+```
+
 Whatever the setting, a read-only hub still **serves the history it
 already has**, reports `"store": "flash (read-only)"` in `GET
 /api/latest`, buffers new readings in RAM, and starts writing the moment
