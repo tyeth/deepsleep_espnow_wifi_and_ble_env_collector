@@ -24,6 +24,7 @@ import time
 
 import serial  # pyserial
 
+CHUNK = 3072        # bytes per raw-REPL write (see put_file)
 RAW_ON = b"\x01"    # Ctrl-A
 RAW_OFF = b"\x02"   # Ctrl-B
 INTERRUPT = b"\x03"
@@ -107,7 +108,11 @@ def put_file(repl, local_path, remote_path):
     with open(local_path, "rb") as f:
         sent = 0
         while True:
-            chunk = f.read(512)
+            # each chunk is one raw-REPL round trip, so the chunk size sets
+            # the throughput: 512B managed ~300B/s on the C6's USB-Serial/
+            # JTAG (a 48KB code.py took ~3 minutes), 3KB is ~4x that and
+            # still well inside the REPL's input handling
+            chunk = f.read(CHUNK)
             if not chunk:
                 break
             b64 = base64.b64encode(chunk).decode()
@@ -144,9 +149,18 @@ def main():
             ))
             return
         for path in args.files:
-            name = os.path.basename(path)
+            name = os.path.basename(path.rstrip("/\\"))
             remote = (args.dest.rstrip("/") + "/" + name).replace("//", "/")
-            put_file(repl, path, remote)
+            if os.path.isdir(path):
+                # push a whole tree (lib/adafruit_ble, www/, certs/ ...)
+                for root, _dirs, files in os.walk(path):
+                    rel = os.path.relpath(root, path).replace("\\", "/")
+                    target = remote if rel == "." else remote + "/" + rel
+                    for fname in sorted(files):
+                        put_file(repl, os.path.join(root, fname),
+                                 target + "/" + fname)
+            else:
+                put_file(repl, path, remote)
     finally:
         repl.exit_raw()
         if args.reset:

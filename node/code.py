@@ -986,11 +986,26 @@ def ble_window(seconds):
     except ImportError as exc:
         print("BLE portal unavailable:", exc)
         return 0
+    # The BLE controller needs a large contiguous block of INTERNAL heap,
+    # and the wifi stack has already taken it: measured on an S3 devkit,
+    # `BLE_INIT: controller init failed` with idf_free=5892 largest=3584.
+    # We have finished reporting for this wake, so hand the radio over.
+    wifi_was_on = False
+    try:
+        wifi_was_on = wifi.radio.enabled
+        wifi.radio.enabled = False
+    except (AttributeError, RuntimeError, OSError) as exc:
+        print("could not free the wifi radio for BLE:", exc)
     portal = net_ble.BleUartPortal(
         {"latest": h_ble_latest, "config_get": h_ble_config,
          "config_set": h_ble_config_set, "time_set": h_ble_time},
         name=BLE_NAME)
     if not portal.ok:
+        if wifi_was_on:
+            try:
+                wifi.radio.enabled = True
+            except (AttributeError, RuntimeError, OSError):
+                pass
         return time.monotonic() - started
     print("BLE config window: %s for %ds" % (BLE_NAME, seconds))
     deadline = started + seconds
@@ -1006,6 +1021,11 @@ def ble_window(seconds):
             portal.stop()
         except Exception as exc:      # never let BLE teardown skip the sleep
             print("BLE portal stop failed:", exc)
+        if wifi_was_on:
+            try:
+                wifi.radio.enabled = True   # next wake needs ESP-NOW again
+            except (AttributeError, RuntimeError, OSError) as exc:
+                print("could not bring the wifi radio back:", exc)
     return time.monotonic() - started
 
 

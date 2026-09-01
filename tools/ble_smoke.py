@@ -8,9 +8,10 @@ Scans for the ENVHUB Nordic-UART advertisement, connects, runs the basic
 command matrix, and prints the JSON replies.
 
     pip install bleak
-    python tools/ble_smoke.py            # scan + command matrix
-    python tools/ble_smoke.py latest     # single command
-    python tools/ble_smoke.py "time now" # sync the hub clock
+    python tools/ble_smoke.py                     # scan + command matrix
+    python tools/ble_smoke.py latest              # single command
+    python tools/ble_smoke.py "time now"          # sync the hub clock
+    python tools/ble_smoke.py --name=SENSOR       # talk to a node instead
 """
 
 import asyncio
@@ -24,16 +25,20 @@ UART_SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 UART_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"   # write to device
 UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"   # notify from device
 
-NAME = "ENVHUB"
+NAME = "ENVHUB"   # --name=SENSOR targets a node
 DEFAULT_CMDS = ["mem", "latest", "battery", "config", "days", "events"]
+# a node serves a subset from the same portal (SENSOR-xxxxxx)
+NODE_CMDS = ["mem", "latest", "config", "days"]
 
 
 async def find_hub(timeout=12, tries=3):
     for attempt in range(tries):
         print("scanning for %s ..." % NAME)
         dev = await BleakScanner.find_device_by_filter(
+            # with both a hub and a node advertising, match the name first
+            # and fall back to any Nordic-UART device
             lambda d, ad: (d.name or "").startswith(NAME)
-            or UART_SVC in (ad.service_uuids or []),
+            or (NAME == "ENVHUB" and UART_SVC in (ad.service_uuids or [])),
             timeout=timeout,
         )
         if dev is not None:
@@ -115,4 +120,8 @@ async def run(cmds):
 
 
 if __name__ == "__main__":
-    asyncio.run(run(sys.argv[1:] or DEFAULT_CMDS))
+    args = sys.argv[1:]
+    if args and args[0].startswith("--name="):
+        NAME = args.pop(0).split("=", 1)[1]
+    asyncio.run(run(args or (NODE_CMDS if NAME.startswith("SENSOR")
+                             else DEFAULT_CMDS)))
