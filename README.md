@@ -189,9 +189,10 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   read-only — and reboots. Times out after `portal_timeout_s` (180 s) and
   continues, so a node never hangs unconfigured.
 * **ESP-NOW discovery**: an unconfigured node broadcasts `dsc` across
-  channels 1–13; the collector's unicast `cfg` reply teaches it the MAC +
-  channel (persisted in NVM across power loss). If a pinned collector
-  stops ACKing, the node forgets it and rediscovers.
+  channels 1–13 (parking the radio on each in turn -- see the gotchas);
+  the collector's unicast `cfg` reply teaches it the MAC + channel
+  (persisted in NVM across power loss). If a pinned collector stops
+  ACKing, the node forgets it and rediscovers.
 * **Config push**: every check-in's `cfg` reply carries interval, enabled
   metrics, ASC-off policy, pending calibration, and the current epoch.
 
@@ -394,9 +395,28 @@ practical ones you need before touching the boards.
   AP; `wifi.radio.start_ap()` after heavy imports hard-faults rather than
   raising `MemoryError`. A resident BLE stack also starves the ESP-NOW
   *transmit* path (`0x3067 ESP_ERR_ESPNOW_NO_MEM`) — receive is unaffected.
+* **A `Peer`'s channel does not move the radio.** ESP-NOW frames leave on
+  the WiFi *home* channel, and a peer whose channel differs raises on every
+  send (`0x306d ESP_ERR_ESPNOW_CHAN`; `0x306a` on older IDFs, upstream
+  issue 7903). `wifi.radio` has no channel setter, so the node hops with
+  the community workaround: `start_ap(channel=ch)` then `stop_ap()`, and
+  the channel sticks. Before this, "hunting 1–13" could only ever find a
+  hub on channel 1. Two details matter: call `start_station()` first,
+  because CircuitPython tracks the mode itself and `stop_ap()` with no
+  station started leaves the radio in NULL mode (sends then fail
+  `0x306c`, wrong interface); and a *connected* station pins the AP to the
+  router's channel, so the node drops its WiFi link before hopping (it
+  matters when `CIRCUITPY_WIFI_SSID` in settings.toml autoconnects).
 * **ESP-NOW error codes worth knowing**: `0x3067` = out of internal memory
-  (the coexistence problem above); `0x306d` = *peer channel is not equal to
-  the home channel* (ordinary channel hunting, not a fault).
+  (the coexistence problem above); `0x306d` = peer channel ≠ home channel
+  (a hop that did not happen: a fault since the hop above); `0x3068` = the
+  20-entry peer table is full (the hub keeps at most 16); `0x3069` = peer
+  not found (broadcast without passing the peer to `send()`, issue 9380).
+* **`ESPNow.read()` can raise `ValueError: Invalid buffer` and then never
+  recover** (upstream issue 9816: the receive ring buffer loses sync with
+  the WiFi task). Only `deinit()` + a new `ESPNow()` clears it. The node
+  gets that for free (one object per wake); the hub rebuilds in BLE mode and
+  takes a flushed reset in AP mode, where a rebuild would kill the AP.
 * **`ESPNow.send()`'s ACK counters are asynchronous.** Reading
   `send_success` / `send_failure` immediately after `send()` reads the state
   from *before* the callback fired, so every send looks failed. Poll them

@@ -138,7 +138,12 @@ if alarm.sleep_memory[MEM_MAGIC] != MAGIC:
         alarm.sleep_memory[MEM_MAGIC] = MAGIC
 
 alarm.sleep_memory[MEM_BOOTS] = (alarm.sleep_memory[MEM_BOOTS] + 1) % 256
-print("wake:", alarm.wake_alarm, "boot#", alarm.sleep_memory[MEM_BOOTS],
+# The reset reason tells a WATCHDOG or BROWNOUT restart apart from a normal
+# deep-sleep wake -- ESP-NOW users upstream report spontaneous watchdog
+# resets (adafruit/circuitpython#7903), and a console that only shows
+# "wake: None" cannot distinguish that from a power cycle.
+print("wake:", alarm.wake_alarm, "reset:", microcontroller.cpu.reset_reason,
+      "boot#", alarm.sleep_memory[MEM_BOOTS],
       "stash:", alarm.sleep_memory[MEM_STASH_N])
 
 
@@ -461,8 +466,64 @@ def _try_send(e, peer, payload):
     return True  # counters never moved; assume sent
 
 
+# WiFi channel the radio is parked on. 0 = not known, so the first hop of
+# every run is unconditional (a few ms; not worth guessing the default).
+_home_ch = 0
+_sta_started = False
+
+
+def _set_home_channel(ch):
+    """Park the radio on WiFi channel `ch`. Returns True when it is there.
+
+    A Peer's channel does NOT move the radio. ESP-NOW frames leave on the
+    WiFi "home" channel, and IDF refuses to send to a peer whose channel
+    differs from it: ESP_ERR_ESPNOW_CHAN 0x306d on the IDF this CP ships,
+    0x306a on older ones (adafruit/circuitpython#7903). Without this the
+    hunt below can only ever find a hub sitting on channel 1.
+
+    wifi.radio has no channel setter, so the community workaround from that
+    issue is used: start a softAP on the wanted channel and stop it again.
+    The channel sticks after stop_ap. A few ms per hop.
+
+    Two traps around that trick:
+    * CircuitPython tracks station/AP mode itself. Nothing here has
+      started the station (ESPNow() only starts the driver), so without
+      start_station() the hop would go STA -> AP -> NULL and every send
+      would fail ESP_ERR_ESPNOW_IF 0x306c: the peers live on the STA
+      interface. start_station() first makes it STA -> APSTA -> STA.
+    * A connected station pins the AP to the router's channel, so the hop
+      cannot move the radio. The WiFi fallback connects (and settings.toml
+      creds make CP connect before code.py runs), so drop the link first;
+      the fallback reconnects when it next needs to.
+    """
+    global _home_ch, _sta_started
+    try:
+        if not _sta_started:
+            wifi.radio.start_station()
+            _sta_started = True
+        if wifi.radio.connected:
+            print("channel hop: dropping the WiFi link (it pins the channel)")
+            wifi.radio.stop_station()
+            wifi.radio.start_station()
+            _home_ch = 0
+        if ch == _home_ch:
+            return True
+        wifi.radio.start_ap(ssid="CH%d" % ch, channel=ch)
+        wifi.radio.stop_ap()
+    except (RuntimeError, OSError, ValueError) as exc:
+        print("channel hop to %d failed: %s: %s" % (ch, type(exc).__name__, exc))
+        return False
+    _home_ch = ch
+    time.sleep(0.05)   # let the driver settle before the first send
+    return True
+
+
 def _mk_peer(e, old_peer, mac, ch):
-    """Create or retune a peer to a channel (ports differ on mutability)."""
+    """Create or retune a peer to a channel (ports differ on mutability).
+
+    Moves the radio to `ch` first: the peer's channel must match the home
+    channel or every send raises (see _set_home_channel)."""
+    _set_home_channel(ch)
     if old_peer is None:
         peer = espnow.Peer(mac=mac, channel=ch)
         e.peers.append(peer)
@@ -494,9 +555,18 @@ def _listen_reply(e, timeout, msg_id=None, crc=None):
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if len(e):
-            pkt = e.read()
-            obj = envproto.decode(pkt.msg) if pkt else None
+        try:
+            pkt = e.read() if len(e) else None
+        except ValueError as exc:
+            # "Invalid buffer": the receive ring buffer has lost sync with
+            # its writer (adafruit/circuitpython#9816). Every later read on
+            # this object raises the same, so stop listening. The caller
+            # treats it as no reply; the reading is stashed and the next
+            # wake builds a fresh ESPNow, which is the documented recovery.
+            print("ESP-NOW receive buffer corrupt (%s); reply lost" % exc)
+            return None, None, False
+        if pkt is not None:
+            obj = envproto.decode(pkt.msg)
             if obj and obj.get("k") in ("cfg", "ack"):
                 if msg_id is None:
                     return obj, bytes(pkt.mac), True
@@ -702,6 +772,7 @@ def drain_stash(limit=20):
         return
     e = espnow.ESPNow()
     try:
+        _set_home_channel(ch)   # a fresh boot parks the radio on channel 1
         peer = espnow.Peer(mac=mac, channel=ch)
         e.peers.append(peer)
         done = 0
@@ -832,7 +903,9 @@ def _send_cal_result(ok, corr, ref, why, ref0=None):
         return
     e2 = espnow.ESPNow()
     try:
-        p2 = espnow.Peer(mac=mac, channel=alarm.sleep_memory[MEM_CHANNEL] or 1)
+        ch = alarm.sleep_memory[MEM_CHANNEL] or 1
+        _set_home_channel(ch)   # the radio may still be on the boot channel
+        p2 = espnow.Peer(mac=mac, channel=ch)
         e2.peers.append(p2)
         # a calibration result is expensive to reproduce: insist on the hub's
         # confirmation, with more retries than a routine reading gets

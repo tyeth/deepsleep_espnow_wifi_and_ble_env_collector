@@ -360,6 +360,9 @@ elif HTTP_WANTED:
 
 MAC = envproto.mac_str(wifi.radio.mac_address)
 print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
+# ESP-NOW users upstream see spontaneous WATCHDOG resets (issue 7903); a
+# boot log that names the reset reason is the only way to spot them here.
+print("reset reason:", microcontroller.cpu.reset_reason)
 
 # hub time service: synced by NTP (net_wifi.connect) or by a browser via
 # POST /api/time / BLE "time <epoch>"; pushed to nodes in every cfg reply
@@ -368,7 +371,7 @@ print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
-hub = net_espnow.EspNowHub(existing=_espnow_obj)
+hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
 print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
 if HTTP_WANTED:
@@ -379,6 +382,9 @@ if HTTP_WANTED:
         already_active=ap_started,
     )
     print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
+    # the portal starts the AP itself when the early start failed: the hub
+    # wrapper must know, or a later ESP-NOW rebuild would kill it (issue 6)
+    hub.ap_active = hub.ap_active or captive.ap_active
 else:
     class _NoCaptive:
         ap_active = False
@@ -1386,6 +1392,12 @@ while True:
                           % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
+        if hub.needs_reset and not _reset_at[0]:
+            # the receiver is dead (corrupt ring buffer, CP issue 9816) and
+            # cannot be rebuilt under the softAP: same path as an HTTP/BLE
+            # reset request, so buffered data reaches storage first
+            hub.needs_reset = False
+            h_reset()
 
         # 2. local sensor sampling into the RAM ring
         if local_sensor and now_m - _last_sample >= config.get(
