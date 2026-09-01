@@ -454,7 +454,7 @@ def h_latest():
         })
     # mesh delivery health: every node packet we received, confirmed back,
     # re-confirmed as a duplicate, or could not decode at all
-    mesh = {"rx": hub.rx_count, "ack": hub.ack_count, "dup": hub.dup_count,
+    mesh = {"rx": hub.rx_count, "conf": hub.conf_count, "dup": hub.dup_count,
             "bad": hub.bad_count}
     if hub.last_error:
         mesh["err"] = hub.last_error
@@ -719,10 +719,10 @@ def h_ingest(body):
     obj = envproto.decode(raw)
     if obj is None:
         return {"err": "bad packet"}
-    fresh, reply = confirm_node_packet(None, obj, envproto.crc16(raw))
-    if fresh:
-        _handle_node_packet(None, obj, None)
-    return {"ok": True, "cfg": json.loads(reply)}
+    if obj.get("k") not in CONFIRMED_KINDS:
+        return {"err": "unexpected packet kind"}
+    reply = json.loads(take_node_packet(None, obj, envproto.crc16(raw)))
+    return {"ok": bool(reply.get("ok", 1)), "cfg": reply}
 
 
 def h_list_days():
@@ -814,61 +814,97 @@ def _cfg_reply_for(src, ack_id=None, ack_crc=None):
     )
 
 
-# Last packet confirmed per node: (kind, msg id, crc). A node whose
-# confirmation went missing resends the identical packet -- we must confirm
-# it again, but must NOT store the reading (or log the calibration) twice.
-_last_rx = {}
-# ...and the last few reading timestamps per node. A node that never got our
-# confirmation keeps the reading in its stash and re-sends it on a later wake
-# with a NEW message id, so the id check alone cannot catch that one; the
-# reading time can (nodes sample far slower than 1 Hz).
+# What we have already taken from each node, so an expected retry is
+# re-confirmed instead of stored twice:
+#   _recent_crc  the last few packet CRCs per (node, kind). Identical bytes
+#                means an identical packet, whatever the clocks are doing --
+#                this is what catches a node resending because OUR
+#                confirmation went missing.
+#   _recent_at   the last few reading times per node, for the other case: a
+#                stashed reading re-sent on a later wake carries a fresh
+#                message id (so different bytes) but the same reading time.
+#                Only usable once the node's clock is synced; a node still
+#                running from 2020 can therefore duplicate a stashed reading
+#                whose confirmation was lost. Documented, not silently hoped
+#                away -- the hub is the one with the clock to spare.
+_recent_crc = {}
 _recent_at = {}
-_RECENT_AT_KEEP = 8
+_KEEP = 4
+CONFIRMED_KINDS = ("dat", "dsc", "cal")
 
 
-def confirm_node_packet(mac, obj, crc):
-    """Confirm a node packet FIRST, then let the caller do the slow work.
+def _remember(store_dict, key, value, keep=_KEEP):
+    """Record value under key; True if it was already there."""
+    seen = store_dict.setdefault(key, [])
+    if value in seen:
+        return True
+    seen.append(value)
+    if len(seen) > keep:
+        del seen[0]
+    return False
 
-    The node is awake for a short listen window and naps straight after, so
-    the reply goes out before SD writes / display work. The reply carries
-    the message id and the CRC-16 of the bytes we received ("dat"/"dsc" get
-    it inside the 'cfg' push, everything else gets a bare 'ack'), which is
-    what lets the node distinguish "the radio ACKed" from "the hub has it".
 
-    Returns (fresh, reply_bytes): fresh is True when the packet is new and
-    should be processed; reply_bytes is the confirmation (already sent when
-    mac is not None -- the HTTP fallback returns it in the response body).
+def _confirmation_for(src, kind, msg_id, crc, ok):
+    """Build the reply: 'cfg' for kinds that take config (so a check-in is
+    one packet each way), a bare 'ack' otherwise -- or when the cfg would
+    not fit an ESP-NOW frame, since being confirmed matters more to the node
+    than being reconfigured."""
+    if ok and kind in ("dat", "dsc"):
+        try:
+            return _cfg_reply_for(src, ack_id=msg_id, ack_crc=crc)
+        except ValueError as exc:   # oversized cfg (too many metrics/fields)
+            print("cfg for %s too big (%s); confirming only" % (src, exc))
+    return envproto.make_ack_packet(msg_id, crc, ok=ok,
+                                    why=None if ok else "hub could not store")
+
+
+def take_node_packet(mac, obj, crc, rssi=None):
+    """Store a node packet, then tell the node what actually happened.
+
+    The confirmation carries the message id and the CRC-16 of the bytes we
+    received, and it is sent AFTER the reading is stored: "ok" then means
+    the hub has the data, not merely that the radio delivered a frame. If
+    storing raises (a full card, a MemoryError on this very tight board) the
+    node gets ok=0 and keeps the reading in its stash.
+
+    Returns the reply bytes (already transmitted when mac is not None; the
+    HTTP fallback returns them in its response body).
     """
     kind = obj.get("k")
     src = obj.get("n", "node-%s" % (envproto.mac_str(mac)[-5:] if mac else "?"))
     msg_id = obj.get("sq", 0)
-    if kind in ("dat", "dsc"):
-        reply = _cfg_reply_for(src, ack_id=msg_id, ack_crc=crc)
-    else:
-        reply = envproto.make_ack_packet(msg_id, crc)
-    if mac is not None:
-        if hub.send(mac, reply):
-            hub.ack_count += 1
-        else:
-            print("confirm to %s (%s sq=%s) failed to send"
-                  % (src, kind, msg_id))
-    fresh = _last_rx.get(src) != (kind, msg_id, crc)
-    _last_rx[src] = (kind, msg_id, crc)
-    if fresh and kind == "dat":
+    ok = True
+
+    dup = _remember(_recent_crc, (src, kind), crc)
+    if not dup and kind == "dat":
         at = obj.get("at")
         if at and at > envproto.PLAUSIBLE_EPOCH:
-            seen = _recent_at.setdefault(src, [])
-            if at in seen:
-                fresh = False
-            else:
-                seen.append(at)
-                if len(seen) > _RECENT_AT_KEEP:
-                    del seen[0]
-    if not fresh:
+            # keep these small: full epochs are heap-allocated big ints here
+            dup = _remember(_recent_at, src, at - _boot_epoch)
+    if dup:
         hub.dup_count += 1
-        print("duplicate %s sq=%s from %s: re-confirmed, not stored"
+        print("duplicate %s sq=%s from %s: re-confirming, not storing"
               % (kind, msg_id, src))
-    return fresh, reply
+    else:
+        try:
+            _handle_node_packet(mac, obj, rssi)
+        except Exception as exc:  # tell the node the truth: we lost it
+            ok = False
+            print("storing %s from %s failed: %s: %s"
+                  % (kind, src, type(exc).__name__, exc))
+            # forget it, so the node's retry is treated as new
+            seen = _recent_crc.get((src, kind))
+            if seen and crc in seen:
+                seen.remove(crc)
+
+    reply = _confirmation_for(src, kind, msg_id, crc, ok)
+    if mac is not None:
+        if hub.send(mac, reply):
+            hub.conf_count += 1
+        else:
+            print("confirmation to %s (%s sq=%s) could not be sent"
+                  % (src, kind, msg_id))
+    return reply
 
 
 def _handle_node_packet(mac, obj, rssi):
@@ -1107,8 +1143,12 @@ while True:
         #    the node's listen window is short and it naps straight after.
         for mac, obj, rssi, crc in hub.poll():
             try:
-                if confirm_node_packet(mac, obj, crc)[0]:
-                    _handle_node_packet(mac, obj, rssi)
+                if obj.get("k") in CONFIRMED_KINDS:
+                    take_node_packet(mac, obj, crc, rssi)
+                else:
+                    # never answer another hub's reply: that would ping-pong
+                    print("ignoring %s packet from %s"
+                          % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
 

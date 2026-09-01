@@ -209,7 +209,8 @@ def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
     if ack_crc is not None:
         pkt["aq"] = int(ack_id or 0)
         pkt["ac"] = int(ack_crc)
-        pkt["ok"] = 1 if ack_ok_flag else 0
+        if not ack_ok_flag:
+            pkt["ok"] = 0   # absent means ok: a cfg is tight on bytes
     if metrics:
         pkt["m"] = list(metrics)
     if cal_target:

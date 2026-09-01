@@ -224,6 +224,27 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## Known limits of the delivery confirmation (2026-09-01)
+
+Nodes now count a reading as delivered only when the hub echoes the message
+id + CRC-16 of the bytes it received (`envproto.ack_ok`). Two cases the
+scheme deliberately does not fully cover:
+
+* **A duplicate can still be stored when the node's clock is unsynced.** The
+  hub re-confirms an identical retry by CRC, but a *stashed* reading re-sent
+  on a later wake carries a fresh message id, so only the reading time
+  (`at`) identifies it. A node still running from 2020 sends no plausible
+  `at`, and `stash_shift_time()` rewrites `at` on the first clock sync, so a
+  reading whose confirmation was lost can land twice. The hub is the one
+  with the clock; nodes sync from it on the first successful check-in.
+* **A hub that can receive but not transmit stashes everything.** With BLE
+  resident on the C6 (issue 10) every hub→node send fails, so nothing is
+  ever confirmed: the node keeps stashing readings the hub actually stored,
+  until `STASH_MAX`. The node no longer burns ~20 s of awake time
+  rediscovering in that state (the MAC-layer ACK proves the hub is on the
+  channel), and `require_confirmation: false` in `node_config.json` reverts
+  to the old MAC-ACK semantics for such a hub.
+
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.

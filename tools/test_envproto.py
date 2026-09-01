@@ -53,6 +53,13 @@ def main():
     check("wrong crc is not a confirmation", not envproto.ack_ok(cfg, 42, crc ^ 1))
     check("wrong id is not a confirmation", not envproto.ack_ok(cfg, 41, crc))
 
+    print("hub says it could not store it")
+    nakcfg = envproto.decode(envproto.make_config_packet(
+        120, ack_id=42, ack_crc=crc, ack_ok_flag=False))
+    check("cfg with ok=0 is not a confirmation",
+          not envproto.ack_ok(nakcfg, 42, crc))
+    check("ok is omitted when all is well", "ok" not in cfg)
+
     print("hub rejection and bare acks")
     nak = envproto.decode(envproto.make_ack_packet(42, crc, ok=False,
                                                    why="store full"))

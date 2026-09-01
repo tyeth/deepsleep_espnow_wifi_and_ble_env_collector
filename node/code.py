@@ -183,6 +183,8 @@ DEFAULTS = {
     "cal_measure_s": 180,          # fallback window when the hub sends none
     "cal_max_spread_ppm": 60,      # stability gate over the last 15 min
     "cal_min_batt_v": 3.7,         # refuse a long awake window on a low cell
+    "require_confirmation": True,  # False = trust the MAC-layer ACK (see
+                                   # REQUIRE_CONF below)
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "deep_sleep": True,            # False = bench mode: stay awake between
@@ -266,6 +268,12 @@ def nvm_forget_collector():
 COLLECTOR_MAC = bytes(
     int(x, 16) for x in config["collector_mac"].split(":")
 ) if config["collector_mac"] else None
+
+# A reading counts as delivered only when the hub confirms it (id + CRC).
+# Escape hatch for a hub whose radio can receive but not transmit (the C6
+# with BLE resident, issue 10): the MAC-layer ACK becomes good enough again,
+# at the price of losing the "the hub really stored it" guarantee.
+REQUIRE_CONF = bool(config.get("require_confirmation", True))
 
 interval = mem_get_u16(MEM_INTERVAL) or config["interval_s"]
 
@@ -453,6 +461,9 @@ def _send_confirmed(e, peer, payload, msg_id, tries=2, listen_s=1.5):
         if not _try_send(e, peer, payload):
             print("send %d/%d: no MAC ack" % (attempt + 1, tries))
             continue
+        if not REQUIRE_CONF:
+            obj, _mac, _c = _listen_reply(e, listen_s)
+            return True, (obj if obj and obj.get("k") == "cfg" else None)
         obj, _mac, confirmed = _listen_reply(e, listen_s, msg_id, crc)
         if confirmed:
             return True, (obj if obj and obj.get("k") == "cfg" else None)
@@ -522,18 +533,26 @@ def espnow_report():
         if mac is not None:
             ch, peer = _unicast_hunt(e, mac, packet, prefer_ch)
             if ch:
+                # its radio ACKed, so the hub is up and on this channel:
+                # remember that even if the confirmation never arrives
+                alarm.sleep_memory[MEM_CHANNEL] = ch
+                nvm_save_collector(mac, ch)
                 # the hunt's last send is attempt 1: its confirmation may
                 # already be in flight
                 obj, _m, confirmed = _listen_reply(e, 1.5, seq, packet_crc)
                 if not confirmed:
-                    confirmed, obj = _send_confirmed(e, peer, packet, seq)
-                if confirmed:
-                    alarm.sleep_memory[MEM_CHANNEL] = ch
-                    nvm_save_collector(mac, ch)
-                    return True, (obj if obj and obj.get("k") == "cfg" else None)
-                print("collector on ch%d did not confirm; rediscovering..." % ch)
-            else:
-                print("known collector unreachable; rediscovering...")
+                    confirmed, obj = _send_confirmed(e, peer, packet, seq,
+                                                     tries=1)
+                if not confirmed:
+                    # Do NOT go hunting: the hub answered at MAC level, so
+                    # rediscovery would spend ~20s of awake time on 13
+                    # channels to find the hub we are already talking to.
+                    # Report undelivered and let the caller fall back.
+                    print("hub on ch%d did not confirm; keeping the channel"
+                          % ch)
+                return confirmed, (obj if obj and obj.get("k") == "cfg"
+                                   else None)
+            print("known collector unreachable; rediscovering...")
             nvm_forget_collector()
         # discovery: learn MAC + channel from the cfg reply, then send data
         mac, ch, cfg = _discover(e)
@@ -577,6 +596,8 @@ def wifi_report():
         resp.close()
         # same rule as ESP-NOW: HTTP 200 is not delivery, the hub echoing
         # our message id and CRC is
+        if not REQUIRE_CONF:
+            return True, cfg
         if cfg and "ac" not in cfg:
             print("hub reply carries no confirmation (old firmware?)")
             return True, cfg

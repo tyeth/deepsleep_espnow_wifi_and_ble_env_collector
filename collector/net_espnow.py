@@ -26,7 +26,7 @@ class EspNowHub:
         self.enabled = False
         self.rx_count = 0
         self.bad_count = 0
-        self.ack_count = 0
+        self.conf_count = 0   # confirmations handed to the radio (async ACK)
         self.dup_count = 0
         self.last_error = None
         self._e = None
