@@ -124,6 +124,42 @@ class SampleRing:
         return {k: sums[k] / counts[k] for k in sums}
 
 
+def take_filesystem(tries=30, delay=0.1):
+    """Take the filesystem from the host so the board can write it.
+
+    `unsafe_disable_usb_drive()` returns before the drive has finished
+    disappearing, and a remount attempted in that window fails with
+    "Cannot remount path when visible via USB" -- so retry for a few
+    seconds. Returns True when the board can write.
+    """
+    import storage
+    import time as _t
+    try:
+        storage.unsafe_disable_usb_drive()
+    except Exception:
+        pass          # already ours, or no USB drive on this board
+    for _ in range(tries):
+        try:
+            storage.remount("/", readonly=False)
+            return True
+        except RuntimeError:
+            _t.sleep(delay)
+        except Exception:
+            return False
+    return False
+
+
+def give_filesystem_back():
+    """Hand the drive back to a host: stop writing, then show the drive."""
+    import storage
+    try:
+        storage.remount("/", readonly=True)
+    except Exception:
+        pass
+    storage.enable_usb_drive()
+    return True
+
+
 class DataStore:
     """Latest-value cache + batched writer + event log.
 
@@ -224,16 +260,15 @@ class DataStore:
             # that because a host writing at this instant loses the write,
             # which is why it happens once and only as a last resort.
             self._usb_released = True
-            try:
-                import storage
-                storage.unsafe_disable_usb_drive()
-                storage.remount("/", readonly=False)
+            if take_filesystem():
                 print("storage: USB drive released so the hub can write")
                 return self._pick_root()
-            except (ImportError, AttributeError, RuntimeError, OSError) as exc:
-                print("storage: could not release the USB drive:", exc)
+            print("storage: could not take the filesystem from the host")
+        was_ro = self.read_only
         self.read_only = readable is not None
-        if readable:
+        if readable and not was_ro:
+            # once, not on every flush: this is re-probed constantly so that
+            # storage coming back is picked up without a restart
             print("storage: %s is read-only (USB drive mounted?); serving "
                   "existing days, buffering new data in RAM" % readable)
         return readable

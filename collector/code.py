@@ -857,20 +857,18 @@ def h_storage(body=None):
         state["note"] += " (saved for the next boot)"
         return state
     try:
-        import storage as _st
         if want == "mcu":
             # the unsafe variant by name because a host part-way through a
             # write loses it -- which is why the page asks first
-            _st.unsafe_disable_usb_drive()
-            _st.remount("/", readonly=False)
+            if not datastore.take_filesystem():
+                raise RuntimeError("host still holds the drive")
             store.read_only = False
             store.root = store._pick_root()
+            store.flush()          # everything buffered while it was theirs
             print("storage: drive ejected; the hub is logging to", store.root)
         else:
-            # give it back: stop writing first, then let the host see it
-            store.flush()
-            _st.remount("/", readonly=True)
-            _st.enable_usb_drive()
+            store.flush()          # get what we have down before we stop
+            datastore.give_filesystem_back()
             store.read_only = True
             print("storage: drive handed back to the host; hub logging "
                   "paused (buffering in RAM)")
