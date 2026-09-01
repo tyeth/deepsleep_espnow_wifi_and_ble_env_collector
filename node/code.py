@@ -351,6 +351,8 @@ mem_set_u16(MEM_SEQ, seq)
 packet = envproto.make_data_packet(
     config["name"], sensor.kind, seq, batt_v, metrics, at=reading_ts
 )
+# what the hub must echo back for this reading to count as delivered
+packet_crc = envproto.crc16(packet)
 
 
 def _try_send(e, peer, payload):
@@ -394,17 +396,70 @@ def _mk_peer(e, old_peer, mac, ch):
         return peer
 
 
-def _listen_cfg(e, timeout):
-    """Wait for a 'cfg' packet; returns (cfg_dict, sender_mac) or (None, None)."""
+def next_msg_id():
+    """Allocate the next message id (persists across deep sleep)."""
+    nid = (mem_get_u16(MEM_SEQ) + 1) % 65536
+    mem_set_u16(MEM_SEQ, nid)
+    return nid
+
+
+def _listen_reply(e, timeout, msg_id=None, crc=None):
+    """Wait for a hub reply ('cfg' or bare 'ack').
+
+    Returns (obj, sender_mac, confirmed). When msg_id/crc are given,
+    confirmed means the hub echoed OUR message id and the CRC-16 of the
+    bytes it received matched what we sent -- i.e. the packet arrived
+    intact and was accepted, which the MAC-layer ACK does not tell us.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if len(e):
             pkt = e.read()
             obj = envproto.decode(pkt.msg) if pkt else None
-            if obj and obj.get("k") == "cfg":
-                return obj, bytes(pkt.mac)
+            if obj and obj.get("k") in ("cfg", "ack"):
+                if msg_id is None:
+                    return obj, bytes(pkt.mac), True
+                if envproto.ack_ok(obj, msg_id, crc):
+                    return obj, bytes(pkt.mac), True
+                if "ac" not in obj:
+                    # hub firmware predates confirmations: the reply itself
+                    # is the only evidence we are going to get
+                    print("hub reply carries no confirmation (old firmware?)")
+                    return obj, bytes(pkt.mac), True
+                if int(obj.get("aq", -1)) == int(msg_id):
+                    print("hub confirmed sq=%s with crc %s, we sent %s"
+                          % (msg_id, obj.get("ac"), crc))
+                    return obj, bytes(pkt.mac), False
+                # a late reply to an earlier packet: keep waiting
         time.sleep(0.02)
-    return None, None
+    return None, None, False
+
+
+def _listen_cfg(e, timeout):
+    """Back-compat wrapper: any reply, no confirmation check."""
+    obj, mac, _ = _listen_reply(e, timeout)
+    return obj, mac
+
+
+def _send_confirmed(e, peer, payload, msg_id, tries=2, listen_s=1.5):
+    """Send and wait for the hub's confirmation. Returns (ok, cfg_or_None).
+
+    Retries resend the IDENTICAL bytes, so a hub that did receive the packet
+    but whose confirmation was lost recognises the duplicate, re-confirms
+    and does not store the reading twice.
+    """
+    crc = envproto.crc16(payload)
+    for attempt in range(tries):
+        if not _try_send(e, peer, payload):
+            print("send %d/%d: no MAC ack" % (attempt + 1, tries))
+            continue
+        obj, _mac, confirmed = _listen_reply(e, listen_s, msg_id, crc)
+        if confirmed:
+            return True, (obj if obj and obj.get("k") == "cfg" else None)
+        if obj is None:
+            print("send %d/%d: no confirmation within %.1fs"
+                  % (attempt + 1, tries, listen_s))
+    return False, None
 
 
 def _channels(prefer):
@@ -413,19 +468,25 @@ def _channels(prefer):
 
 
 def _unicast_hunt(e, mac, payload, prefer_ch):
-    """Send unicast, hunting channels until the MAC ACKs. Returns channel or 0."""
+    """Find the hub's channel: unicast until the MAC layer ACKs. Returns
+    (channel, peer) or (0, None).
+
+    The payload really is transmitted here (that is the probe), so a hunt
+    that walks several channels can deliver it more than once -- always as
+    identical bytes, which the hub's duplicate check re-confirms instead of
+    storing twice."""
     peer = None
     for ch in _channels(prefer_ch):
         peer = _mk_peer(e, peer, mac, ch)
         if _try_send(e, peer, payload):
-            return ch
-    return 0
+            return ch, peer
+    return 0, None
 
 
 def _discover(e):
     """Broadcast 'dsc' across channels; the collector's unicast 'cfg' reply
     reveals its MAC + channel. Returns (mac, channel, cfg) or (None, 0, None)."""
-    dsc = envproto.make_discovery_packet(config["name"], None)
+    dsc = envproto.make_discovery_packet(config["name"], None, seq=next_msg_id())
     peer = None
     for ch in _channels(alarm.sleep_memory[MEM_CHANNEL]):
         peer = _mk_peer(e, peer, envproto.BROADCAST_MAC, ch)
@@ -444,7 +505,12 @@ def _discover(e):
 
 
 def espnow_report():
-    """Fully self-configuring report. Returns (sent_ok, cfg_dict_or_None)."""
+    """Fully self-configuring report. Returns (delivered, cfg_dict_or_None).
+
+    delivered is the HUB's confirmation (message id + CRC of the bytes it
+    received), never just the radio's ACK -- an unconfirmed reading goes to
+    the WiFi fallback and, failing that, into the stash.
+    """
     e = espnow.ESPNow()
     try:
         # who's the collector? config pin > NVM > (later) discovery
@@ -454,13 +520,20 @@ def espnow_report():
             mac, nvm_ch = nvm_collector()
             prefer_ch = prefer_ch or nvm_ch
         if mac is not None:
-            ch = _unicast_hunt(e, mac, packet, prefer_ch)
+            ch, peer = _unicast_hunt(e, mac, packet, prefer_ch)
             if ch:
-                alarm.sleep_memory[MEM_CHANNEL] = ch
-                nvm_save_collector(mac, ch)
-                cfg, _ = _listen_cfg(e, 1.5)
-                return True, cfg
-            print("known collector unreachable; rediscovering...")
+                # the hunt's last send is attempt 1: its confirmation may
+                # already be in flight
+                obj, _m, confirmed = _listen_reply(e, 1.5, seq, packet_crc)
+                if not confirmed:
+                    confirmed, obj = _send_confirmed(e, peer, packet, seq)
+                if confirmed:
+                    alarm.sleep_memory[MEM_CHANNEL] = ch
+                    nvm_save_collector(mac, ch)
+                    return True, (obj if obj and obj.get("k") == "cfg" else None)
+                print("collector on ch%d did not confirm; rediscovering..." % ch)
+            else:
+                print("known collector unreachable; rediscovering...")
             nvm_forget_collector()
         # discovery: learn MAC + channel from the cfg reply, then send data
         mac, ch, cfg = _discover(e)
@@ -471,9 +544,8 @@ def espnow_report():
         nvm_save_collector(mac, ch)
         peer = espnow.Peer(mac=mac, channel=ch)
         e.peers.append(peer)
-        sent = _try_send(e, peer, packet)
-        cfg2, _ = _listen_cfg(e, 1.5)
-        return sent, cfg2 or cfg
+        confirmed, cfg2 = _send_confirmed(e, peer, packet, seq)
+        return confirmed, cfg2 or cfg
     finally:
         e.deinit()
 
@@ -503,6 +575,14 @@ def wifi_report():
         except (ValueError, AttributeError):
             pass
         resp.close()
+        # same rule as ESP-NOW: HTTP 200 is not delivery, the hub echoing
+        # our message id and CRC is
+        if cfg and "ac" not in cfg:
+            print("hub reply carries no confirmation (old firmware?)")
+            return True, cfg
+        if not envproto.ack_ok(cfg, seq, packet_crc):
+            print("wifi fallback: hub did not confirm the packet")
+            return False, cfg
         return True, cfg
     except Exception as exc:
         print("wifi fallback failed:", exc)
@@ -525,9 +605,12 @@ def drain_stash(limit=20):
         done = 0
         for i in range(min(n, limit)):
             ts, m, vb = stash_get(i)
+            mid = next_msg_id()
             pkt = envproto.make_data_packet(
-                config["name"], sensor.kind, 0, vb, m, at=ts)
-            if not _try_send(e, peer, pkt):
+                config["name"], sensor.kind, mid, vb, m, at=ts)
+            # only drop a stashed reading the hub has actually confirmed
+            confirmed, _cfg = _send_confirmed(e, peer, pkt, mid, listen_s=0.8)
+            if not confirmed:
                 break
             done += 1
             time.sleep(0.05)
@@ -638,8 +721,9 @@ def _nap(seconds):
 
 
 def _send_cal_result(ok, corr, ref, why, ref0=None):
+    mid = next_msg_id()
     pkt = envproto.make_cal_result_packet(config["name"], ok, corr, ref, why,
-                                          ref0)
+                                          ref0, seq=mid)
     mac = COLLECTOR_MAC or nvm_collector()[0]
     if not mac:
         print("cal result not sent (no collector known)")
@@ -648,7 +732,11 @@ def _send_cal_result(ok, corr, ref, why, ref0=None):
     try:
         p2 = espnow.Peer(mac=mac, channel=alarm.sleep_memory[MEM_CHANNEL] or 1)
         e2.peers.append(p2)
-        _try_send(e2, p2, pkt)
+        # a calibration result is expensive to reproduce: insist on the hub's
+        # confirmation, with more retries than a routine reading gets
+        confirmed, _cfg = _send_confirmed(e2, p2, pkt, mid, tries=3)
+        if not confirmed:
+            print("cal result NOT confirmed by the hub")
     except (RuntimeError, OSError, ValueError) as exc:
         print("cal result send failed:", exc)
     finally:

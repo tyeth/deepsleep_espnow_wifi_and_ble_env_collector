@@ -452,7 +452,14 @@ def h_latest():
             "state": a["state"], "for": alerts.fmt_duration(a["for_s"]),
             "for_s": a["for_s"],
         })
-    return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal}
+    # mesh delivery health: every node packet we received, confirmed back,
+    # re-confirmed as a duplicate, or could not decode at all
+    mesh = {"rx": hub.rx_count, "ack": hub.ack_count, "dup": hub.dup_count,
+            "bad": hub.bad_count}
+    if hub.last_error:
+        mesh["err"] = hub.last_error
+    return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
+            "mesh": mesh}
 
 
 def h_battery():
@@ -702,12 +709,19 @@ def _local_cal_tick(now, co2):
 
 
 def h_ingest(body):
-    """WiFi fallback transport: nodes POST the same envproto JSON here."""
-    obj = envproto.decode(body if isinstance(body, (bytes, str)) else b"")
+    """WiFi fallback transport: nodes POST the same envproto JSON here.
+
+    The response carries the same confirmation as the ESP-NOW path (message
+    id + CRC-16 of the bytes we received, inside the cfg push), so a node
+    gets identical delivery proof whichever transport it fell back to.
+    """
+    raw = body if isinstance(body, bytes) else (body or "").encode()
+    obj = envproto.decode(raw)
     if obj is None:
         return {"err": "bad packet"}
-    _handle_node_packet(None, obj, None)
-    reply = _cfg_reply_for(obj.get("n", "?"))
+    fresh, reply = confirm_node_packet(None, obj, envproto.crc16(raw))
+    if fresh:
+        _handle_node_packet(None, obj, None)
     return {"ok": True, "cfg": json.loads(reply)}
 
 
@@ -776,7 +790,7 @@ handlers = {
 # Node packet handling
 # ---------------------------------------------------------------------------
 
-def _cfg_reply_for(src):
+def _cfg_reply_for(src, ack_id=None, ack_crc=None):
     interval = config.get("node_intervals", {}).get(
         src, config.get("node_default_interval_s", 120)
     )
@@ -796,7 +810,65 @@ def _cfg_reply_for(src):
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
         cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
+        ack_id=ack_id, ack_crc=ack_crc,
     )
+
+
+# Last packet confirmed per node: (kind, msg id, crc). A node whose
+# confirmation went missing resends the identical packet -- we must confirm
+# it again, but must NOT store the reading (or log the calibration) twice.
+_last_rx = {}
+# ...and the last few reading timestamps per node. A node that never got our
+# confirmation keeps the reading in its stash and re-sends it on a later wake
+# with a NEW message id, so the id check alone cannot catch that one; the
+# reading time can (nodes sample far slower than 1 Hz).
+_recent_at = {}
+_RECENT_AT_KEEP = 8
+
+
+def confirm_node_packet(mac, obj, crc):
+    """Confirm a node packet FIRST, then let the caller do the slow work.
+
+    The node is awake for a short listen window and naps straight after, so
+    the reply goes out before SD writes / display work. The reply carries
+    the message id and the CRC-16 of the bytes we received ("dat"/"dsc" get
+    it inside the 'cfg' push, everything else gets a bare 'ack'), which is
+    what lets the node distinguish "the radio ACKed" from "the hub has it".
+
+    Returns (fresh, reply_bytes): fresh is True when the packet is new and
+    should be processed; reply_bytes is the confirmation (already sent when
+    mac is not None -- the HTTP fallback returns it in the response body).
+    """
+    kind = obj.get("k")
+    src = obj.get("n", "node-%s" % (envproto.mac_str(mac)[-5:] if mac else "?"))
+    msg_id = obj.get("sq", 0)
+    if kind in ("dat", "dsc"):
+        reply = _cfg_reply_for(src, ack_id=msg_id, ack_crc=crc)
+    else:
+        reply = envproto.make_ack_packet(msg_id, crc)
+    if mac is not None:
+        if hub.send(mac, reply):
+            hub.ack_count += 1
+        else:
+            print("confirm to %s (%s sq=%s) failed to send"
+                  % (src, kind, msg_id))
+    fresh = _last_rx.get(src) != (kind, msg_id, crc)
+    _last_rx[src] = (kind, msg_id, crc)
+    if fresh and kind == "dat":
+        at = obj.get("at")
+        if at and at > envproto.PLAUSIBLE_EPOCH:
+            seen = _recent_at.setdefault(src, [])
+            if at in seen:
+                fresh = False
+            else:
+                seen.append(at)
+                if len(seen) > _RECENT_AT_KEEP:
+                    del seen[0]
+    if not fresh:
+        hub.dup_count += 1
+        print("duplicate %s sq=%s from %s: re-confirmed, not stored"
+              % (kind, msg_id, src))
+    return fresh, reply
 
 
 def _handle_node_packet(mac, obj, rssi):
@@ -1030,12 +1102,13 @@ while True:
     now_m = time.monotonic()
     now_e = int(time.time())
     try:
-        # 1. remote nodes over ESP-NOW (reply immediately -- they nap fast)
-        for mac, obj, rssi in hub.poll():
+        # 1. remote nodes over ESP-NOW. Confirm first (id + CRC of what we
+        #    received, carried by the cfg push), then do the slow work --
+        #    the node's listen window is short and it naps straight after.
+        for mac, obj, rssi, crc in hub.poll():
             try:
-                _handle_node_packet(mac, obj, rssi)
-                if obj.get("k") in ("dat", "dsc"):
-                    hub.send(mac, _cfg_reply_for(obj.get("n", "?")))
+                if confirm_node_packet(mac, obj, crc)[0]:
+                    _handle_node_packet(mac, obj, rssi)
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
 
