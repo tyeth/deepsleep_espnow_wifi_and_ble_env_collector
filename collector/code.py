@@ -876,9 +876,18 @@ def h_storage(body=None):
         state["effective"] = want
         state["store"] = store.mode
     except Exception as exc:
+        # CircuitPython refuses remount() while the USB mass-storage layer
+        # still holds the block device (blockdev_lock) -- measured on
+        # 10.3.0-alpha.4/S3 even straight after unsafe_disable_usb_drive().
+        # The boot-time path in boot.py has no such problem, so finish the
+        # job by restarting: the caller asked for a swap, not for an
+        # explanation.
         state["applied"] = False
         state["err"] = "%s: %s" % (type(exc).__name__, exc)
-        state["reset_required"] = True   # the boot-time path still will
+        state["restarting"] = True
+        state["note"] += " -- restarting to apply it"
+        _reset_at[0] = time.monotonic() + 1.5
+        print("storage: live switch refused (%s); restarting to apply" % exc)
     return state
 
 
