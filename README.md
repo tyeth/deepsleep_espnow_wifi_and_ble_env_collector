@@ -116,9 +116,13 @@ with a warning on each), over `GET`/`POST /api/storage`
 would throw away the readings queued in RAM, which is the very data the
 feature exists to protect.
 
-Handing the drive *back* is immediate (`enable_usb_drive()` works after
-`code.py` starts, precisely to reverse the eject). Taking it can be
-refused: CircuitPython will not remount while anything holds the block
+Handing the drive *back* flushes everything to storage first — the hub
+still owns it at that moment, so nothing is at risk — then re-enables the
+drive and restarts, because `enable_usb_drive()` changes CircuitPython's
+USB descriptors while nothing re-enumerates the device: a host that had the
+drive taken away may never notice it is back (Windows saw no mass-storage
+device at all until a reset or a replug). Taking it is the direction that
+must never restart, and it can be refused: CircuitPython will not remount while anything holds the block
 device (`blockdev_lock`) — the USB host, or the hub's own server streaming
 a file. So the hub closes its file transfers first (the browser re-requests,
 and `Range` lets it resume), then keeps retrying for two minutes while

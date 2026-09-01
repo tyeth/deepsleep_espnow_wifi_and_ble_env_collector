@@ -678,7 +678,11 @@ async function storageSet(owner){
     body:JSON.stringify({owner,now:true})})).json();
   if(r.err){setStatus("storage-note",r.err,false,true);return;}
   storageShow(r);
-  if(r.retrying_until_s){
+  if(r.restarting){
+   setStatus("storage-note",(r.note||"")+" - data flushed first, and the hub "
+    +"is restarting so your computer sees the drive again (~15s)",true);
+  }
+  else if(r.retrying_until_s){
    setStatus("storage-note",(r.note||"")+" - keeping the readings buffered "
     +"meanwhile",true);
    // poll until the hub gets it, rather than telling the user to wait

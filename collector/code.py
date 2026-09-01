@@ -908,11 +908,21 @@ def h_storage(body=None):
             store.flush()          # everything buffered while it was theirs
             print("storage: drive ejected; the hub is logging to", store.root)
         else:
-            store.flush()          # get what we have down before we stop
+            # Flush FIRST -- we still own the filesystem, so nothing is at
+            # risk -- then hand it over. enable_usb_drive() changes
+            # CircuitPython's USB descriptors but nothing re-enumerates the
+            # device, so a host that had the drive taken from it may never
+            # notice it is back (measured: Windows saw no mass-storage
+            # device at all afterwards). A reset re-enumerates for certain,
+            # and having just flushed, it costs nothing -- unlike the other
+            # direction, where a reset would discard the queue.
+            store.flush()
             datastore.give_filesystem_back()
             store.read_only = True
-            print("storage: drive handed back to the host; hub logging "
-                  "paused (buffering in RAM)")
+            _reset_at[0] = time.monotonic() + 1.5
+            state["restarting"] = True
+            print("storage: flushed and handed the drive back; restarting "
+                  "so the host re-enumerates it")
         state["applied"] = True
         state["effective"] = want
         state["store"] = store.mode
