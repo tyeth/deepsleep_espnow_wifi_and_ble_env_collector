@@ -243,6 +243,26 @@ Hub log, same exchange:
 So: id + CRC round-trip intact over the air, retries re-confirmed and not
 double-stored, and the same for the discovery packet (`dsc sq=2 crc=b11b`).
 
+**Outage → recovery** (`tools/hil_bench.py outage`): Ctrl-C on the hub, so
+its code stops. Node, three wakes running:
+
+    known collector unreachable; rediscovering...
+    stashed reading (1 held) / (2 held) / (3 held)
+
+Hub resumed (Ctrl-D); the node's next wake:
+
+    discovered collector 54:32:04:0c:d7:54 on ch1
+    retransmitted 3 stashed (0 left)
+
+and the hub took them as three separate readings, each with its own id and
+CRC, none mistaken for a duplicate:
+
+    dat sq=12 crc=206c ... dat sq=14 crc=cfe7 / sq=15 crc=8ad5 / sq=16 crc=dc8f
+    dat sq=17 crc=355c: accepted   duplicate dat sq=17: re-confirming (x2)
+
+Note the stash survived the bench reloads only because of the NVM mirror
+below; before that fix the count reset to 0 every cycle.
+
 **New finding (node, bench mode): `alarm.sleep_memory` does NOT survive
 `supervisor.reload()`** on 10.3.0-alpha.4 (S3): every bench cycle came up
 `boot# 1 stash: 0` with the message-id counter back at 1. Only
