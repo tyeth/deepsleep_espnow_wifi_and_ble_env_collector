@@ -678,8 +678,19 @@ async function storageSet(owner){
     body:JSON.stringify({owner,now:true})})).json();
   if(r.err){setStatus("storage-note",r.err,false,true);return;}
   storageShow(r);
-  if(r.restarting)setStatus("storage-note",
-    (r.note||"")+" - the hub is restarting to apply it (~15s)",true);
+  if(r.retrying_until_s){
+   setStatus("storage-note",(r.note||"")+" - keeping the readings buffered "
+    +"meanwhile",true);
+   // poll until the hub gets it, rather than telling the user to wait
+   const stop=Date.now()+(r.retrying_until_s+10)*1000;
+   const tick=setInterval(async()=>{
+    const st=await storageStatus();
+    if(st&&st.effective===owner){clearInterval(tick);storageShow(st);}
+    else if(Date.now()>stop){clearInterval(tick);
+     setStatus("storage-note","the host would not release the drive - "
+      +"unmount/eject it there, or hold BOOT at power-up",false,true);}
+   },3000);
+  }
   else if(r.reset_required)setStatus("storage-note",
     (r.note||"")+" - restart the hub to apply it",false,true);
  }catch(e){setStatus("storage-note","failed: "+e.message,false,true);}

@@ -799,6 +799,13 @@ def h_list_days():
 # actually delivered before the board goes.
 _reset_at = [0.0]
 
+# Taking the filesystem from a host can take a while -- Windows in
+# particular keeps the volume mounted for a bit after the drive vanishes --
+# so the main loop keeps trying until this deadline instead of the hub
+# restarting and losing everything queued in RAM.
+_FS_TAKE_WINDOW_S = 120
+_fs_take_until = [0.0]
+
 
 def h_reset():
     """Restart the hub (deploy without a console or a reachable button).
@@ -882,6 +889,16 @@ def h_storage(body=None):
         return state
     try:
         if want == "mcu":
+            # our own server streaming a file holds the block device too, so
+            # let go of those first; the browser re-requests (with Range, it
+            # resumes) and nothing queued in RAM is at risk
+            try:
+                dropped = portal.release_files()
+                if dropped:
+                    print("storage: closed %d file transfer(s) to free the "
+                          "filesystem" % dropped)
+            except AttributeError:
+                pass
             # the unsafe variant by name because a host part-way through a
             # write loses it -- which is why the page asks first
             if not datastore.take_filesystem():
@@ -900,18 +917,19 @@ def h_storage(body=None):
         state["effective"] = want
         state["store"] = store.mode
     except Exception as exc:
-        # CircuitPython refuses remount() while the USB mass-storage layer
-        # still holds the block device (blockdev_lock) -- measured on
-        # 10.3.0-alpha.4/S3 even straight after unsafe_disable_usb_drive().
-        # The boot-time path in boot.py has no such problem, so finish the
-        # job by restarting: the caller asked for a swap, not for an
-        # explanation.
+        # CircuitPython refuses remount() while anything holds the block
+        # device (blockdev_lock): the USB host, or our own server streaming
+        # a file. Keep trying in the background rather than restarting --
+        # a restart would throw away every reading queued in RAM, which is
+        # the exact data this feature exists to save.
         state["applied"] = False
         state["err"] = "%s: %s" % (type(exc).__name__, exc)
-        state["restarting"] = True
-        state["note"] += " -- restarting to apply it"
-        _reset_at[0] = time.monotonic() + 1.5
-        print("storage: live switch refused (%s); restarting to apply" % exc)
+        state["retrying_until_s"] = _FS_TAKE_WINDOW_S
+        state["note"] += (" -- the host still holds it; retrying for %ds"
+                          % _FS_TAKE_WINDOW_S)
+        _fs_take_until[0] = time.monotonic() + _FS_TAKE_WINDOW_S
+        print("storage: host still holds the drive (%s); retrying for %ds"
+              % (exc, _FS_TAKE_WINDOW_S))
     return state
 
 
@@ -1327,6 +1345,17 @@ _err_streak = 0
 while True:
     now_m = time.monotonic()
     now_e = int(time.time())
+    if _fs_take_until[0]:
+        # a switch to MCU ownership that the host would not allow yet
+        if now_m >= _fs_take_until[0]:
+            _fs_take_until[0] = 0.0
+            print("storage: gave up taking the filesystem; still the host's")
+        elif datastore.take_filesystem(tries=1):
+            _fs_take_until[0] = 0.0
+            store.read_only = False
+            store.root = store._pick_root()
+            store.flush()          # everything buffered while we waited
+            print("storage: filesystem taken; logging to", store.root)
     if _reset_at[0] and now_m >= _reset_at[0]:
         # requested over HTTP/BLE: get the buffered data onto storage first
         try:

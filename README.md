@@ -112,13 +112,19 @@ on a computer. Three ways to change that:
 
 The web page has the switch too (*filesystem: hub logs (MCU) / PC drive*,
 with a warning on each), over `GET`/`POST /api/storage`
-(`{"owner":"mcu"|"pc"}`). **Both directions take effect immediately, with
-no restart**: `unsafe_disable_usb_drive()` hands the flash to the hub, and
-`enable_usb_drive()` — which CircuitPython supports after `code.py` starts,
-precisely to reverse that — hands the drive back. Pass `{"now": false}` to
-only record the choice for the next boot. The eject is the "unsafe" call by
-name because a host part-way through a write loses it, which is what the
-page warns about.
+(`{"owner":"mcu"|"pc"}`). **Neither direction restarts the hub** — a restart
+would throw away the readings queued in RAM, which is the very data the
+feature exists to protect.
+
+Handing the drive *back* is immediate (`enable_usb_drive()` works after
+`code.py` starts, precisely to reverse the eject). Taking it can be
+refused: CircuitPython will not remount while anything holds the block
+device (`blockdev_lock`) — the USB host, or the hub's own server streaming
+a file. So the hub closes its file transfers first (the browser re-requests,
+and `Range` lets it resume), then keeps retrying for two minutes while
+readings continue to queue. If the host never lets go, eject the drive
+there or hold BOOT at power-up; the choice is already saved in NVM, so the
+next boot applies it.
 
 Whatever the setting, a read-only hub still **serves the history it
 already has**, reports `"store": "flash (read-only)"` in `GET

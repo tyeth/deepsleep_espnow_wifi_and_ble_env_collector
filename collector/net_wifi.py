@@ -636,6 +636,29 @@ class WebPortal:
             c.sent += sent
             c.out = c.out[sent:]
 
+    def release_files(self):
+        """Close every file this server is streaming, and say how many.
+
+        CircuitPython will not remount the filesystem while anything holds
+        the block device, and a page load leaves vendor bundles open across
+        many polls -- so handing the filesystem over has to interrupt those
+        transfers. The browser simply re-requests (and Range means it can
+        resume), which is much cheaper than the alternative of restarting
+        the hub and losing whatever is queued in RAM.
+        """
+        closed = 0
+        for c in self._conns:
+            if c.file:
+                try:
+                    c.file.close()
+                except OSError:
+                    pass
+                c.file = None
+                c.left = None
+                c.done = True      # the response is now truncated: end it
+                closed += 1
+        return closed
+
     def _file_head(self, c, path, ka, inm=b"", rng=b"", gz_ok=False,
                    br_ok=False):
         """Build the response head for a static file and arm the streaming.
