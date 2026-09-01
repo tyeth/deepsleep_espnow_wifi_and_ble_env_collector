@@ -65,9 +65,13 @@ AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
                or _ecfg.get("ap_password", ""))
 # BLE name carries the MAC suffix so several hubs on one site stay distinct
 # (clients match on the ENVHUB prefix + Nordic UART service).
+# Eight characters is the most that fits: a legacy advertising PDU holds 31
+# bytes, and flags (3) plus the 128-bit Nordic UART UUID (18) leave 8. Go
+# over and CircuitPython silently switches to BLE 5 extended advertising,
+# which older scanners never see (see net_ble.py).
 BLE_NAME = (os.getenv("ENVHUB_BLE_NAME")
             or _ecfg.get("ble_name")
-            or "ENVHUB-" + envproto.short_mac(wifi.radio.mac_address)[-4:])
+            or "HUB-" + envproto.short_mac(wifi.radio.mac_address)[-4:])
 # BLE controller AND advertising first (before the AP -- mirroring the
 # BLE-workflow case, the only proven BLE+AP coexistence on C6). If any
 # step fails, tear BLE down completely: a half-up BLE stack costs ~65KB
@@ -85,6 +89,11 @@ if _ecfg.get("ble_enabled", True):
         _ble_uart = UARTService()
         _ble_adv = ProvideServicesAdvertisement(_ble_uart)
         _ble_adv.complete_name = BLE_NAME
+        if len(bytes(_ble_adv)) > 31:      # same rule as net_ble._trim
+            BLE_NAME = BLE_NAME[:8]
+            _ble_adv.complete_name = BLE_NAME
+            print("BLE: advert too long for legacy scanners; name ->",
+                  BLE_NAME)
         _ble_radio.start_advertising(_ble_adv)
         print("early BLE advertising as", BLE_NAME)
     except Exception as exc:
