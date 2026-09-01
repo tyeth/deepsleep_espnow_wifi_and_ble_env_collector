@@ -54,6 +54,13 @@ def main():
                   timeout=int(args.timeout * 1000))
         page.wait_for_timeout(8000)          # let the deferred loaders run
 
+        # Plotly is loaded on demand (ensurePlotly), not at startup: ask the
+        # page to load it exactly the way drawing a chart would
+        try:
+            page.evaluate("""() => window.ensurePlotly && window.ensurePlotly()""")
+        except Exception as exc:
+            print("ensurePlotly call failed:", exc)
+        page.wait_for_timeout(20000)
         plotly = page.evaluate("typeof window.Plotly")
         title = page.title()
         # the app fetches /api/latest itself; ask the page to do it again so a
@@ -70,8 +77,13 @@ def main():
 
         first = [(s, u) for s, u in responses]
         responses.clear()
+        # log what the browser asks for on the second visit: a stored
+        # response shows up as a conditional request (If-None-Match)
+        conditional = []
+        page.on("request", lambda r: conditional.append(
+            (r.url, r.headers.get("if-none-match", ""))))
         page.reload(wait_until="load", timeout=int(args.timeout * 1000))
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
         second = list(responses)
         browser.close()
 
@@ -87,6 +99,10 @@ def main():
         print("   %s %s" % (status, url[:96]))
     revalidated = sum(1 for s, _ in second if s == 304)
     print("   -> %d served from cache as 304" % revalidated)
+    asked = [(u, e) for u, e in conditional if e]
+    print("   -> %d requests carried If-None-Match" % len(asked))
+    for u, e in asked[:6]:
+        print("      %s  %s" % (u[:70], e))
 
     if failures:
         print("\nfailed requests:")
@@ -97,7 +113,7 @@ def main():
         for c in console[:25]:
             print("   ", c[:140])
 
-    ok = plotly == "object" and api.get("sources")
+    ok = plotly == "object" and bool(api.get("sources"))
     print("\nscreenshot: %s" % args.shot)
     print("PAGE %s" % ("OK" if ok else "NOT WORKING"))
     return 0 if ok else 1

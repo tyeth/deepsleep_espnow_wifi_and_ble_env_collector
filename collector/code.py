@@ -780,6 +780,22 @@ def h_list_days():
     return store.list_days()
 
 
+# Set by h_reset; the main loop acts on it a moment later so the reply is
+# actually delivered before the board goes.
+_reset_at = [0.0]
+
+
+def h_reset():
+    """Restart the hub (deploy without a console or a reachable button).
+
+    Buffered data is flushed by the loop before the reset, so a restart
+    never costs readings.
+    """
+    _reset_at[0] = time.monotonic() + 1.5
+    print("reset requested; flushing and restarting")
+    return {"ok": True, "resetting_in_s": 1.5}
+
+
 def h_time_set(epoch):
     """Set the hub clock (browser time via web page / BLE). Pending
     records buffered with a wrong clock are retro-adjusted."""
@@ -835,6 +851,7 @@ handlers = {
     "history_lines": h_history_lines,
     "data_dir": lambda: store.data_dir(),
     "time_set": h_time_set,
+    "reset": h_reset,
 }
 
 # ---------------------------------------------------------------------------
@@ -1190,6 +1207,14 @@ _err_streak = 0
 while True:
     now_m = time.monotonic()
     now_e = int(time.time())
+    if _reset_at[0] and now_m >= _reset_at[0]:
+        # requested over HTTP/BLE: get the buffered data onto storage first
+        try:
+            store.flush()
+        except Exception as exc:
+            print("flush before reset failed:", exc)
+        print("restarting now")
+        microcontroller.reset()
     try:
         # 1. remote nodes over ESP-NOW. Confirm first (id + CRC of what we
         #    received, carried by the cfg push), then do the slow work --

@@ -107,6 +107,29 @@ def connect(ssid, password, tz_offset_h=0):
     return ip
 
 
+_DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _http_date():
+    """RFC 1123 Date header, or b"" while the hub clock is unset.
+
+    A browser works out how old a response is from Date; without one it may
+    decline to store the response at all, so every reload re-downloads
+    instead of revalidating with the ETag. A *wrong* date is worse than
+    none (the hub boots at 2000-01-01 until NTP or a browser sets the
+    clock), hence the year check -- the page POSTs /api/time on connect,
+    so the very first page load is the only one served undated.
+    """
+    t = time.localtime()
+    if t[0] < 2025:
+        return b""
+    return b"Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n" % (
+        _DAYS[t[6]].encode(), t[2], _MONTHS[t[1] - 1].encode(), t[0],
+        t[3], t[4], t[5])
+
+
 def _find_app_root():
     """The full analysis web app is deployed to /sd/www (preferred, big
     vendor files fit there) or /www on flash; fall back to the landing page
@@ -245,6 +268,10 @@ class WebPortal:
                 return _json(self.install_cert(data.get("cert", ""), data.get("key", "")))
             if path == "/api/time":
                 return _json(h["time_set"](data.get("epoch")))
+            if path == "/api/reset":
+                # a headless hub (no console, no button within reach) still
+                # has to be restartable after a deploy
+                return _json(h["reset"]())
             if path == "/api/calibrate":
                 try:
                     step = int(data.get("step", 1))
@@ -718,5 +745,6 @@ class WebPortal:
         if isinstance(ctype, str):
             ctype = ctype.encode()
         return (b"HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n"
-                b"Access-Control-Allow-Origin: *\r\nConnection: %s\r\n%s\r\n"
-                % (status, reason, ctype, length, b"keep-alive" if keep else b"close", extra))
+                b"Access-Control-Allow-Origin: *\r\nConnection: %s\r\n%s%s\r\n"
+                % (status, reason, ctype, length,
+                   b"keep-alive" if keep else b"close", _http_date(), extra))
