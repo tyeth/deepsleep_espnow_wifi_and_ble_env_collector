@@ -427,6 +427,10 @@ store = datastore.DataStore(
     flush_interval_s=config.get("sd_flush_interval_s", 600),
     flush_max_pending=config.get("sd_flush_max_pending", 24),
     min_free_bytes=config.get("flash_min_free_kb", 50) * 1024,
+    # A hub is a data logger first: if nothing is writable because a
+    # computer holds the USB drive, take the drive back. Set false on a
+    # bench rig where drag-and-drop deploys matter more than the readings.
+    allow_usb_release=config.get("release_usb_drive", True),
 )
 print("storage:", store.mode, store.root)
 _mem("after storage")

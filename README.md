@@ -61,8 +61,8 @@ or frequently updated pieces go on the card. Vendor bundles are loaded from
 | File | Where | Notes |
 |---|---|---|
 | `www/vendor/plotly.min.js` | flash (1.1 MB, plotly-**basic**) or SD | charts are line traces; the basic dist suffices |
-| `www/vendor/plotly.min.js.gz` (optional twin) | same place | served instead when the browser accepts gzip — about a third of the bytes. Make it with `gzip -9 -k plotly.min.js` |
-| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection / future offline Python |
+| `www/vendor/plotly.min.js.gz` (or `.br`) | same place | served instead when the browser accepts it — and it may be the ONLY copy, which is what lets a 4 MB board host Plotly at all. `gzip -9 -k plotly.min.js`, or `brotli -9 plotly.min.js` for ~10% less again |
+| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD, or a 16 MB board | change detection / offline Python. Measured for v0.26.2 **with sqlite3**: 15.2 MB raw → **5.97 MB gzipped** → **5.37 MB brotli**. The wasm dominates (10.1 MB → 3.1 MB gzip); `python_stdlib.zip` is already a zip and gains nothing. So it fits a 16 MB board's filesystem compressed, never a 4 MB one, and comfortably on any SD card |
 | `certs/fullchain.pem`, `certs/key.pem` | SD (`/sd/certs`) first, then flash `/certs` | HTTPS certificate for `192dot168dot4dot1.gundryconsultancy.com`; renewable via the page's *sync cert* / *upload* or auto when online |
 
 ### How the hub serves those files

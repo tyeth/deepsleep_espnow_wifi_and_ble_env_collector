@@ -140,8 +140,11 @@ class DataStore:
     """
 
     def __init__(self, roots=("/sd", "/saves", "/"), flush_interval_s=600,
-                 flush_max_pending=24, min_free_bytes=50 * 1024):
+                 flush_max_pending=24, min_free_bytes=50 * 1024,
+                 allow_usb_release=False):
         self.roots = roots
+        self.allow_usb_release = allow_usb_release
+        self._usb_released = False
         self.flush_interval_s = flush_interval_s
         self.flush_max_pending = flush_max_pending
         self.min_free_bytes = min_free_bytes
@@ -205,6 +208,22 @@ class DataStore:
                     readable = root      # has history, just cannot be written
                 except OSError:
                     pass
+        if readable is not None and self.allow_usb_release \
+                and not self._usb_released:
+            # Nothing writable because a computer has CIRCUITPY mounted:
+            # take the drive back and try again. disable_usb_drive() is
+            # boot.py-only, so this is the "unsafe" runtime variant -- named
+            # that because a host writing at this instant loses the write,
+            # which is why it happens once and only as a last resort.
+            self._usb_released = True
+            try:
+                import storage
+                storage.unsafe_disable_usb_drive()
+                storage.remount("/", readonly=False)
+                print("storage: USB drive released so the hub can write")
+                return self._pick_root()
+            except (ImportError, AttributeError, RuntimeError, OSError) as exc:
+                print("storage: could not release the USB drive:", exc)
         self.read_only = readable is not None
         if readable:
             print("storage: %s is read-only (USB drive mounted?); serving "

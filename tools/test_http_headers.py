@@ -134,6 +134,22 @@ def main():
     check("the two have different ETags", gz_etag != h.get("etag"))
     os.remove(big + ".gz")
 
+    print("brotli wins over gzip when the browser offers both")
+    with open(big + ".br", "wb") as f:
+        f.write(b"b" * 1200)
+    with open(big + ".gz", "wb") as f:
+        f.write(b"z" * 1700)
+    status, h, c = head_for(portal, big, gz_ok=True, br_ok=True)
+    check("serves the .br", h.get("content-encoding") == "br")
+    check("its own length", h.get("content-length") == "1200")
+    check("still javascript", h.get("content-type") == "text/javascript")
+    status, h, c = head_for(portal, big, gz_ok=True, br_ok=False)
+    check("falls back to gzip when brotli is not offered",
+          h.get("content-encoding") == "gzip"
+          and h.get("content-length") == "1700")
+    os.remove(big + ".br")
+    os.remove(big + ".gz")
+
     print("cache lifetimes: long for assets, always revalidate the entry points")
     plain = HERE.replace("\\", "/") + "/_httptest/index.html"
     with open(plain, "wb") as f:

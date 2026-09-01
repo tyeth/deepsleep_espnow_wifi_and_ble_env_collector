@@ -552,6 +552,7 @@ class WebPortal:
             inm = b""       # If-None-Match: the browser's cached ETag
             rng = b""       # Range: resume a transfer that was cut short
             gz_ok = False   # Accept-Encoding: gzip -> serve a .gz twin
+            br_ok = False   # ...and brotli, which is ~10% smaller again
             for ln in header.split(b"\r\n")[1:]:
                 low = ln[:15].lower()
                 if low == b"content-length:":
@@ -562,8 +563,10 @@ class WebPortal:
                     inm = ln[14:].strip()
                 elif low[:6] == b"range:":
                     rng = ln[6:].strip().lower()
-                elif low[:15] == b"accept-encoding" and b"gzip" in ln.lower():
-                    gz_ok = True
+                elif low[:15] == b"accept-encoding":
+                    enc_hdr = ln.lower()
+                    gz_ok = b"gzip" in enc_hdr
+                    br_ok = b"br" in enc_hdr
             if len(body) < min(length, _MAX_BODY):
                 return  # body still arriving
             try:
@@ -588,7 +591,7 @@ class WebPortal:
             ka = c.keep
             if resp[0] == "file":
                 c.out = memoryview(
-                    self._file_head(c, resp[1], ka, inm, rng, gz_ok))
+                    self._file_head(c, resp[1], ka, inm, rng, gz_ok, br_ok))
             elif resp[0] == 302:  # resp[1] carries the Location
                 c.out = memoryview(self._head(302, "text/html", 0, b"Location: %s\r\n" % resp[1].encode(), keep=ka))
             else:
@@ -625,7 +628,8 @@ class WebPortal:
             c.sent += sent
             c.out = c.out[sent:]
 
-    def _file_head(self, c, path, ka, inm=b"", rng=b"", gz_ok=False):
+    def _file_head(self, c, path, ka, inm=b"", rng=b"", gz_ok=False,
+                   br_ok=False):
         """Build the response head for a static file and arm the streaming.
 
         The AP has no internet, so the page's vendor bundles (Plotly is
@@ -641,7 +645,16 @@ class WebPortal:
         """
         import os
         enc = b""
-        if gz_ok:
+        if br_ok:
+            # brotli first when offered: ~10% smaller than gzip again, and
+            # on a big bundle that is hundreds of KB over a phone's wifi
+            try:
+                os.stat(path + ".br")
+                path += ".br"
+                enc = b"Content-Encoding: br\r\n"
+            except OSError:
+                pass
+        if not enc and gz_ok:
             # A pre-compressed twin (plotly.min.js.gz) is ~3x smaller, which
             # over the AP is the difference between a 20 s wait and a 7 s
             # one -- and on a 4 MB board it is the difference between the
@@ -713,7 +726,7 @@ class WebPortal:
             return self._head(404, "text/plain", 9, keep=ka) + b"not found"
         c.left = end - start + 1
         # the content type comes from the real name, not the .gz twin
-        ext = (path[:-3] if enc else path).rsplit(".", 1)[-1]
+        ext = (path.rsplit(".", 1)[0] if enc else path).rsplit(".", 1)[-1]
         ctype = _TYPES.get(ext, "application/octet-stream")
         if partial:
             common += b"Content-Range: bytes %d-%d/%d\r\n" % (start, end, size)
