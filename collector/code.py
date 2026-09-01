@@ -846,9 +846,21 @@ def h_storage(body=None):
         state["err"] = "this board has no USB drive to hand over"
         return state
     config["usb_drive_owner"] = want
+    # Persist in NVM, not just config.json: while a PC holds the drive the
+    # filesystem is read-only, so writing the choice to a file is exactly
+    # the thing we cannot do -- and without it boot.py would never see the
+    # request and the hub could never take the flash. NVM is always
+    # writable and survives a reset.
+    nvm_saved = False
+    try:
+        microcontroller.nvm[0] = 0xF0 if want == "mcu" else 0xF1
+        nvm_saved = True
+    except Exception as exc:
+        print("storage: could not record the choice in NVM:", exc)
     saved = h_config_set({"usb_drive_owner": want})
     state["owner"] = want
-    state["saved"] = saved.get("ok", False) if isinstance(saved, dict) else False
+    state["saved"] = bool(nvm_saved or (isinstance(saved, dict)
+                                        and saved.get("saved_to_sd")))
     state["note"] = ("the hub keeps the filesystem and no drive appears"
                      if want == "mcu" else
                      "a computer gets the drive and the hub stops logging")

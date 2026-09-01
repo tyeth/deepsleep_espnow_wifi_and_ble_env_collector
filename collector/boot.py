@@ -33,7 +33,29 @@ import storage
 _DEFAULT = "mcu"
 
 
+def _nvm_owner():
+    """The choice made at runtime over the API.
+
+    It lives in NVM because the filesystem is read-only exactly when the
+    request matters -- a PC holding the drive is what you are asking to
+    change -- so config.json cannot be written at that moment.
+    """
+    try:
+        import microcontroller
+        val = microcontroller.nvm[0]
+    except Exception:
+        return None
+    if val == 0xF0:
+        return "mcu"
+    if val == 0xF1:
+        return "pc"
+    return None
+
+
 def _configured_owner():
+    owner = _nvm_owner()
+    if owner:
+        return owner, "NVM (set over the API)"
     owner = os.getenv("ENVHUB_USB_DRIVE")
     if owner:
         return owner.strip().lower(), "settings.toml"
