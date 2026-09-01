@@ -224,6 +224,97 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## 2026-09-01 devkit bench: delivery confirmation verified
+
+C6 devkit (`54:32:04:0c:d7:54`, console `/dev/ttyACM1`, IDF log `ttyACM0`)
+as hub with AP `BASE0CD754`; S3 DevKitC-1-N8 (`F4:12:FA:52:0B:F8`, console
+`ttyACM2`, IDF log `ttyUSB0`, CIRCUITPY also mounts on the Pi) as node with
+`"sensor": "sim"`. Node log:
+
+    read: {'co2': 622, ...}
+    delivered: hub confirmed sq=1 crc=82b5 on ch1
+    bench: resending the identical packet   (x2, "test_resend": 2)
+
+Hub log, same exchange:
+
+    dat sq=1 crc=82b5 from bench-s3: accepted, confirming
+    duplicate dat sq=1 from bench-s3: re-confirming, not storing   (x2)
+
+So: id + CRC round-trip intact over the air, retries re-confirmed and not
+double-stored, and the same for the discovery packet (`dsc sq=2 crc=b11b`).
+
+**Outage → recovery** (`tools/hil_bench.py outage`): Ctrl-C on the hub, so
+its code stops. Node, three wakes running:
+
+    known collector unreachable; rediscovering...
+    stashed reading (1 held) / (2 held) / (3 held)
+
+Hub resumed (Ctrl-D); the node's next wake:
+
+    discovered collector 54:32:04:0c:d7:54 on ch1
+    retransmitted 3 stashed (0 left)
+
+and the hub took them as three separate readings, each with its own id and
+CRC, none mistaken for a duplicate:
+
+    dat sq=12 crc=206c ... dat sq=14 crc=cfe7 / sq=15 crc=8ad5 / sq=16 crc=dc8f
+    dat sq=17 crc=355c: accepted   duplicate dat sq=17: re-confirming (x2)
+
+Note the stash survived the bench reloads only because of the NVM mirror
+below; before that fix the count reset to 0 every cycle.
+
+**New finding (node, bench mode): `alarm.sleep_memory` does NOT survive
+`supervisor.reload()`** on 10.3.0-alpha.4 (S3): every bench cycle came up
+`boot# 1 stash: 0` with the message-id counter back at 1. Only
+`microcontroller.nvm` (the pinned collector) survived. Bench mode now
+mirrors the sleep-memory header + the first 8 stashed readings through NVM
+across the reload, one shot, so stash and retransmission behaviour can be
+tested without a real deep sleep. Worth an upstream question: is clearing
+sleep_memory on a soft reboot intended? (It is documented as surviving
+deep sleep, which it does.)
+
+### 11. S3: `_bleio.adapter.enabled = False` hard-faults the core (2026-09-01)
+
+Turning the adapter off after a BLE session -- to reclaim its RAM before a
+node sleeps -- crashes CircuitPython 10.3.0-alpha.4 outright:
+
+    Running in safe mode! Not running saved code.
+    You are in safe mode because:
+    CircuitPython core code crashed hard. Whoops!
+    Hard fault: memory access or instruction error.
+
+Reproducible on the S3 devkit: run the node's BLE config window (Nordic
+UART via adafruit_ble, wifi and ESP-NOW also up), then disable the adapter
+at teardown. Without the disable, the same code runs cycle after cycle and
+BLE even survives `supervisor.reload()`. A softer symptom of the same
+thing: once the adapter has been disabled, the next `import _bleio` in that
+power cycle raises `espidf.IDFError: Invalid state` (IDF log:
+`BLE_INIT: controller init failed`) -- the controller never comes back.
+
+Worth an upstream issue with the debug build's backtrace; our code simply
+stops advertising and leaves the adapter enabled.
+
+## Known limits of the delivery confirmation (2026-09-01)
+
+Nodes now count a reading as delivered only when the hub echoes the message
+id + CRC-16 of the bytes it received (`envproto.ack_ok`). Two cases the
+scheme deliberately does not fully cover:
+
+* **A duplicate can still be stored when the node's clock is unsynced.** The
+  hub re-confirms an identical retry by CRC, but a *stashed* reading re-sent
+  on a later wake carries a fresh message id, so only the reading time
+  (`at`) identifies it. A node still running from 2020 sends no plausible
+  `at`, and `stash_shift_time()` rewrites `at` on the first clock sync, so a
+  reading whose confirmation was lost can land twice. The hub is the one
+  with the clock; nodes sync from it on the first successful check-in.
+* **A hub that can receive but not transmit stashes everything.** With BLE
+  resident on the C6 (issue 10) every hub→node send fails, so nothing is
+  ever confirmed: the node keeps stashing readings the hub actually stored,
+  until `STASH_MAX`. The node no longer burns ~20 s of awake time
+  rediscovering in that state (the MAC-layer ACK proves the hub is on the
+  channel), and `require_confirmation: false` in `node_config.json` reverts
+  to the old MAC-ACK semantics for such a hub.
+
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.

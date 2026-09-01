@@ -67,6 +67,26 @@ def resolve(name):
     return name, PROFILES.get(name, PROFILES["quad_3in52"])
 
 
+def _pin(name):
+    """Look a pin up by name, tolerating each board's naming scheme.
+
+    Feathers call them D9/D10, devkits IO9/IO10, and the same panel gets
+    wired to both -- so accept either spelling rather than failing with
+    "'module' object has no attribute 'D9'" on a bench board.
+    """
+    pin = getattr(board, name, None)
+    if pin is not None:
+        return pin
+    digits = "".join(c for c in name if c.isdigit())
+    for alt in ("IO" + digits, "D" + digits, "GPIO" + digits):
+        if digits and alt != name:
+            pin = getattr(board, alt, None)
+            if pin is not None:
+                print("display: pin %s -> %s on this board" % (name, alt))
+                return pin
+    raise AttributeError("no pin %r on this board" % name)
+
+
 def init_display(spi, profile_name="auto", overrides=None):
     """Init the eInk for the profile. Returns (display, palette_mode).
 
@@ -78,8 +98,8 @@ def init_display(spi, profile_name="auto", overrides=None):
     prof = dict(prof)
     if overrides:
         prof.update(overrides)
-    cs = getattr(board, prof["cs"])
-    dc = getattr(board, prof["dc"])
+    cs = _pin(prof["cs"])
+    dc = _pin(prof["dc"])
     bus = FourWire(spi, command=dc, chip_select=cs, reset=None,
                    baudrate=1000000)
     time.sleep(1)

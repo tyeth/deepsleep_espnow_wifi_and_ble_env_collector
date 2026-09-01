@@ -9,6 +9,8 @@ neopixel
 # only if wifi_fallback is enabled:
 adafruit_requests
 adafruit_connection_manager
+# only if ble_config_s > 0 (the BLE config portal a phone talks to):
+adafruit_ble
 
 # SEN5x nodes: the Sensirion SEN5x driver lives in a custom circup bundle
 # (see https://adafruit-playground.com/u/tyeth/pages/creating-a-circuitpython-library-bundle-for-circup):

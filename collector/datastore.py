@@ -124,6 +124,38 @@ class SampleRing:
         return {k: sums[k] / counts[k] for k in sums}
 
 
+def take_filesystem(tries=1, delay=0.1):
+    """Take CIRCUITPY from the host so the board can write it.
+
+    `unsafe_disable_usb_drive()` is all it takes: the CircuitPython docs are
+    explicit that afterwards "CIRCUITPY becomes read/write, and can be
+    written from user code or the REPL... easier than arranging for a
+    remount() in boot.py". Calling remount() as well is what fails with
+    "Cannot remount path when visible via USB".
+
+    The call delays ~2.5 s on purpose, so the host sees the drive report
+    not-ready and unmounts it. Make sure the host has finished writing
+    first -- this is the equivalent of yanking the drive out.
+    """
+    import storage
+    try:
+        storage.unsafe_disable_usb_drive()
+        return True
+    except Exception as exc:
+        print("storage: could not take the filesystem: %s: %s"
+              % (type(exc).__name__, exc))
+        return False
+
+
+def give_filesystem_back():
+    """Hand CIRCUITPY back: the drive's logical unit becomes ready again and
+    the host re-mounts it on its next poll (every second or two). It returns
+    to read-only for our code by itself, so there is nothing else to undo."""
+    import storage
+    storage.enable_usb_drive()
+    return True
+
+
 class DataStore:
     """Latest-value cache + batched writer + event log.
 
@@ -140,8 +172,19 @@ class DataStore:
     """
 
     def __init__(self, roots=("/sd", "/saves", "/"), flush_interval_s=600,
-                 flush_max_pending=24, min_free_bytes=50 * 1024):
+                 flush_max_pending=24, min_free_bytes=50 * 1024,
+                 allow_usb_release=False, ram_lines=200, ram_events=100):
         self.roots = roots
+        self.allow_usb_release = allow_usb_release
+        self._usb_released = False
+        # While storage is unwritable -- a computer holding the drive, a
+        # missing card -- readings queue here and are written in full the
+        # moment it comes back (flush() re-probes every time, and
+        # autoreload is off so a host edit cannot restart us and lose
+        # them). Only past these caps does anything get dropped.
+        self.ram_lines = ram_lines
+        self.ram_events = ram_events
+        self._warned_full = False
         self.flush_interval_s = flush_interval_s
         self.flush_max_pending = flush_max_pending
         self.min_free_bytes = min_free_bytes
@@ -149,6 +192,7 @@ class DataStore:
         self._pending = []     # CSV lines waiting for storage
         self._pending_events = []
         self._last_flush = time.monotonic()
+        self.read_only = False   # set by _pick_root
         self.root = self._pick_root()
         self.write_errors = 0
         self.dropped_lines = 0
@@ -163,6 +207,8 @@ class DataStore:
 
     @property
     def mode(self):
+        if self.read_only:
+            return "%s (read-only)" % ("sd" if self.sd_ok else "flash")
         return "sd" if self.sd_ok else ("flash" if self.root else "ram")
 
     def data_dir(self):
@@ -180,14 +226,48 @@ class DataStore:
             return False
 
     def _pick_root(self):
+        """The first writable root, else one that at least holds data.
+
+        A hub whose storage has gone read-only -- USB mass storage mounted
+        on a computer, a write-protected or full card -- can still SERVE the
+        history it already has. Buffering new readings in RAM and refusing
+        to list the days on the card at the same time is the worst of both.
+        """
+        readable = None
         for root in self.roots:
             try:
                 os.listdir(root)
             except OSError:
                 continue
             if self._writable(root):
+                self.read_only = False
                 return root
-        return None
+            if readable is None:
+                try:
+                    os.listdir(root.rstrip("/") + "/data")
+                    readable = root      # has history, just cannot be written
+                except OSError:
+                    pass
+        if readable is not None and self.allow_usb_release \
+                and not self._usb_released:
+            # Nothing writable because a computer has CIRCUITPY mounted:
+            # take the drive back and try again. disable_usb_drive() is
+            # boot.py-only, so this is the "unsafe" runtime variant -- named
+            # that because a host writing at this instant loses the write,
+            # which is why it happens once and only as a last resort.
+            self._usb_released = True
+            if take_filesystem():
+                print("storage: USB drive released so the hub can write")
+                return self._pick_root()
+            print("storage: could not take the filesystem from the host")
+        was_ro = self.read_only
+        self.read_only = readable is not None
+        if readable and not was_ro:
+            # once, not on every flush: this is re-probed constantly so that
+            # storage coming back is picked up without a restart
+            print("storage: %s is read-only (USB drive mounted?); serving "
+                  "existing days, buffering new data in RAM" % readable)
+        return readable
 
     def _free_bytes(self):
         try:
@@ -306,11 +386,21 @@ class DataStore:
                 f.write(line)
 
     def _drop_bounded(self):
-        # keep data bounded in RAM; drop oldest records (never events first)
-        while len(self._pending) > 200:
+        """Bound the RAM queue. Nothing is dropped until it is genuinely
+        full: everything queued is written as soon as storage returns."""
+        over = (len(self._pending) > self.ram_lines
+                or len(self._pending_events) > self.ram_events)
+        if over and not self._warned_full:
+            self._warned_full = True
+            print("storage: RAM buffer full (%d readings, %d events); "
+                  "dropping the oldest from here on"
+                  % (len(self._pending), len(self._pending_events)))
+        # drop oldest records first, events last -- they are the rarer and
+        # more valuable ones
+        while len(self._pending) > self.ram_lines:
             self._pending.pop(0)
             self.dropped_lines += 1
-        while len(self._pending_events) > 100:
+        while len(self._pending_events) > self.ram_events:
             self._pending_events.pop(0)
             self.dropped_lines += 1
 
@@ -319,9 +409,11 @@ class DataStore:
         self._last_flush = time.monotonic()
         if not (self._pending or self._pending_events):
             return True
-        if self.root is None:
-            self.root = self._pick_root()  # SD inserted / storage appeared?
-        if self.root is None:
+        if self.root is None or self.read_only:
+            # re-probe: an SD card may have been inserted, or the USB drive
+            # ejected, making storage writable after all
+            self.root = self._pick_root()
+        if self.root is None or self.read_only:
             self._drop_bounded()
             return False
         need = sum(len(l) for _, l in self._pending) + sum(

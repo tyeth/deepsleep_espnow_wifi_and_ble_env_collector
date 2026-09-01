@@ -28,12 +28,21 @@ import board
 import digitalio
 import espnow
 import microcontroller
+import supervisor
+
+# A deploy copies several files, and a node has a lot to lose from
+# restarting between them: a reload wipes alarm.sleep_memory -- the stash of
+# unsent readings, the message-id counter, the channel -- and cuts a report
+# or a calibration window in half. Reset deliberately when the copy is done
+# (Ctrl-D, the button, or microcontroller.reset()).
+supervisor.runtime.autoreload = False
 import rtc
 import wifi
 
 import calref
 import envproto
 import node_sensors
+import node_store
 from battery import BatteryMonitor
 
 # --------------------------------------------------------------------------
@@ -80,10 +89,53 @@ _STASH_REC = struct.calcsize(_STASH_FMT)
 STASH_MAX = max(0, (len(alarm.sleep_memory) - STASH_START) // _STASH_REC)
 _NOVAL = 0xFFFF
 
+# Bench mode reloads instead of deep-sleeping, and a soft reboot CLEARS
+# alarm.sleep_memory (measured on the S3 devkit: boot counter and stash reset
+# every cycle, so nothing that depends on the stash or the message-id counter
+# could be tested there). Mirror the header + the first few stashed readings
+# through NVM across a bench reload -- one shot, cleared as soon as it is
+# read back, so a later cold boot cannot resurrect a stale stash. NVM[0:8] is
+# the pinned collector, so the mirror starts after it.
+BENCH_NVM_AT = 8
+BENCH_NVM_MAGIC = 0xE5
+BENCH_MIRROR = STASH_START + 8 * _STASH_REC
+
+
+def bench_state_save():
+    nvm = microcontroller.nvm
+    if nvm is None or len(nvm) < BENCH_NVM_AT + 1 + BENCH_MIRROR:
+        return
+    try:
+        nvm[BENCH_NVM_AT:BENCH_NVM_AT + 1 + BENCH_MIRROR] = (
+            bytes([BENCH_NVM_MAGIC])
+            + bytes(alarm.sleep_memory[0:BENCH_MIRROR]))
+    except (ValueError, OSError, MemoryError) as exc:
+        print("bench state save failed:", exc)
+
+
+def _bench_state_restore():
+    nvm = microcontroller.nvm
+    if nvm is None or len(nvm) < BENCH_NVM_AT + 1 + BENCH_MIRROR:
+        return False
+    if nvm[BENCH_NVM_AT] != BENCH_NVM_MAGIC:
+        return False
+    try:
+        alarm.sleep_memory[0:BENCH_MIRROR] = bytes(
+            nvm[BENCH_NVM_AT + 1:BENCH_NVM_AT + 1 + BENCH_MIRROR])
+        nvm[BENCH_NVM_AT] = 0
+    except (ValueError, OSError, MemoryError) as exc:
+        print("bench state restore failed:", exc)
+        return False
+    return alarm.sleep_memory[MEM_MAGIC] == MAGIC
+
+
 if alarm.sleep_memory[MEM_MAGIC] != MAGIC:
-    for i in range(STASH_START):
-        alarm.sleep_memory[i] = 0
-    alarm.sleep_memory[MEM_MAGIC] = MAGIC
+    if _bench_state_restore():
+        print("bench: sleep memory restored across the reload")
+    else:
+        for i in range(STASH_START):
+            alarm.sleep_memory[i] = 0
+        alarm.sleep_memory[MEM_MAGIC] = MAGIC
 
 alarm.sleep_memory[MEM_BOOTS] = (alarm.sleep_memory[MEM_BOOTS] + 1) % 256
 print("wake:", alarm.wake_alarm, "boot#", alarm.sleep_memory[MEM_BOOTS],
@@ -179,10 +231,19 @@ DEFAULTS = {
     "collector_mac": "",          # optional pin; blank = ESP-NOW discovery
     "interval_s": 120,
     "metrics": None,               # None = send everything the sensor has
+    "sensor": "",                  # "" = auto-detect on I2C, "sim" = bench
+                                   # rig with synthetic readings
     "pm_warmup_s": 20,             # extra fan spin-up for SEN5x/SEN6x PM
     "cal_measure_s": 180,          # fallback window when the hub sends none
     "cal_max_spread_ppm": 60,      # stability gate over the last 15 min
     "cal_min_batt_v": 3.7,         # refuse a long awake window on a low cell
+    "require_confirmation": True,  # False = trust the MAC-layer ACK (see
+                                   # REQUIRE_CONF below)
+    "test_resend": 0,              # bench: extra identical resends per wake
+    "ble_config_s": 0,             # seconds to serve the BLE config portal
+                                   # each wake (0 = off; awake time costs
+                                   # battery). Bench mode holds it open for
+                                   # the whole wait.
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "deep_sleep": True,            # False = bench mode: stay awake between
@@ -267,6 +328,16 @@ COLLECTOR_MAC = bytes(
     int(x, 16) for x in config["collector_mac"].split(":")
 ) if config["collector_mac"] else None
 
+# A reading counts as delivered only when the hub confirms it (id + CRC).
+# Escape hatch for a hub whose radio can receive but not transmit (the C6
+# with BLE resident, issue 10): the MAC-layer ACK becomes good enough again,
+# at the price of losing the "the hub really stored it" guarantee.
+REQUIRE_CONF = bool(config.get("require_confirmation", True))
+
+# Bench only: after a confirmed report, send the identical packet again N
+# times. The hub must re-confirm each one and store none of them.
+TEST_RESEND = int(config.get("test_resend", 0))
+
 interval = mem_get_u16(MEM_INTERVAL) or config["interval_s"]
 
 
@@ -287,10 +358,10 @@ def blink(ok=True):
 def go_to_sleep(seconds):
     if not config.get("deep_sleep", True):
         # bench mode: keep USB/console alive, then rerun the wake cycle.
-        # sleep_memory (stash/seq/channel) survives a supervisor reload.
+        # A soft reboot wipes sleep_memory, so mirror it through NVM first.
         print("awake wait %ds (deep_sleep disabled)" % seconds)
         time.sleep(seconds)
-        import supervisor
+        bench_state_save()
         supervisor.reload()
     print("deep sleep %ds" % seconds)
     t = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + seconds)
@@ -300,8 +371,18 @@ def go_to_sleep(seconds):
 # --------------------------------------------------------------------------
 # Sensor
 # --------------------------------------------------------------------------
-i2c = board.I2C()
-sensor = node_sensors.detect(i2c)
+if config.get("sensor") == "sim":
+    # bench rig: a devkit with nothing on the bus. Explicit config only.
+    i2c = None
+    sensor = node_sensors.SimSensor()
+    print("SIMULATED sensor: readings below are synthetic, not measurements")
+else:
+    try:
+        i2c = board.I2C()
+    except (RuntimeError, ValueError) as exc:
+        print("I2C bus unavailable:", exc)
+        i2c = None
+    sensor = node_sensors.detect(i2c) if i2c is not None else None
 if sensor is None:
     print("no sensor found; retrying in %ds" % interval)
     blink(False)
@@ -351,6 +432,8 @@ mem_set_u16(MEM_SEQ, seq)
 packet = envproto.make_data_packet(
     config["name"], sensor.kind, seq, batt_v, metrics, at=reading_ts
 )
+# what the hub must echo back for this reading to count as delivered
+packet_crc = envproto.crc16(packet)
 
 
 def _try_send(e, peer, payload):
@@ -394,17 +477,73 @@ def _mk_peer(e, old_peer, mac, ch):
         return peer
 
 
-def _listen_cfg(e, timeout):
-    """Wait for a 'cfg' packet; returns (cfg_dict, sender_mac) or (None, None)."""
+def next_msg_id():
+    """Allocate the next message id (persists across deep sleep)."""
+    nid = (mem_get_u16(MEM_SEQ) + 1) % 65536
+    mem_set_u16(MEM_SEQ, nid)
+    return nid
+
+
+def _listen_reply(e, timeout, msg_id=None, crc=None):
+    """Wait for a hub reply ('cfg' or bare 'ack').
+
+    Returns (obj, sender_mac, confirmed). When msg_id/crc are given,
+    confirmed means the hub echoed OUR message id and the CRC-16 of the
+    bytes it received matched what we sent -- i.e. the packet arrived
+    intact and was accepted, which the MAC-layer ACK does not tell us.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if len(e):
             pkt = e.read()
             obj = envproto.decode(pkt.msg) if pkt else None
-            if obj and obj.get("k") == "cfg":
-                return obj, bytes(pkt.mac)
+            if obj and obj.get("k") in ("cfg", "ack"):
+                if msg_id is None:
+                    return obj, bytes(pkt.mac), True
+                if envproto.ack_ok(obj, msg_id, crc):
+                    return obj, bytes(pkt.mac), True
+                if "ac" not in obj:
+                    # hub firmware predates confirmations: the reply itself
+                    # is the only evidence we are going to get
+                    print("hub reply carries no confirmation (old firmware?)")
+                    return obj, bytes(pkt.mac), True
+                if int(obj.get("aq", -1)) == int(msg_id):
+                    print("hub confirmed sq=%s with crc %s, we sent %s"
+                          % (msg_id, obj.get("ac"), crc))
+                    return obj, bytes(pkt.mac), False
+                # a late reply to an earlier packet: keep waiting
         time.sleep(0.02)
-    return None, None
+    return None, None, False
+
+
+def _listen_cfg(e, timeout):
+    """Back-compat wrapper: any reply, no confirmation check."""
+    obj, mac, _ = _listen_reply(e, timeout)
+    return obj, mac
+
+
+def _send_confirmed(e, peer, payload, msg_id, tries=2, listen_s=1.5):
+    """Send and wait for the hub's confirmation. Returns (ok, cfg_or_None).
+
+    Retries resend the IDENTICAL bytes, so a hub that did receive the packet
+    but whose confirmation was lost recognises the duplicate, re-confirms
+    and does not store the reading twice.
+    """
+    crc = envproto.crc16(payload)
+    for attempt in range(tries):
+        if not _try_send(e, peer, payload):
+            print("send %d/%d: no MAC ack" % (attempt + 1, tries))
+            continue
+        if not REQUIRE_CONF:
+            obj, _mac, _c = _listen_reply(e, listen_s)
+            return True, (obj if obj and obj.get("k") == "cfg" else None)
+        obj, _mac, confirmed = _listen_reply(e, listen_s, msg_id, crc)
+        if confirmed:
+            return True, (obj if obj and obj.get("k") == "cfg" else None)
+        if obj is None:
+            print("send %d/%d: no confirmation within %.1fs"
+                  % (attempt + 1, tries, listen_s))
+    return False, None
 
 
 def _channels(prefer):
@@ -413,19 +552,25 @@ def _channels(prefer):
 
 
 def _unicast_hunt(e, mac, payload, prefer_ch):
-    """Send unicast, hunting channels until the MAC ACKs. Returns channel or 0."""
+    """Find the hub's channel: unicast until the MAC layer ACKs. Returns
+    (channel, peer) or (0, None).
+
+    The payload really is transmitted here (that is the probe), so a hunt
+    that walks several channels can deliver it more than once -- always as
+    identical bytes, which the hub's duplicate check re-confirms instead of
+    storing twice."""
     peer = None
     for ch in _channels(prefer_ch):
         peer = _mk_peer(e, peer, mac, ch)
         if _try_send(e, peer, payload):
-            return ch
-    return 0
+            return ch, peer
+    return 0, None
 
 
 def _discover(e):
     """Broadcast 'dsc' across channels; the collector's unicast 'cfg' reply
     reveals its MAC + channel. Returns (mac, channel, cfg) or (None, 0, None)."""
-    dsc = envproto.make_discovery_packet(config["name"], None)
+    dsc = envproto.make_discovery_packet(config["name"], None, seq=next_msg_id())
     peer = None
     for ch in _channels(alarm.sleep_memory[MEM_CHANNEL]):
         peer = _mk_peer(e, peer, envproto.BROADCAST_MAC, ch)
@@ -444,7 +589,12 @@ def _discover(e):
 
 
 def espnow_report():
-    """Fully self-configuring report. Returns (sent_ok, cfg_dict_or_None)."""
+    """Fully self-configuring report. Returns (delivered, cfg_dict_or_None).
+
+    delivered is the HUB's confirmation (message id + CRC of the bytes it
+    received), never just the radio's ACK -- an unconfirmed reading goes to
+    the WiFi fallback and, failing that, into the stash.
+    """
     e = espnow.ESPNow()
     try:
         # who's the collector? config pin > NVM > (later) discovery
@@ -454,12 +604,35 @@ def espnow_report():
             mac, nvm_ch = nvm_collector()
             prefer_ch = prefer_ch or nvm_ch
         if mac is not None:
-            ch = _unicast_hunt(e, mac, packet, prefer_ch)
+            ch, peer = _unicast_hunt(e, mac, packet, prefer_ch)
             if ch:
+                # its radio ACKed, so the hub is up and on this channel:
+                # remember that even if the confirmation never arrives
                 alarm.sleep_memory[MEM_CHANNEL] = ch
                 nvm_save_collector(mac, ch)
-                cfg, _ = _listen_cfg(e, 1.5)
-                return True, cfg
+                # the hunt's last send is attempt 1: its confirmation may
+                # already be in flight
+                obj, _m, confirmed = _listen_reply(e, 1.5, seq, packet_crc)
+                if not confirmed:
+                    confirmed, obj = _send_confirmed(e, peer, packet, seq,
+                                                     tries=1)
+                if confirmed:
+                    print("delivered: hub confirmed sq=%d crc=%04x on ch%d"
+                          % (seq, packet_crc, ch))
+                    for _ in range(TEST_RESEND):
+                        # bench hook: prove the hub re-confirms an identical
+                        # retry instead of storing the reading twice
+                        print("bench: resending the identical packet")
+                        _send_confirmed(e, peer, packet, seq, tries=1)
+                else:
+                    # Do NOT go hunting: the hub answered at MAC level, so
+                    # rediscovery would spend ~20s of awake time on 13
+                    # channels to find the hub we are already talking to.
+                    # Report undelivered and let the caller fall back.
+                    print("hub on ch%d did not confirm; keeping the channel"
+                          % ch)
+                return confirmed, (obj if obj and obj.get("k") == "cfg"
+                                   else None)
             print("known collector unreachable; rediscovering...")
             nvm_forget_collector()
         # discovery: learn MAC + channel from the cfg reply, then send data
@@ -471,9 +644,8 @@ def espnow_report():
         nvm_save_collector(mac, ch)
         peer = espnow.Peer(mac=mac, channel=ch)
         e.peers.append(peer)
-        sent = _try_send(e, peer, packet)
-        cfg2, _ = _listen_cfg(e, 1.5)
-        return sent, cfg2 or cfg
+        confirmed, cfg2 = _send_confirmed(e, peer, packet, seq)
+        return confirmed, cfg2 or cfg
     finally:
         e.deinit()
 
@@ -503,6 +675,16 @@ def wifi_report():
         except (ValueError, AttributeError):
             pass
         resp.close()
+        # same rule as ESP-NOW: HTTP 200 is not delivery, the hub echoing
+        # our message id and CRC is
+        if not REQUIRE_CONF:
+            return True, cfg
+        if cfg and "ac" not in cfg:
+            print("hub reply carries no confirmation (old firmware?)")
+            return True, cfg
+        if not envproto.ack_ok(cfg, seq, packet_crc):
+            print("wifi fallback: hub did not confirm the packet")
+            return False, cfg
         return True, cfg
     except Exception as exc:
         print("wifi fallback failed:", exc)
@@ -525,9 +707,12 @@ def drain_stash(limit=20):
         done = 0
         for i in range(min(n, limit)):
             ts, m, vb = stash_get(i)
+            mid = next_msg_id()
             pkt = envproto.make_data_packet(
-                config["name"], sensor.kind, 0, vb, m, at=ts)
-            if not _try_send(e, peer, pkt):
+                config["name"], sensor.kind, mid, vb, m, at=ts)
+            # only drop a stashed reading the hub has actually confirmed
+            confirmed, _cfg = _send_confirmed(e, peer, pkt, mid, listen_s=0.8)
+            if not confirmed:
                 break
             done += 1
             time.sleep(0.05)
@@ -638,8 +823,9 @@ def _nap(seconds):
 
 
 def _send_cal_result(ok, corr, ref, why, ref0=None):
+    mid = next_msg_id()
     pkt = envproto.make_cal_result_packet(config["name"], ok, corr, ref, why,
-                                          ref0)
+                                          ref0, seq=mid)
     mac = COLLECTOR_MAC or nvm_collector()[0]
     if not mac:
         print("cal result not sent (no collector known)")
@@ -648,7 +834,11 @@ def _send_cal_result(ok, corr, ref, why, ref0=None):
     try:
         p2 = espnow.Peer(mac=mac, channel=alarm.sleep_memory[MEM_CHANNEL] or 1)
         e2.peers.append(p2)
-        _try_send(e2, p2, pkt)
+        # a calibration result is expensive to reproduce: insist on the hub's
+        # confirmation, with more retries than a routine reading gets
+        confirmed, _cfg = _send_confirmed(e2, p2, pkt, mid, tries=3)
+        if not confirmed:
+            print("cal result NOT confirmed by the hub")
     except (RuntimeError, OSError, ValueError) as exc:
         print("cal result send failed:", exc)
     finally:
@@ -730,6 +920,132 @@ if _pending:
         print("CAL pending in %ds; next wake in %ds" % (_at - _now, interval))
 
 # --------------------------------------------------------------------------
+# BLE config window
+#
+# A node is configured over ESP-NOW (the hub's cfg push), over the web API
+# (the hub's /api/config), or here: the same Nordic-UART portal the hub
+# serves, so one phone page talks to either device. Off by default -- the
+# window is awake time a battery node pays for. Bench mode (deep_sleep
+# false) keeps it up for the whole wait instead.
+# --------------------------------------------------------------------------
+BLE_CONFIG_S = int(config.get("ble_config_s", 0))
+# 8 characters is the most a legacy advertisement can carry alongside the
+# Nordic-UART service UUID (see net_ble): "S-" + the MAC tail.
+BLE_NAME = "S-" + envproto.short_mac(wifi.radio.mac_address)
+
+
+def h_ble_latest():
+    return {"n": config["name"], "type": sensor.kind, "m": metrics,
+            "vb": batt_v, "ts": reading_ts, "sq": seq,
+            "delivered": bool(sent),
+            "stash": alarm.sleep_memory[MEM_STASH_N],
+            "channel": alarm.sleep_memory[MEM_CHANNEL],
+            "interval_s": interval}
+
+
+def h_ble_config():
+    return dict(config)
+
+
+def h_ble_config_set(body):
+    """Merge settings in and persist them. Only known keys, and only with
+    the type the default has, so a typo cannot brick the next boot."""
+    if not isinstance(body, dict):
+        return {"err": "expected a JSON object"}
+    applied, rejected = {}, {}
+    for key, val in body.items():
+        if key not in DEFAULTS:
+            rejected[key] = "unknown setting"
+            continue
+        want = DEFAULTS[key]
+        if want is not None and not isinstance(val, type(want)) and not (
+                isinstance(want, (int, float)) and isinstance(val, (int, float))
+                and not isinstance(val, bool)):
+            rejected[key] = "expected %s" % type(want).__name__
+            continue
+        config[key] = val
+        applied[key] = val
+    if not applied:
+        return {"err": "nothing applied", "rejected": rejected}
+    config["configured"] = True
+    saved = node_store.save_config(config)
+    return {"ok": bool(saved), "saved_to": saved, "applied": applied,
+            "rejected": rejected,
+            "note": "settings apply from the next wake"
+            if saved else "could not write the file: settings are "
+            "in RAM only and will be lost at reset"}
+
+
+def h_ble_time(epoch):
+    apply_hub_time(int(epoch))
+    return {"ok": True, "ts": int(time.time())}
+
+
+def ble_window(seconds):
+    """Serve the BLE portal for `seconds`; returns the seconds spent.
+
+    A connected client extends the window so a phone is not cut off part
+    way through a sync, up to twice the requested time.
+    """
+    if seconds <= 0:
+        return 0
+    started = time.monotonic()
+    # BLE and the wifi/ESP-NOW stack coexist happily here -- measured on an
+    # S3 devkit, BLE came up after ESP-NOW with ~95KB still free. What does
+    # NOT work is BLE after a supervisor.reload(): the controller cannot be
+    # re-initialised in the same power cycle and every attempt raises
+    # `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
+    # failed`). A deep-sleeping node boots fresh every wake and is fine;
+    # bench mode (deep_sleep false) reloads, so only its first cycle after a
+    # hard reset can serve BLE.
+    portal = None
+    try:
+        import net_ble
+        portal = net_ble.BleUartPortal(
+            {"latest": h_ble_latest, "config_get": h_ble_config,
+             "config_set": h_ble_config_set, "time_set": h_ble_time},
+            name=BLE_NAME)
+    except Exception as exc:   # BLE must never cost the node its next report
+        print("BLE portal unavailable: %s: %s" % (type(exc).__name__, exc))
+        if "Invalid state" in str(exc) and not config.get("deep_sleep", True):
+            print("  (bench mode reloads, and BLE only starts on a fresh "
+                  "boot -- reset the board to get the portal back)")
+    if portal is None or not portal.ok:
+        return time.monotonic() - started
+    print("BLE config window: %s for %ds" % (BLE_NAME, seconds))
+    deadline = started + seconds
+    hard_stop = started + 2 * seconds
+    next_beat = started + 10
+    try:
+        while time.monotonic() < deadline:
+            portal.poll()
+            if portal.connected and time.monotonic() > deadline - 15:
+                deadline = min(hard_stop, time.monotonic() + 15)
+            if time.monotonic() >= next_beat:
+                # a console attached late still needs to see what the portal
+                # is doing -- "advertising" here vs. a phone seeing nothing
+                # is the difference between a radio and a scanner problem
+                next_beat += 10
+                print("BLE window: %ds left, advertising=%s, client=%s"
+                      % (int(deadline - time.monotonic()),
+                         getattr(portal.radio, "advertising", "?"),
+                         portal.connected))
+            time.sleep(0.05)
+    finally:
+        try:
+            # Stop advertising, but do NOT release the controller:
+            # `_bleio.adapter.enabled = False` here hard-faults CP
+            # 10.3.0-alpha.4 on the S3 (reproducible: "CircuitPython core
+            # code crashed hard... Hard fault: memory access or instruction
+            # error", straight into safe mode). A deep-sleeping node gets
+            # that RAM back at its next boot anyway.
+            portal.stop()
+        except Exception as exc:      # never let BLE teardown skip the sleep
+            print("BLE portal stop failed:", exc)
+    return time.monotonic() - started
+
+
+# --------------------------------------------------------------------------
 # Sleep
 # --------------------------------------------------------------------------
 try:
@@ -740,4 +1056,15 @@ except (OSError, RuntimeError):
 if not sent and not _pending:
     # back off but never disappear for long when unreachable
     interval = min(interval, 300)
+
+if BLE_CONFIG_S:
+    # bench mode: hold the portal open through the whole wait instead of
+    # sleeping first, so a phone can always find the node
+    window = interval if not config.get("deep_sleep", True) else min(
+        BLE_CONFIG_S, interval)
+    try:
+        interval = max(5, interval - int(ble_window(window)))
+    except Exception as exc:   # nothing here may cost the node its sleep
+        print("BLE window failed:", type(exc).__name__, exc)
+
 go_to_sleep(interval)

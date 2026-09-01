@@ -97,6 +97,12 @@ a{color:var(--acc)}
   <button id="btn-time" class="sec" title="set the hub clock from this browser">Sync clock</button>
   <span class="mut" id="conn-note"></span>
  </div>
+ <div class="row" id="storage-row" hidden>
+  <span>filesystem:</span>
+  <button id="btn-fs-mcu" class="sec" title="the hub keeps the flash and logs readings; no USB drive appears on a computer">hub logs (MCU)</button>
+  <button id="btn-fs-pc" class="sec" title="a computer gets the CIRCUITPY drive for drag-and-drop; the hub cannot log while it does">PC drive</button>
+  <span class="mut" id="storage-note"></span>
+ </div>
  <div class="row">
   <button id="btn-sync" disabled>Sync days from device</button>
   <span class="mut" id="sync-status"></span>
@@ -556,6 +562,7 @@ async function httpConnect(){
   if(!r.ok)throw new Error("HTTP "+r.status);
   httpBase=base;chip("chip-http","http: on",true);
   try{calFillSources(await r.clone().json());}catch(e){}
+  try{storageShow(await storageStatus());}catch(e){}
   $("btn-sync").disabled=false;
   setStatus("conn-note","connected");
   // hub reachable both ways: offer the other flavour (http = fast, https = secure context)
@@ -642,6 +649,57 @@ async function bleDay(day){
   if(l.startsWith("#END"))break;csv+=l+"\n";}
  return csv;
 }
+/* --- who owns the filesystem: the hub (logging) or a PC (drag-and-drop) --- */
+async function storageStatus(){
+ if(!httpBase)return null;
+ try{return await (await fetch(httpBase+"/api/storage")).json();}
+ catch(e){return null;}
+}
+function storageShow(st){
+ if(!st){$("storage-row").hidden=true;return;}
+ $("storage-row").hidden=false;
+ if(!st.supported){
+  setStatus("storage-note","this board has no USB drive to hand over");
+  $("btn-fs-mcu").disabled=$("btn-fs-pc").disabled=true;return;}
+ const eff=st.effective==="pc"?"a PC holds the drive - the hub is NOT logging"
+                              :"the hub owns the flash and is logging";
+ setStatus("storage-note",eff+" (setting: "+st.owner+", storage: "+st.store+")",
+           false,st.effective==="pc");
+}
+async function storageSet(owner){
+ if(!httpBase){setStatus("storage-note","connect over HTTP first",false,true);return;}
+ const warn=owner==="pc"
+  ?"Hand the CIRCUITPY drive back to a computer?\n\nIt reappears straight away. The hub stops logging while a computer holds it - readings buffer in RAM and are eventually dropped."
+  :"Let the hub own its flash?\n\nThe USB drive disappears from any computer straight away, so drag-and-drop deploys stop working until you switch back.\n\nAnything a computer is writing at that moment would be lost.";
+ if(!confirm(warn))return;
+ setStatus("storage-note","applying...",true);
+ try{
+  const r=await (await fetch(httpBase+"/api/storage",{method:"POST",
+    body:JSON.stringify({owner,now:true})})).json();
+  if(r.err){setStatus("storage-note",r.err,false,true);return;}
+  storageShow(r);
+  if(r.restarting){
+   setStatus("storage-note",(r.note||"")+" - data flushed first, and the hub "
+    +"is restarting so your computer sees the drive again (~15s)",true);
+  }
+  else if(r.retrying_until_s){
+   setStatus("storage-note",(r.note||"")+" - keeping the readings buffered "
+    +"meanwhile",true);
+   // poll until the hub gets it, rather than telling the user to wait
+   const stop=Date.now()+(r.retrying_until_s+10)*1000;
+   const tick=setInterval(async()=>{
+    const st=await storageStatus();
+    if(st&&st.effective===owner){clearInterval(tick);storageShow(st);}
+    else if(Date.now()>stop){clearInterval(tick);
+     setStatus("storage-note","the host would not release the drive - "
+      +"unmount/eject it there, or hold BOOT at power-up",false,true);}
+   },3000);
+  }
+  else if(r.reset_required)setStatus("storage-note",
+    (r.note||"")+" - restart the hub to apply it",false,true);
+ }catch(e){setStatus("storage-note","failed: "+e.message,false,true);}
+}
+
 /* --- CO2 reference calibration (two-step, scheduled, stability-gated) --- */
 async function calApi(body){
  if(httpBase)return (await fetch(httpBase+"/api/calibrate",
@@ -942,6 +1000,8 @@ if(isSecureContext && "serviceWorker" in navigator){
 $("btn-http").onclick=httpConnect;
 $("btn-ble").onclick=bleConnect;
 $("btn-time").onclick=()=>syncClock(false);
+$("btn-fs-mcu").onclick=()=>storageSet("mcu");
+$("btn-fs-pc").onclick=()=>storageSet("pc");
 $("btn-cal1").onclick=calStep1;$("btn-cal2").onclick=calStep2;
 $("btn-calstat").onclick=calRefreshStatus;
 $("cal-when").onchange=()=>{$("cal-custom").hidden=$("cal-when").value!=="custom";};

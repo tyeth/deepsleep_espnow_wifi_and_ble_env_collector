@@ -61,8 +61,95 @@ or frequently updated pieces go on the card. Vendor bundles are loaded from
 | File | Where | Notes |
 |---|---|---|
 | `www/vendor/plotly.min.js` | flash (1.1 MB, plotly-**basic**) or SD | charts are line traces; the basic dist suffices |
-| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection / future offline Python |
+| `www/vendor/plotly.min.js.gz` (or `.br`) | same place | served instead when the browser accepts it — and it may be the ONLY copy, which is what lets a 4 MB board host Plotly at all. `gzip -9 -k plotly.min.js`, or `brotli -9 plotly.min.js` for ~10% less again |
+| `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD, or a 16 MB board | change detection / offline Python. Measured for v0.26.2 **with sqlite3**: 15.2 MB raw → **5.97 MB gzipped** → **5.37 MB brotli**. The wasm dominates (10.1 MB → 3.1 MB gzip); `python_stdlib.zip` is already a zip and gains nothing. So it fits a 16 MB board's filesystem compressed, never a 4 MB one, and comfortably on any SD card |
 | `certs/fullchain.pem`, `certs/key.pem` | SD (`/sd/certs`) first, then flash `/certs` | HTTPS certificate for `192dot168dot4dot1.gundryconsultancy.com`; renewable via the page's *sync cert* / *upload* or auto when online |
+
+### How the hub serves those files
+
+The AP has no internet, so a browser that has forgotten the page pulls the
+whole bundle again. Three things keep that bearable, all in `net_wifi.py`:
+
+* **ETag + `Cache-Control`** on every static file, so a reload sends
+  `If-None-Match` and gets a 304 instead of a megabyte. Files under
+  `vendor/` are `immutable` (they are versioned by filename); everything
+  else revalidates; API responses are `no-store`.
+* **`Range` support** — a transfer interrupted part way (walking out of
+  range, a phone sleeping) resumes instead of restarting.
+* **A `.gz` twin wins when the browser accepts gzip**, with
+  `Vary: Accept-Encoding`. The board never compresses anything itself.
+
+Connections are keep-alive (HTTP as well as HTTPS) so a page does not pay
+for a new connection per asset, and when a browser has taken every slot the
+longest-idle one is evicted rather than refusing to accept — a refused
+connection is what leaves a page half-loaded. Responses carry `Date` once
+the clock is set: without it a browser will not store them at all, and
+every reload re-downloads.
+
+Measured on the bench (Pi joined to the hub's own AP, `tools/page_check.py`
+driving Chromium):
+
+| | |
+|---|---|
+| page | 200, 53 KB — or 18.7 KB gzipped, and 304 on revalidation |
+| `vendor/plotly.min.js` | 354 KB gzipped in **1.5 s** (238 KB/s), inflated by the browser to the full 1.07 MB |
+| second visit | **0 bytes transferred** for the bundle and the icon |
+| `Range: bytes=0-99` | 206 with `Content-Range: bytes 0-99/354258` |
+| in the browser | `window.Plotly` defined, days synced, charts drawn from device data |
+
+### Who owns the filesystem: the hub or a PC
+
+On boards with USB mass storage the two cannot both write CIRCUITPY, and a
+hub that cannot write logs nothing. So `collector/boot.py` gives the
+filesystem to the **MCU by default** — the hub logs, and no drive appears
+on a computer. Three ways to change that:
+
+| | |
+|---|---|
+| `settings.toml` | `ENVHUB_USB_DRIVE = "pc"` |
+| `config.json` | `"usb_drive_owner": "pc"` |
+| BOOT button | held at power-up → PC for that boot, whatever the settings say — the way back in |
+
+The web page has the switch too (*filesystem: hub logs (MCU) / PC drive*,
+with a warning on each), over `GET`/`POST /api/storage`
+(`{"owner":"mcu"|"pc"}`). **Neither direction restarts the hub** — a restart
+would throw away the readings queued in RAM, which is the very data the
+feature exists to protect.
+
+Neither call needs `remount()`, and that matters: after
+`unsafe_disable_usb_drive()` CIRCUITPY *is* read/write to the board (the
+CircuitPython docs call it "easier than arranging for a remount()"), and
+adding a `remount()` is what fails with *"Cannot remount path when visible
+via USB"*. Taking the drive delays ~2.5 s on purpose so the host sees the
+logical unit go not-ready and unmounts it; handing it back makes the unit
+ready again and the host re-mounts on its next poll, a second or two later.
+
+Because it is the equivalent of yanking the drive out, make sure the host
+has finished writing first — eject it, or `sync` — which is what the page
+warns about. Handing it back flushes to storage first, while the hub still
+owns the filesystem, so nothing queued is ever at risk. If a take is
+refused anyway: CircuitPython will not remount while anything holds the block
+device (`blockdev_lock`) — the USB host, or the hub's own server streaming
+a file. So the hub closes its file transfers first (the browser re-requests,
+and `Range` lets it resume), then keeps retrying for two minutes while
+readings continue to queue. If the host never lets go, eject the drive
+there or hold BOOT at power-up; the choice is already saved in NVM, so the
+next boot applies it.
+
+Measured on the bench, both directions applying live:
+
+```
+store: 'flash (read-only)'  buffered: 1
+POST {"owner":"mcu"} -> {"applied": true, "effective": "mcu", "store": "flash"}
+store: 'flash'              (the buffered reading written, no restart)
+POST {"owner":"pc"}  -> {"applied": true, "effective": "pc"}
+                        (CIRCUITPY back on the host ~2 s later)
+```
+
+Whatever the setting, a read-only hub still **serves the history it
+already has**, reports `"store": "flash (read-only)"` in `GET
+/api/latest`, buffers new readings in RAM, and starts writing the moment
+the drive is released or an SD card appears.
 
 ## Install
 
@@ -262,6 +349,143 @@ discovery when unpinned) → apply the cfg reply (interval / metrics / ASC
 / calibration / **epoch**) → retransmit any stashed backlog / stash this
 reading on failure → deep sleep. Falls back to `POST /api/ingest` over
 WiFi if configured. Every path ends in deep sleep.
+
+A reading counts as **delivered only when the hub confirms it** — the hub
+echoes the packet's message id and the CRC-16 of the bytes it received,
+after storing it. The ESP-NOW MAC-layer ACK alone proves nothing about the
+hub having the data, so an unconfirmed reading is retried, then sent over
+the WiFi fallback, then stashed. (`require_confirmation: false` reverts to
+the old MAC-ACK behaviour for a hub that can receive but not transmit.)
+
+**Three ways to configure a node**, all of them optional extras on top of
+the self-configuring default:
+
+* **ESP-NOW** — the hub's cfg push on every check-in (interval, metrics,
+  ASC policy, calibration window, epoch). This is the normal path.
+* **BLE** — `"ble_config_s": <seconds>` serves the same Nordic-UART portal
+  the hub does, advertising as `SENSOR-xxxxxx`, for that long after each
+  wake (bench mode holds it open for the whole wait). A phone gets
+  `latest`, `config`, `set <json>` and `time <epoch>`; anything the node
+  does not implement is answered with the list of what it does. Off by
+  default: the window is awake time a battery node pays for.
+* **Web API** — the hub's `/api/config`, which reaches the node in the next
+  ESP-NOW cfg push.
+
+plus the first-boot WiFi portal (`node_portal.py`) for naming a brand-new
+node. BLE and the WiFi portal both persist through `node_store.py`, which
+copes with USB mass storage holding CIRCUITPY read-only.
+
+## CircuitPython gotchas (learned the hard way on this project)
+
+Behaviours that cost real bench time. Firmware-level suspicions and the
+upstream-worthy ones live in `bugs_issues_and_todos.md`; these are the
+practical ones you need before touching the boards.
+
+**Radios**
+
+* **Importing `adafruit_ble` starts the BLE controller.** On an ESP32 with
+  the wifi stack already up there may not be a large enough contiguous
+  *internal* block left, and the import fails with
+  `espidf.IDFError: Invalid state` (IDF log: `BLE_INIT: controller init
+  failed`, e.g. `idf_free=5892 largest=3584`). Free the radio *before* the
+  import — `wifi.radio.enabled = False` — and turn it back on afterwards.
+* **On the C6, order is everything at boot**: BLE first, then ESP-NOW, then
+  the softAP. Creating `espnow.ESPNow()` while a user softAP is up kills the
+  AP; `wifi.radio.start_ap()` after heavy imports hard-faults rather than
+  raising `MemoryError`. A resident BLE stack also starves the ESP-NOW
+  *transmit* path (`0x3067 ESP_ERR_ESPNOW_NO_MEM`) — receive is unaffected.
+* **ESP-NOW error codes worth knowing**: `0x3067` = out of internal memory
+  (the coexistence problem above); `0x306d` = *peer channel is not equal to
+  the home channel* (ordinary channel hunting, not a fault).
+* **`ESPNow.send()`'s ACK counters are asynchronous.** Reading
+  `send_success` / `send_failure` immediately after `send()` reads the state
+  from *before* the callback fired, so every send looks failed. Poll them
+  for a few ms instead.
+* **The MAC-layer ACK is not delivery** — see the confirmation scheme in
+  *Node behaviour*.
+* **A BLE advertisement that overflows 31 bytes is not an error** -- and
+  that is the trap. A legacy advertising PDU holds 31 bytes: flags (3) plus
+  a 128-bit service UUID (18) leaves **8 characters for the name**. Go over
+  and CircuitPython advertises with BLE 5 extended PDUs instead, silently:
+  the board reports `advertising == True` while older scanners (a Pi 3's
+  4.2 controller, plenty of phones) see nothing at all. `net_ble.py` now
+  measures the advert and trims the name; node names are `S-{mac-hex}`.
+* **`_bleio`'s outgoing notification queue is ~5 packets deep and drops
+  silently** on the C6: long replies truncate at exactly 100 bytes unless
+  you pace them (`net_ble.py` sends 20 B every 50 ms). `PacketBuffer.write`
+  gives real flow control but blocks forever if the client disconnects, so
+  it is opt-in (`ble_tx_pktbuf`).
+
+**Storage and state**
+
+* **`alarm.sleep_memory` survives deep sleep but NOT `supervisor.reload()`.**
+  A bench-mode node (deep sleep disabled) came up `boot# 1 stash: 0` every
+  cycle until it mirrored the state through `microcontroller.nvm`.
+* **`open(path, "w").write(...)` without closing does not flush.** Reading
+  the file back in the same breath gets you a truncated file (`ValueError:
+  syntax error in JSON`). Use `with`, or call `close()`.
+* **CIRCUITPY is read-only to the board while USB mass storage holds it**
+  (S2/S3). Write to `/saves` (CPSAVES) instead, or call
+  `storage.unsafe_disable_usb_drive()` and remount — `node_store.py` walks
+  all three.
+* **Flashing a full `firmware.bin` WIPES CIRCUITPY.** Have the deploy ready
+  before you flash: code, modules, `lib/`, `certs/`, `www/`.
+* **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
+  a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
+* **`python -m py_compile` does not prove the board will accept it.**
+  CircuitPython lacks syntax CPython has, and you find out at boot as a bare
+  `SyntaxError: invalid syntax` with a line number — after the deploy. The
+  one that caught us was dict-literal `**` unpacking (`{"err": e, **state}`).
+  `python tools/check_cp_syntax.py` runs every device source through
+  mpy-cross; do that before deploying.
+
+**Talking to a board**
+
+* **The USB console only writes while a host holds DTR asserted.** Open the
+  port with `dtr=True`; a capture that attaches late (or a tool that opens
+  and closes) loses everything the board printed in between.
+* **Never toggle RTS on the C6's USB-Serial/JTAG** — it resets the chip
+  (`rst:0x15`). Opening a devkit's *UART bridge* port resets the board too
+  (the auto-reset circuit), which also makes the native USB port
+  re-enumerate and kills any capture on it.
+* **A devkit's two ports carry different things**: CircuitPython's console
+  and REPL on the chip's native USB, ESP-ROM + IDF debug logs on the UART
+  bridge. A hard fault or a `BLE_INIT` failure shows up only on the latter.
+* **Entering the REPL disables auto-reload**, so a board parked at the
+  "Press any key" prompt ignores file changes until it is reset.
+* **Never turn the BLE adapter off to reclaim its memory.**
+  `_bleio.adapter.enabled = False` **hard-faults** CircuitPython
+  10.3.0-alpha.4 on the S3 -- straight into safe mode with "CircuitPython
+  core code crashed hard... Hard fault: memory access or instruction
+  error" -- and short of that it leaves the controller un-initialisable for
+  the rest of the power cycle, so the next `import _bleio` raises
+  `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
+  failed`). Stop advertising instead and leave the adapter up; a
+  deep-sleeping node gets the RAM back at its next boot anyway. With the
+  adapter left alone, BLE survives `supervisor.reload()` and coexists with
+  wifi and ESP-NOW (measured on an S3: BLE up after ESP-NOW with ~95 KB
+  free).
+* **Opening the UART-bridge port can drop the board into safe mode**
+  ("You pressed the BOOT button at start up"): the auto-reset circuit
+  drives IO0 from DTR/RTS. Reset from the REPL side
+  (`microcontroller.reset()`) instead.
+* **`supervisor.get_previous_traceback()`** recovers the crash you missed
+  because nothing was attached to the console. Invaluable.
+* **`mpremote fs cp` is broken for new files** on the 10.3 alphas, and
+  `fs ls` trips over `ilistdir`. `tools/serial_deploy.py` (raw REPL,
+  base64, 3 KB per round trip) is the reliable path, and
+  `tools/hil_bench.py` drives the two-board rig.
+* **esptool cannot reset a C6 out of the download stub** (`--after
+  watchdog-reset` is unsupported, RTS is a no-op on USB-JTAG): press the
+  button, or inject `microcontroller.reset()` at the REPL. A wedged S3
+  needs a 1200 bps touch to reach the ROM bootloader.
+
+**Sensors**
+
+* **Sensirion sensors refuse configuration while measuring**: SEN66 answers
+  `Cannot set CO2 ASC while measuring`. Stop, set, restart — and check the
+  result, because a driver that swallows the error will happily report a
+  calibration it never performed.
 
 ## Repo layout
 

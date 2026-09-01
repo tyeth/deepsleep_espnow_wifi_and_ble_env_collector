@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 """
-ble_smoke.py - BLE smoke test for the ENVHUB collector, via bleak.
+ble_smoke.py - BLE smoke test for the collector (or a node), via bleak.
 
 Runs on the controller PC/Pi (best on Linux/BlueZ; works on Windows).
-Scans for the ENVHUB Nordic-UART advertisement, connects, runs the basic
+Scans for the hub's Nordic-UART advertisement, connects, runs the basic
 command matrix, and prints the JSON replies.
 
     pip install bleak
-    python tools/ble_smoke.py            # scan + command matrix
-    python tools/ble_smoke.py latest     # single command
-    python tools/ble_smoke.py "time now" # sync the hub clock
+    python tools/ble_smoke.py                     # scan + command matrix
+    python tools/ble_smoke.py latest              # single command
+    python tools/ble_smoke.py "time now"          # sync the hub clock
+    python tools/ble_smoke.py --name=S-           # talk to a node instead
 """
 
 import asyncio
@@ -24,14 +25,20 @@ UART_SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 UART_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"   # write to device
 UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"   # notify from device
 
-NAME = "ENVHUB"
+NAME = "HUB"      # --name=S- targets a node instead
 DEFAULT_CMDS = ["mem", "latest", "battery", "config", "days", "events"]
+# a node serves a subset from the same portal (SENSOR-xxxxxx)
+NODE_CMDS = ["mem", "latest", "config", "days"]
 
 
 async def find_hub(timeout=12, tries=3):
     for attempt in range(tries):
         print("scanning for %s ..." % NAME)
         dev = await BleakScanner.find_device_by_filter(
+            # Match the name when the advertisement carries one -- a
+            # 128-bit service UUID fills the packet, so the name often ends
+            # up absent (bleak reports None) and the service UUID is the
+            # only thing to go on.
             lambda d, ad: (d.name or "").startswith(NAME)
             or UART_SVC in (ad.service_uuids or []),
             timeout=timeout,
@@ -115,4 +122,8 @@ async def run(cmds):
 
 
 if __name__ == "__main__":
-    asyncio.run(run(sys.argv[1:] or DEFAULT_CMDS))
+    args = sys.argv[1:]
+    if args and args[0].startswith("--name="):
+        NAME = args.pop(0).split("=", 1)[1]
+    asyncio.run(run(args or (NODE_CMDS if NAME.startswith("S-")
+                             else DEFAULT_CMDS)))

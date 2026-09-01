@@ -65,9 +65,13 @@ AP_PASSWORD = (os.getenv("ENVHUB_AP_PASSWORD")
                or _ecfg.get("ap_password", ""))
 # BLE name carries the MAC suffix so several hubs on one site stay distinct
 # (clients match on the ENVHUB prefix + Nordic UART service).
+# Eight characters is the most that fits: a legacy advertising PDU holds 31
+# bytes, and flags (3) plus the 128-bit Nordic UART UUID (18) leave 8. Go
+# over and CircuitPython silently switches to BLE 5 extended advertising,
+# which older scanners never see (see net_ble.py).
 BLE_NAME = (os.getenv("ENVHUB_BLE_NAME")
             or _ecfg.get("ble_name")
-            or "ENVHUB-" + envproto.short_mac(wifi.radio.mac_address)[-4:])
+            or "HUB-" + envproto.short_mac(wifi.radio.mac_address)[-4:])
 # BLE controller AND advertising first (before the AP -- mirroring the
 # BLE-workflow case, the only proven BLE+AP coexistence on C6). If any
 # step fails, tear BLE down completely: a half-up BLE stack costs ~65KB
@@ -77,6 +81,17 @@ _ble_uart = None
 _ble_adv = None
 if _ecfg.get("ble_enabled", True):
     try:
+        # CircuitPython's own BLE workflow advertises as CIRCUITPY{mac} from
+        # this same adapter, with its file-transfer GATT. Left running it
+        # competes with ours: the adapter name flips back to CIRCUITPYxxxx
+        # on a re-advertise, and a client that connected to one service set
+        # can be handed the other from its cache.
+        try:
+            import supervisor
+            supervisor.runtime.ble_workflow = False
+            print("CircuitPython BLE workflow off (ours takes the radio)")
+        except (ImportError, AttributeError) as exc:
+            print("could not stop the CircuitPython BLE workflow:", exc)
         from adafruit_ble import BLERadio
         from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
         from adafruit_ble.services.nordic import UARTService
@@ -85,6 +100,11 @@ if _ecfg.get("ble_enabled", True):
         _ble_uart = UARTService()
         _ble_adv = ProvideServicesAdvertisement(_ble_uart)
         _ble_adv.complete_name = BLE_NAME
+        if len(bytes(_ble_adv)) > 31:      # same rule as net_ble._trim
+            BLE_NAME = BLE_NAME[:8]
+            _ble_adv.complete_name = BLE_NAME
+            print("BLE: advert too long for legacy scanners; name ->",
+                  BLE_NAME)
         _ble_radio.start_advertising(_ble_adv)
         print("early BLE advertising as", BLE_NAME)
     except Exception as exc:
@@ -141,14 +161,19 @@ if _ecfg.get("ap_enabled", True):
 HTTP_WANTED = (_ecfg.get("ap_enabled", True)
                or bool(os.getenv("CIRCUITPY_WIFI_SSID")
                        or os.getenv("WIFI_SSID")))
+# A headless hub should not pay for the display stack at all: display_ui
+# pulls in adafruit_display_text and adafruit_bitmap_font, tens of KB of
+# flash and heap for a panel that is not there.
+DISPLAY_WANTED = _ecfg.get("display_enabled", True)
 del _ecfg
 
 import alerts
 import battery
 import calref
 import datastore
-import display_hw
-import display_ui
+if DISPLAY_WANTED:
+    import display_hw
+    import display_ui
 import net_espnow
 import sensors_local
 if HTTP_WANTED:
@@ -225,37 +250,63 @@ if SRAM_CS is not None:
 # ---------------------------------------------------------------------------
 display = None
 palette_mode = "quad"
-try:
-    display, palette_mode = display_hw.init_display(
-        spi,
-        profile_name=config.get("display_profile", "auto"),
-        overrides=config.get("display"),
-    )
-except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
-    print("Display init failed:", exc)
+if not DISPLAY_WANTED:
+    # Headless hub (and the bench rigs): the panel itself, not just its
+    # dashboard tree, costs ~56KB of heap on the C6 -- the difference
+    # between BLE + AP + HTTP fitting comfortably and not fitting at all.
+    print("display disabled by config")
+    displayio.release_displays()
+else:
+    try:
+        display, palette_mode = display_hw.init_display(
+            spi,
+            profile_name=config.get("display_profile", "auto"),
+            overrides=config.get("display"),
+        )
+    except (ValueError, OSError, RuntimeError, AttributeError,
+            ImportError) as exc:
+        print("Display init failed:", exc)
 
 # Build the persistent dashboard NOW, while the heap is still roomy --
 # later (with the BLE stack + portals resident) there is not enough
 # contiguous memory left to construct its ~40 display objects. Refreshes
 # only mutate it in place from here on.
 _dashboard = None
+# What the rest of bring-up still needs after the tree: datastore's ring,
+# the captive DNS, the HTTP server and the BLE portal. Judging "is there
+# room for the full tree?" BEFORE building it was wrong on a C6 running BLE
+# + AP + eInk: the check passed with 85KB free, the tree took ~70KB, and
+# bring-up then died allocating 2400 bytes for the ring.
+_DASH_MIN_FREE = 40000
 if display is not None:
-    try:
-        gc.collect()
-        _dashboard = display_ui.Dashboard(
-            180 if display.width == 184 else display.width,
-            180 if display.height == 184 else display.height,
-            palette_mode,
-            lite=gc.mem_free() < 60000,  # C6 with BLE resident: slim tree
-        )
-        # attach now: the boot-screen group (already on the panel) becomes
-        # garbage and its RAM comes back; the panel itself keeps showing
-        # "Loading Data" until the first dashboard refresh
-        display.root_group = _dashboard.root
-        gc.collect()
-        print("dashboard tree built (mem %d)" % gc.mem_free())
-    except (MemoryError, ValueError) as exc:
-        print("dashboard build failed:", exc)
+    for _slim in (False, True):
+        try:
+            gc.collect()
+            lite = _slim or gc.mem_free() < 60000
+            _dashboard = display_ui.Dashboard(
+                180 if display.width == 184 else display.width,
+                180 if display.height == 184 else display.height,
+                palette_mode,
+                lite=lite,
+            )
+            # attach now: the boot-screen group (already on the panel)
+            # becomes garbage and its RAM comes back; the panel itself keeps
+            # showing "Loading Data" until the first dashboard refresh
+            display.root_group = _dashboard.root
+            gc.collect()
+            print("dashboard tree built (%s, mem %d)"
+                  % ("lite" if lite else "full", gc.mem_free()))
+            if lite or gc.mem_free() >= _DASH_MIN_FREE:
+                break
+            print("dashboard leaves only %d free; rebuilding it slim"
+                  % gc.mem_free())
+            _dashboard = None
+            display.root_group = displayio.Group()
+            gc.collect()
+        except (MemoryError, ValueError) as exc:
+            print("dashboard build failed:", exc)
+            _dashboard = None
+            break
 
 sd_mounted = False
 if SD_CS is not None:
@@ -376,6 +427,14 @@ store = datastore.DataStore(
     flush_interval_s=config.get("sd_flush_interval_s", 600),
     flush_max_pending=config.get("sd_flush_max_pending", 24),
     min_free_bytes=config.get("flash_min_free_kb", 50) * 1024,
+    # A hub is a data logger first: if nothing is writable because a
+    # computer holds the USB drive, take the drive back. Set false on a
+    # bench rig where drag-and-drop deploys matter more than the readings.
+    allow_usb_release=config.get("release_usb_drive", True),
+    # how much to hold in RAM while storage is unwritable before the oldest
+    # readings start falling off the end (a PSRAM board can afford plenty)
+    ram_lines=config.get("ram_buffer_lines", 200),
+    ram_events=config.get("ram_buffer_events", 100),
 )
 print("storage:", store.mode, store.root)
 _mem("after storage")
@@ -452,7 +511,21 @@ def h_latest():
             "state": a["state"], "for": alerts.fmt_duration(a["for_s"]),
             "for_s": a["for_s"],
         })
-    return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal}
+    # mesh delivery health: every node packet we received, confirmed back,
+    # re-confirmed as a duplicate, or could not decode at all
+    mesh = {"rx": hub.rx_count, "conf": hub.conf_count, "dup": hub.dup_count,
+            "bad": hub.bad_count}
+    # storage state belongs in the status a phone can see: "ram" or
+    # "(read-only)" is why history looks empty
+    mesh["store"] = store.mode
+    if store.pending_count():
+        mesh["buffered"] = store.pending_count()   # waiting for storage
+    if store.dropped_lines:
+        mesh["dropped"] = store.dropped_lines
+    if hub.last_error:
+        mesh["err"] = hub.last_error
+    return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
+            "mesh": mesh}
 
 
 def h_battery():
@@ -702,17 +775,170 @@ def _local_cal_tick(now, co2):
 
 
 def h_ingest(body):
-    """WiFi fallback transport: nodes POST the same envproto JSON here."""
-    obj = envproto.decode(body if isinstance(body, (bytes, str)) else b"")
+    """WiFi fallback transport: nodes POST the same envproto JSON here.
+
+    The response carries the same confirmation as the ESP-NOW path (message
+    id + CRC-16 of the bytes we received, inside the cfg push), so a node
+    gets identical delivery proof whichever transport it fell back to.
+    """
+    raw = body if isinstance(body, bytes) else (body or "").encode()
+    obj = envproto.decode(raw)
     if obj is None:
         return {"err": "bad packet"}
-    _handle_node_packet(None, obj, None)
-    reply = _cfg_reply_for(obj.get("n", "?"))
-    return {"ok": True, "cfg": json.loads(reply)}
+    if obj.get("k") not in CONFIRMED_KINDS:
+        return {"err": "unexpected packet kind"}
+    reply = json.loads(take_node_packet(None, obj, envproto.crc16(raw)))
+    return {"ok": bool(reply.get("ok", 1)), "cfg": reply}
 
 
 def h_list_days():
     return store.list_days()
+
+
+# Set by h_reset; the main loop acts on it a moment later so the reply is
+# actually delivered before the board goes.
+_reset_at = [0.0]
+
+# Taking the filesystem from a host can take a while -- Windows in
+# particular keeps the volume mounted for a bit after the drive vanishes --
+# so the main loop keeps trying until this deadline instead of the hub
+# restarting and losing everything queued in RAM.
+_FS_TAKE_WINDOW_S = 120
+_fs_take_until = [0.0]
+
+
+def h_reset():
+    """Restart the hub (deploy without a console or a reachable button).
+
+    Buffered data is flushed by the loop before the reset, so a restart
+    never costs readings.
+    """
+    _reset_at[0] = time.monotonic() + 1.5
+    print("reset requested; flushing and restarting")
+    return {"ok": True, "resetting_in_s": 1.5}
+
+
+def h_storage(body=None):
+    """Read or set who owns the filesystem: the MCU (so the hub can log) or
+    a host PC (so you can drag files onto CIRCUITPY).
+
+    Both directions take effect IMMEDIATELY, no restart:
+    `unsafe_disable_usb_drive()` hands the flash to the hub, and
+    `enable_usb_drive()` -- which CircuitPython documents as usable after
+    code.py starts, to reverse exactly that -- hands the drive back. Pass
+    {"now": false} to only record the choice for the next boot.
+
+    Only boards with USB mass storage have the choice at all; the C6 has no
+    drive, so it is always the MCU's. collector/boot.py applies the saved
+    choice at power-up, where the safe (non-"unsafe") call is available.
+    """
+    has_msc = True
+    try:
+        import storage
+        has_msc = hasattr(storage, "disable_usb_drive")
+    except ImportError:
+        has_msc = False
+    # the NVM flag is what boot.py actually obeys, so report that when set
+    # -- config.json can be stale precisely when it matters (a read-only
+    # filesystem is why the choice went to NVM in the first place)
+    owner_now = config.get("usb_drive_owner", "mcu")
+    try:
+        _flag = microcontroller.nvm[0]
+        if _flag == 0xF0:
+            owner_now = "mcu"
+        elif _flag == 0xF1:
+            owner_now = "pc"
+    except Exception:
+        pass
+    state = {"owner": owner_now,
+             "effective": "pc" if store.read_only else "mcu",
+             "supported": has_msc,
+             "store": store.mode}
+    if not body or "owner" not in body:
+        return state
+    want = str(body["owner"]).strip().lower()
+    if want not in ("mcu", "pc"):
+        # (no dict-literal ** unpacking: CircuitPython does not have it)
+        state["err"] = 'owner must be "mcu" or "pc"'
+        return state
+    if not has_msc:
+        state["err"] = "this board has no USB drive to hand over"
+        return state
+    config["usb_drive_owner"] = want
+    # Persist in NVM, not just config.json: while a PC holds the drive the
+    # filesystem is read-only, so writing the choice to a file is exactly
+    # the thing we cannot do -- and without it boot.py would never see the
+    # request and the hub could never take the flash. NVM is always
+    # writable and survives a reset.
+    nvm_saved = False
+    try:
+        microcontroller.nvm[0] = 0xF0 if want == "mcu" else 0xF1
+        nvm_saved = True
+    except Exception as exc:
+        print("storage: could not record the choice in NVM:", exc)
+    saved = h_config_set({"usb_drive_owner": want})
+    state["owner"] = want
+    state["saved"] = bool(nvm_saved or (isinstance(saved, dict)
+                                        and saved.get("saved_to_sd")))
+    state["note"] = ("the hub keeps the filesystem and no drive appears"
+                     if want == "mcu" else
+                     "a computer gets the drive and the hub stops logging")
+    if not body.get("now", True):
+        state["applied"] = False
+        state["note"] += " (saved for the next boot)"
+        return state
+    try:
+        if want == "mcu":
+            # our own server streaming a file holds the block device too, so
+            # let go of those first; the browser re-requests (with Range, it
+            # resumes) and nothing queued in RAM is at risk
+            try:
+                dropped = portal.release_files()
+                if dropped:
+                    print("storage: closed %d file transfer(s) to free the "
+                          "filesystem" % dropped)
+            except AttributeError:
+                pass
+            # the unsafe variant by name because a host part-way through a
+            # write loses it -- which is why the page asks first
+            if not datastore.take_filesystem():
+                raise RuntimeError("host still holds the drive")
+            store.read_only = False
+            store.root = store._pick_root()
+            store.flush()          # everything buffered while it was theirs
+            print("storage: drive ejected; the hub is logging to", store.root)
+        else:
+            # Flush FIRST -- we still own the filesystem, so nothing is at
+            # risk -- then hand it over. enable_usb_drive() changes
+            # CircuitPython's USB descriptors but nothing re-enumerates the
+            # device, so a host that had the drive taken from it may never
+            # notice it is back (measured: Windows saw no mass-storage
+            # device at all afterwards). A reset re-enumerates for certain,
+            # and having just flushed, it costs nothing -- unlike the other
+            # direction, where a reset would discard the queue.
+            store.flush()          # we still own it: nothing is at risk
+            datastore.give_filesystem_back()
+            store.read_only = True
+            print("storage: flushed and handed the drive back; the host "
+                  "re-mounts it within a second or two")
+        state["applied"] = True
+        state["effective"] = want
+        state["store"] = store.mode
+    except Exception as exc:
+        # CircuitPython refuses remount() while anything holds the block
+        # device (blockdev_lock): the USB host, or our own server streaming
+        # a file. Keep trying in the background rather than restarting --
+        # a restart would throw away every reading queued in RAM, which is
+        # the exact data this feature exists to save.
+        state["applied"] = False
+        state["err"] = "%s: %s" % (type(exc).__name__, exc)
+        state["retrying_until_s"] = _FS_TAKE_WINDOW_S
+        state["note"] += (" -- the host still holds it; retrying for %ds"
+                          % _FS_TAKE_WINDOW_S)
+        _fs_take_until[0] = time.monotonic() + _FS_TAKE_WINDOW_S
+        print("storage: host still holds the drive (%s); retrying for %ds"
+              % (exc, _FS_TAKE_WINDOW_S))
+    return state
 
 
 def h_time_set(epoch):
@@ -770,13 +996,15 @@ handlers = {
     "history_lines": h_history_lines,
     "data_dir": lambda: store.data_dir(),
     "time_set": h_time_set,
+    "reset": h_reset,
+    "storage": h_storage,
 }
 
 # ---------------------------------------------------------------------------
 # Node packet handling
 # ---------------------------------------------------------------------------
 
-def _cfg_reply_for(src):
+def _cfg_reply_for(src, ack_id=None, ack_crc=None):
     interval = config.get("node_intervals", {}).get(
         src, config.get("node_default_interval_s", 120)
     )
@@ -796,7 +1024,103 @@ def _cfg_reply_for(src):
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
         cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
+        ack_id=ack_id, ack_crc=ack_crc,
     )
+
+
+# What we have already taken from each node, so an expected retry is
+# re-confirmed instead of stored twice:
+#   _recent_crc  the last few packet CRCs per (node, kind). Identical bytes
+#                means an identical packet, whatever the clocks are doing --
+#                this is what catches a node resending because OUR
+#                confirmation went missing.
+#   _recent_at   the last few reading times per node, for the other case: a
+#                stashed reading re-sent on a later wake carries a fresh
+#                message id (so different bytes) but the same reading time.
+#                Only usable once the node's clock is synced; a node still
+#                running from 2020 can therefore duplicate a stashed reading
+#                whose confirmation was lost. Documented, not silently hoped
+#                away -- the hub is the one with the clock to spare.
+_recent_crc = {}
+_recent_at = {}
+_KEEP = 4
+CONFIRMED_KINDS = ("dat", "dsc", "cal")
+
+
+def _remember(store_dict, key, value, keep=_KEEP):
+    """Record value under key; True if it was already there."""
+    seen = store_dict.setdefault(key, [])
+    if value in seen:
+        return True
+    seen.append(value)
+    if len(seen) > keep:
+        del seen[0]
+    return False
+
+
+def _confirmation_for(src, kind, msg_id, crc, ok):
+    """Build the reply: 'cfg' for kinds that take config (so a check-in is
+    one packet each way), a bare 'ack' otherwise -- or when the cfg would
+    not fit an ESP-NOW frame, since being confirmed matters more to the node
+    than being reconfigured."""
+    if ok and kind in ("dat", "dsc"):
+        try:
+            return _cfg_reply_for(src, ack_id=msg_id, ack_crc=crc)
+        except ValueError as exc:   # oversized cfg (too many metrics/fields)
+            print("cfg for %s too big (%s); confirming only" % (src, exc))
+    return envproto.make_ack_packet(msg_id, crc, ok=ok,
+                                    why=None if ok else "hub could not store")
+
+
+def take_node_packet(mac, obj, crc, rssi=None):
+    """Store a node packet, then tell the node what actually happened.
+
+    The confirmation carries the message id and the CRC-16 of the bytes we
+    received, and it is sent AFTER the reading is stored: "ok" then means
+    the hub has the data, not merely that the radio delivered a frame. If
+    storing raises (a full card, a MemoryError on this very tight board) the
+    node gets ok=0 and keeps the reading in its stash.
+
+    Returns the reply bytes (already transmitted when mac is not None; the
+    HTTP fallback returns them in its response body).
+    """
+    kind = obj.get("k")
+    src = obj.get("n", "node-%s" % (envproto.mac_str(mac)[-5:] if mac else "?"))
+    msg_id = obj.get("sq", 0)
+    ok = True
+
+    dup = _remember(_recent_crc, (src, kind), crc)
+    if not dup and kind == "dat":
+        at = obj.get("at")
+        if at and at > envproto.PLAUSIBLE_EPOCH:
+            # keep these small: full epochs are heap-allocated big ints here
+            dup = _remember(_recent_at, src, at - _boot_epoch)
+    if dup:
+        hub.dup_count += 1
+        print("duplicate %s sq=%s from %s: re-confirming, not storing"
+              % (kind, msg_id, src))
+    else:
+        try:
+            _handle_node_packet(mac, obj, rssi)
+            print("%s sq=%s crc=%04x from %s: accepted, confirming"
+                  % (kind, msg_id, crc, src))
+        except Exception as exc:  # tell the node the truth: we lost it
+            ok = False
+            print("storing %s from %s failed: %s: %s"
+                  % (kind, src, type(exc).__name__, exc))
+            # forget it, so the node's retry is treated as new
+            seen = _recent_crc.get((src, kind))
+            if seen and crc in seen:
+                seen.remove(crc)
+
+    reply = _confirmation_for(src, kind, msg_id, crc, ok)
+    if mac is not None:
+        if hub.send(mac, reply):
+            hub.conf_count += 1
+        else:
+            print("confirmation to %s (%s sq=%s) could not be sent"
+                  % (src, kind, msg_id))
+    return reply
 
 
 def _handle_node_packet(mac, obj, rssi):
@@ -1029,13 +1353,37 @@ _err_streak = 0
 while True:
     now_m = time.monotonic()
     now_e = int(time.time())
+    if _fs_take_until[0]:
+        # a switch to MCU ownership that the host would not allow yet
+        if now_m >= _fs_take_until[0]:
+            _fs_take_until[0] = 0.0
+            print("storage: gave up taking the filesystem; still the host's")
+        elif datastore.take_filesystem(tries=1):
+            _fs_take_until[0] = 0.0
+            store.read_only = False
+            store.root = store._pick_root()
+            store.flush()          # everything buffered while we waited
+            print("storage: filesystem taken; logging to", store.root)
+    if _reset_at[0] and now_m >= _reset_at[0]:
+        # requested over HTTP/BLE: get the buffered data onto storage first
+        try:
+            store.flush()
+        except Exception as exc:
+            print("flush before reset failed:", exc)
+        print("restarting now")
+        microcontroller.reset()
     try:
-        # 1. remote nodes over ESP-NOW (reply immediately -- they nap fast)
-        for mac, obj, rssi in hub.poll():
+        # 1. remote nodes over ESP-NOW. Confirm first (id + CRC of what we
+        #    received, carried by the cfg push), then do the slow work --
+        #    the node's listen window is short and it naps straight after.
+        for mac, obj, rssi, crc in hub.poll():
             try:
-                _handle_node_packet(mac, obj, rssi)
-                if obj.get("k") in ("dat", "dsc"):
-                    hub.send(mac, _cfg_reply_for(obj.get("n", "?")))
+                if obj.get("k") in CONFIRMED_KINDS:
+                    take_node_packet(mac, obj, crc, rssi)
+                else:
+                    # never answer another hub's reply: that would ping-pong
+                    print("ignoring %s packet from %s"
+                          % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
 

@@ -18,6 +18,8 @@ Routes (all JSON unless noted):
                              "mode":"frc"|"asc"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
   POST /api/time            {"epoch": ...} browser clock sync
+  GET  /api/storage         who owns the filesystem (MCU logs / PC drive)
+  POST /api/storage         {"owner":"mcu"|"pc","now":true} set it
 
 The command handlers themselves live in code.py (shared with BLE); this
 module wires HTTP to them with a deliberately small non-blocking server on
@@ -78,6 +80,7 @@ _TLS_IDLE_NOREQ_S = 10    # TLS session with no request yet: the handshake itsel
 _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
 _MAX_CONNS = 6
+_ACCEPT_ERRS_BEFORE_RESTART = 5   # rebuild the listening socket after this many
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
 _TLS_WRAP_GIVEUP_S = 4      # how long to keep retrying wrap_socket on MemoryError
 _EAGAIN = 11
@@ -104,6 +107,29 @@ def connect(ssid, password, tz_offset_h=0):
     except Exception as exc:  # NTP failure must never kill startup
         print("NTP failed:", exc)
     return ip
+
+
+_DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _http_date():
+    """RFC 1123 Date header, or b"" while the hub clock is unset.
+
+    A browser works out how old a response is from Date; without one it may
+    decline to store the response at all, so every reload re-downloads
+    instead of revalidating with the ETag. A *wrong* date is worse than
+    none (the hub boots at 2000-01-01 until NTP or a browser sets the
+    clock), hence the year check -- the page POSTs /api/time on connect,
+    so the very first page load is the only one served undated.
+    """
+    t = time.localtime()
+    if t[0] < 2025:
+        return b""
+    return b"Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n" % (
+        _DAYS[t[6]].encode(), t[2], _MONTHS[t[1] - 1].encode(), t[0],
+        t[3], t[4], t[5])
 
 
 def _find_app_root():
@@ -133,11 +159,15 @@ def _static(path):
     then user flash. Returns the first existing path, else the flash path (-> 404)."""
     import os
     for root in ("/sd/www", "/www"):
-        try:
-            os.stat(root + path)
-            return root + path
-        except OSError:
-            continue
+        for name in (root + path, root + path + ".gz"):
+            # a .gz twin may be the only copy of a big bundle (a 4MB board
+            # fits gzipped Plotly and not the plain 1.1MB one); the caller
+            # picks the encoding, this only decides which root wins
+            try:
+                os.stat(name)
+                return root + path
+            except OSError:
+                continue
     return "/www" + path
 
 
@@ -154,7 +184,8 @@ def _parse_json(body):
 
 class _Conn:
     """One client connection progressed incrementally by WebPortal.poll()."""
-    __slots__ = ("sock", "req", "out", "file", "t", "done", "t0", "path", "sent", "tls", "keep")
+    __slots__ = ("sock", "req", "out", "file", "t", "done", "t0", "path",
+                 "sent", "tls", "keep", "left")
 
     def __init__(self, sock):
         self.sock = sock
@@ -166,7 +197,8 @@ class _Conn:
         self.path = None
         self.sent = 0
         self.tls = False
-        self.keep = False   # HTTP keep-alive: serve further requests on this TLS connection
+        self.keep = False   # HTTP keep-alive: serve further requests on this connection
+        self.left = None    # bytes still to send from `file` (None = to EOF)
         self.done = False
 
 
@@ -186,6 +218,7 @@ class WebPortal:
         self._buf = bytearray(1024)
         self._conns = []
         self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
+        self._accept_errs = 0   # consecutive listener failures
 
     # -- routing ------------------------------------------------------------
 
@@ -211,6 +244,8 @@ class WebPortal:
                 return _json(h["events"]())
             if path == "/api/config":
                 return _json(h["config_get"]())
+            if path == "/api/storage":
+                return _json(h["storage"]())
             if path == "/api/calibrate":
                 return _json(h["cal_status"]())
             if path == "/api/cert":
@@ -237,6 +272,14 @@ class WebPortal:
                 return _json(self.install_cert(data.get("cert", ""), data.get("key", "")))
             if path == "/api/time":
                 return _json(h["time_set"](data.get("epoch")))
+            if path == "/api/storage":
+                # {"owner": "mcu"|"pc", "now": true} -- who may write the
+                # filesystem; "now" ejects a mounted drive immediately
+                return _json(h["storage"](data))
+            if path == "/api/reset":
+                # a headless hub (no console, no button within reach) still
+                # has to be restartable after a deploy
+                return _json(h["reset"]())
             if path == "/api/calibrate":
                 try:
                     step = int(data.get("step", 1))
@@ -361,15 +404,65 @@ class WebPortal:
         self.ok = True
         return True
 
+    def _restart_listener(self):
+        """Rebuild the listening socket after repeated accept() failures.
+
+        Existing connections are left alone -- they may still be streaming.
+        """
+        try:
+            self.server.close()
+        except OSError:
+            pass
+        self.server = None
+        try:
+            pool = socketpool.SocketPool(wifi.radio)
+            s = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
+            s.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
+            s.bind(("0.0.0.0", self.port))
+            s.listen(4)
+            s.setblocking(False)
+            self.server = s
+            print("HTTP listener rebuilt on port", self.port)
+        except OSError as exc:
+            print("HTTP listener rebuild failed (will retry):", exc)
+
     def poll(self):
         if not self.server:
             return
+        # Keep-alive connections hold a slot while they wait for the next
+        # request. If a browser has taken them all, evict the one that has
+        # been idle longest rather than refusing to accept -- a refused
+        # connection is what makes a page half-load.
+        if len(self._conns) >= _MAX_CONNS:
+            idle = [c for c in self._conns if c.keep and c.out is None
+                    and not c.file]
+            if idle:
+                oldest = min(idle, key=lambda c: c.t)
+                oldest.done = True
+                self._conns.remove(oldest)
+                try:
+                    oldest.sock.close()
+                except OSError:
+                    pass
         # accept everything pending (non-blocking)
         while len(self._conns) < _MAX_CONNS:
             try:
                 sock, _addr = self.server.accept()
-            except OSError:
+            except OSError as exc:
+                if exc.errno == _EAGAIN or exc.errno is None:
+                    self._accept_errs = 0     # nothing waiting: normal
+                else:
+                    # A listening socket that keeps failing takes the whole
+                    # portal down silently, and the user just sees a page
+                    # that never loads. Rebuild it rather than sit there.
+                    self._accept_errs += 1
+                    if self._accept_errs >= _ACCEPT_ERRS_BEFORE_RESTART:
+                        print("HTTP: listener failing (%s); restarting it"
+                              % exc)
+                        self._accept_errs = 0
+                        self._restart_listener()
                 break
+            self._accept_errs = 0
             sock.setblocking(False)
             self._conns.append(_Conn(sock))
         # https: accept() performs the TLS handshake (blocking, ~1 s); the served
@@ -464,12 +557,24 @@ class WebPortal:
             header, _, body = c.req.partition(b"\r\n\r\n")
             length = 0
             conn_hdr = b""
+            inm = b""       # If-None-Match: the browser's cached ETag
+            rng = b""       # Range: resume a transfer that was cut short
+            gz_ok = False   # Accept-Encoding: gzip -> serve a .gz twin
+            br_ok = False   # ...and brotli, which is ~10% smaller again
             for ln in header.split(b"\r\n")[1:]:
                 low = ln[:15].lower()
                 if low == b"content-length:":
                     length = int(ln[15:].strip())
                 elif low[:11] == b"connection:":
                     conn_hdr = ln[11:].strip().lower()
+                elif low[:14] == b"if-none-match:":
+                    inm = ln[14:].strip()
+                elif low[:6] == b"range:":
+                    rng = ln[6:].strip().lower()
+                elif low[:15] == b"accept-encoding":
+                    enc_hdr = ln.lower()
+                    gz_ok = b"gzip" in enc_hdr
+                    br_ok = b"br" in enc_hdr
             if len(body) < min(length, _MAX_BODY):
                 return  # body still arriving
             try:
@@ -486,23 +591,23 @@ class WebPortal:
             resp = self._route(method, path, query, body)
             c.req = b""
             c.path = path
-            # keep TLS connections open for the follow-up requests (html -> icon -> api)
-            # so they reuse one ~1.3 s RSA handshake; plain http stays one-shot
-            c.keep = c.tls and conn_hdr != b"close"
+            # Keep connections open for the follow-up requests (html -> js ->
+            # api): TLS reuses one ~1.3 s RSA handshake, and plain HTTP over
+            # the AP avoids a fresh connection per asset while the page pulls
+            # a 1 MB vendor bundle. HTTP/1.1 defaults to keep-alive.
+            c.keep = conn_hdr != b"close"
             ka = c.keep
             if resp[0] == "file":
-                import os
-                try:
-                    size = os.stat(resp[1])[6]
-                    c.file = open(resp[1], "rb")
-                    ext = resp[1].rsplit(".", 1)[-1]
-                    c.out = memoryview(self._head(200, _TYPES.get(ext, "application/octet-stream"), size, keep=ka))
-                except OSError:
-                    c.out = memoryview(self._head(404, "text/plain", 9, keep=ka) + b"not found")
+                c.out = memoryview(
+                    self._file_head(c, resp[1], ka, inm, rng, gz_ok, br_ok))
             elif resp[0] == 302:  # resp[1] carries the Location
                 c.out = memoryview(self._head(302, "text/html", 0, b"Location: %s\r\n" % resp[1].encode(), keep=ka))
             else:
-                c.out = memoryview(self._head(resp[0], resp[1], len(resp[2]), keep=ka) + resp[2])
+                # live data: never let a browser or proxy serve it from cache
+                c.out = memoryview(
+                    self._head(resp[0], resp[1], len(resp[2]),
+                               b"Cache-Control: no-store\r\n", keep=ka)
+                    + resp[2])
         # ---- send phase: push as much as the socket takes within the budget
         while time.monotonic() < deadline:
             if len(c.out) == 0:
@@ -510,11 +615,16 @@ class WebPortal:
                     self._finish(c)
                     return
                 n = c.file.readinto(buf)
+                if c.left is not None:
+                    n = min(n, c.left)       # a range response stops early
                 if not n:
                     c.file.close()
                     c.file = None
+                    c.left = None
                     self._finish(c)
                     return
+                if c.left is not None:
+                    c.left -= n
                 c.out = memoryview(bytes(buf[:n]))
             # 1 KB chunks, and on a full TX window (EAGAIN raised) simply leave and let
             # the next poll continue -- larger chunks / in-poll retries stalled phone
@@ -525,6 +635,134 @@ class WebPortal:
             c.t = time.monotonic()
             c.sent += sent
             c.out = c.out[sent:]
+
+    def release_files(self):
+        """Close every file this server is streaming, and say how many.
+
+        CircuitPython will not remount the filesystem while anything holds
+        the block device, and a page load leaves vendor bundles open across
+        many polls -- so handing the filesystem over has to interrupt those
+        transfers. The browser simply re-requests (and Range means it can
+        resume), which is much cheaper than the alternative of restarting
+        the hub and losing whatever is queued in RAM.
+        """
+        closed = 0
+        for c in self._conns:
+            if c.file:
+                try:
+                    c.file.close()
+                except OSError:
+                    pass
+                c.file = None
+                c.left = None
+                c.done = True      # the response is now truncated: end it
+                closed += 1
+        return closed
+
+    def _file_head(self, c, path, ka, inm=b"", rng=b"", gz_ok=False,
+                   br_ok=False):
+        """Build the response head for a static file and arm the streaming.
+
+        The AP has no internet, so the page's vendor bundles (Plotly is
+        ~1.1 MB) come from here every time a browser forgets them. Three
+        things make that survivable over a phone's WiFi:
+
+        * an **ETag** (size + mtime) and `Cache-Control`, so a reload sends
+          `If-None-Match` and gets a 61-byte 304 instead of a megabyte;
+        * **Range** support, so a transfer cut off by a walk out of range
+          resumes where it stopped rather than starting again;
+        * **keep-alive**, so the rest of the page does not pay for a new
+          connection each time.
+        """
+        import os
+        enc = b""
+        if br_ok:
+            # brotli first when offered: ~10% smaller than gzip again, and
+            # on a big bundle that is hundreds of KB over a phone's wifi
+            try:
+                os.stat(path + ".br")
+                path += ".br"
+                enc = b"Content-Encoding: br\r\n"
+            except OSError:
+                pass
+        if not enc and gz_ok:
+            # A pre-compressed twin (plotly.min.js.gz) is ~3x smaller, which
+            # over the AP is the difference between a 20 s wait and a 7 s
+            # one -- and on a 4 MB board it is the difference between the
+            # bundle fitting in the filesystem at all. The .gz may be the
+            # ONLY copy; the board never compresses anything itself.
+            try:
+                os.stat(path + ".gz")
+                path += ".gz"
+                enc = b"Content-Encoding: gzip\r\n"
+            except OSError:
+                pass
+        try:
+            st = os.stat(path)
+        except OSError:
+            if not enc:
+                try:      # only the compressed copy is on the board
+                    os.stat(path + ".gz")
+                    return self._head(
+                        406, "text/plain", 38, keep=ka)                     \
+                        + b"only a gzipped copy exists on the hub"
+                except OSError:
+                    pass
+            return self._head(404, "text/plain", 9, keep=ka) + b"not found"
+        size = st[6]
+        etag = b'"%x-%x"' % (size, st[8] if len(st) > 8 else 0)
+        # Cache hard. Serving these over the AP costs tens of seconds
+        # (Plotly, and far more for Pyodide off the SD card), and they are
+        # only replaced by a deliberate redeploy:
+        #   vendor bundles   a year, immutable  (versioned by filename)
+        #   other assets     a year, revalidated by ETag when the browser
+        #                    does check
+        #   entry points     always revalidated, so a redeploy is picked up
+        #                    -- the ETag makes that a 304, not a download
+        name = path.rsplit("/", 1)[-1]
+        if name in ("index.html", "sw.js") or name.endswith(".html"):
+            cache = b"no-cache"
+        elif "/vendor/" in path:
+            cache = b"public, max-age=31536000, immutable"
+        else:
+            cache = b"public, max-age=31536000"
+        common = (b"ETag: %s\r\nCache-Control: %s\r\nAccept-Ranges: bytes\r\n"
+                  b"Vary: Accept-Encoding\r\n%s" % (etag, cache, enc))
+        if inm and etag in inm:
+            return self._head(304, "text/plain", 0, common, keep=ka)
+
+        start, end = 0, size - 1
+        partial = False
+        if rng.startswith(b"bytes="):
+            try:
+                first, _, last = rng[6:].partition(b"-")
+                if first:
+                    start = int(first)
+                    if last:
+                        end = min(int(last), size - 1)
+                elif last:                       # suffix range: last N bytes
+                    start = max(0, size - int(last))
+                partial = 0 <= start <= end < size
+            except ValueError:
+                partial = False
+            if not partial:
+                return self._head(416, "text/plain", 0,
+                                  common + b"Content-Range: bytes */%d\r\n" % size,
+                                  keep=ka)
+        try:
+            c.file = open(path, "rb")
+            if start:
+                c.file.seek(start)
+        except OSError:
+            return self._head(404, "text/plain", 9, keep=ka) + b"not found"
+        c.left = end - start + 1
+        # the content type comes from the real name, not the .gz twin
+        ext = (path.rsplit(".", 1)[0] if enc else path).rsplit(".", 1)[-1]
+        ctype = _TYPES.get(ext, "application/octet-stream")
+        if partial:
+            common += b"Content-Range: bytes %d-%d/%d\r\n" % (start, end, size)
+            return self._head(206, ctype, c.left, common, keep=ka)
+        return self._head(200, ctype, c.left, common, keep=ka)
 
     def _finish(self, c):
         """Response fully sent: close, or (keep-alive) log it and await the next request."""
@@ -541,7 +779,16 @@ class WebPortal:
 
     @staticmethod
     def _head(status, ctype, length, extra=b"", keep=False):
-        reason = {200: "OK", 302: "Found", 400: "Bad Request", 404: "Not Found"}.get(status, "OK")
+        reason = {200: "OK", 206: "Partial Content", 302: "Found",
+                  304: "Not Modified", 400: "Bad Request", 404: "Not Found",
+                  406: "Not Acceptable",
+                  416: "Range Not Satisfiable"}.get(status, "OK")
+        # CircuitPython's bytes %-formatting accepts str operands; CPython
+        # (where tools/test_http_headers.py runs) does not
+        reason = reason.encode()
+        if isinstance(ctype, str):
+            ctype = ctype.encode()
         return (b"HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n"
-                b"Access-Control-Allow-Origin: *\r\nConnection: %s\r\n%s\r\n"
-                % (status, reason, ctype, length, b"keep-alive" if keep else b"close", extra))
+                b"Access-Control-Allow-Origin: *\r\nConnection: %s\r\n%s%s\r\n"
+                % (status, reason, ctype, length,
+                   b"keep-alive" if keep else b"close", _http_date(), extra))

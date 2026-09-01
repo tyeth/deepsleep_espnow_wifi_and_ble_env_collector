@@ -5,3 +5,18 @@ CIRCUITPY_WIFI_PASSWORD = "your-password"
 
 # Optional: keep the USB drive name obvious
 # CIRCUITPY_WEB_API_PASSWORD = ""
+
+# CircuitPython's own BLE workflow advertises as CIRCUITPY{mac} from the same
+# adapter as our portal, with its file-transfer GATT: leave it on and clients
+# can be handed the wrong service set, and the adapter name reverts to
+# CIRCUITPYxxxx whenever it re-advertises. The hub also turns it off at
+# runtime, but this stops it ever starting.
+CIRCUITPY_BLE_WORKFLOW = false
+
+# Who may write the filesystem on a board with USB mass storage (S3/S2;
+# the C6 has no drive so this is moot). "mcu" -- the default in boot.py --
+# means the hub can log its readings and NO drive appears on a computer;
+# "pc" gives the drive back and the hub logs nothing. Hold the BOOT button
+# at power-up to force "pc" for one boot when you need to copy files on.
+# The web page and POST /api/storage can switch it at runtime.
+# ENVHUB_USB_DRIVE = "pc"

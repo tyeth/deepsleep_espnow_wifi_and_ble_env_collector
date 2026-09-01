@@ -25,6 +25,9 @@ class EspNowHub:
         the AP (and can wedge USB), so it must come up before the AP."""
         self.enabled = False
         self.rx_count = 0
+        self.bad_count = 0
+        self.conf_count = 0   # confirmations handed to the radio (async ACK)
+        self.dup_count = 0
         self.last_error = None
         self._e = None
         self._peers = {}  # mac bytes -> espnow.Peer
@@ -36,7 +39,12 @@ class EspNowHub:
             print("ESP-NOW init failed:", exc)
 
     def poll(self):
-        """Drain the receive buffer. Returns list of (mac_bytes, dict, rssi)."""
+        """Drain the receive buffer.
+
+        Returns list of (mac_bytes, dict, rssi, crc) -- crc is the CRC-16 of
+        the bytes as received, which goes straight back in the confirmation
+        so the node can prove its packet arrived intact.
+        """
         out = []
         if not self.enabled:
             return out
@@ -50,10 +58,17 @@ class EspNowHub:
                 break
             if pkt is None:
                 break
-            obj = envproto.decode(pkt.msg)
+            raw = bytes(pkt.msg)
+            obj = envproto.decode(raw)
             if obj is not None:
                 self.rx_count += 1
-                out.append((bytes(pkt.mac), obj, pkt.rssi))
+                out.append((bytes(pkt.mac), obj, pkt.rssi, envproto.crc16(raw)))
+            else:
+                # undecodable: nothing to confirm (no id), but say so loudly --
+                # a corrupted frame is exactly what the CRC scheme is for
+                self.bad_count += 1
+                print("ESP-NOW: undecodable packet from %s (%d bytes)"
+                      % (envproto.mac_str(bytes(pkt.mac)), len(raw)))
         return out
 
     def _peer(self, mac):
