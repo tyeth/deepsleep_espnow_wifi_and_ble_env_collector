@@ -161,14 +161,19 @@ if _ecfg.get("ap_enabled", True):
 HTTP_WANTED = (_ecfg.get("ap_enabled", True)
                or bool(os.getenv("CIRCUITPY_WIFI_SSID")
                        or os.getenv("WIFI_SSID")))
+# A headless hub should not pay for the display stack at all: display_ui
+# pulls in adafruit_display_text and adafruit_bitmap_font, tens of KB of
+# flash and heap for a panel that is not there.
+DISPLAY_WANTED = _ecfg.get("display_enabled", True)
 del _ecfg
 
 import alerts
 import battery
 import calref
 import datastore
-import display_hw
-import display_ui
+if DISPLAY_WANTED:
+    import display_hw
+    import display_ui
 import net_espnow
 import sensors_local
 if HTTP_WANTED:
@@ -245,7 +250,7 @@ if SRAM_CS is not None:
 # ---------------------------------------------------------------------------
 display = None
 palette_mode = "quad"
-if not config.get("display_enabled", True):
+if not DISPLAY_WANTED:
     # Headless hub (and the bench rigs): the panel itself, not just its
     # dashboard tree, costs ~56KB of heap on the C6 -- the difference
     # between BLE + AP + HTTP fitting comfortably and not fitting at all.
