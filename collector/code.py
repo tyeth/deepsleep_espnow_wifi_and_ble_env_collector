@@ -245,14 +245,22 @@ if SRAM_CS is not None:
 # ---------------------------------------------------------------------------
 display = None
 palette_mode = "quad"
-try:
-    display, palette_mode = display_hw.init_display(
-        spi,
-        profile_name=config.get("display_profile", "auto"),
-        overrides=config.get("display"),
-    )
-except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
-    print("Display init failed:", exc)
+if not config.get("display_enabled", True):
+    # Headless hub (and the bench rigs): the panel itself, not just its
+    # dashboard tree, costs ~56KB of heap on the C6 -- the difference
+    # between BLE + AP + HTTP fitting comfortably and not fitting at all.
+    print("display disabled by config")
+    displayio.release_displays()
+else:
+    try:
+        display, palette_mode = display_hw.init_display(
+            spi,
+            profile_name=config.get("display_profile", "auto"),
+            overrides=config.get("display"),
+        )
+    except (ValueError, OSError, RuntimeError, AttributeError,
+            ImportError) as exc:
+        print("Display init failed:", exc)
 
 # Build the persistent dashboard NOW, while the heap is still roomy --
 # later (with the BLE stack + portals resident) there is not enough
@@ -265,7 +273,7 @@ _dashboard = None
 # + AP + eInk: the check passed with 85KB free, the tree took ~70KB, and
 # bring-up then died allocating 2400 bytes for the ring.
 _DASH_MIN_FREE = 40000
-if display is not None and config.get("display_enabled", True):
+if display is not None:
     for _slim in (False, True):
         try:
             gc.collect()
@@ -294,8 +302,6 @@ if display is not None and config.get("display_enabled", True):
             print("dashboard build failed:", exc)
             _dashboard = None
             break
-elif display is not None:
-    print("display disabled by config")
 
 sd_mounted = False
 if SD_CS is not None:
