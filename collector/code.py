@@ -839,9 +839,12 @@ def h_storage(body=None):
         return state
     want = str(body["owner"]).strip().lower()
     if want not in ("mcu", "pc"):
-        return {"err": 'owner must be "mcu" or "pc"', **state}
+        # (no dict-literal ** unpacking: CircuitPython does not have it)
+        state["err"] = 'owner must be "mcu" or "pc"'
+        return state
     if not has_msc:
-        return {"err": "this board has no USB drive to hand over", **state}
+        state["err"] = "this board has no USB drive to hand over"
+        return state
     config["usb_drive_owner"] = want
     saved = h_config_set({"usb_drive_owner": want})
     state["owner"] = want
