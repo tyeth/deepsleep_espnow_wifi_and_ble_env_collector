@@ -30,6 +30,8 @@ def main():
     ap.add_argument("url", nargs="?", default="http://192.168.4.1/")
     ap.add_argument("--shot", default="/tmp/hub_page.png")
     ap.add_argument("--timeout", type=float, default=90)
+    ap.add_argument("--sync", action="store_true",
+                    help="also pull the device's days and draw a chart")
     args = ap.parse_args()
 
     exe = next((b for b in BROWSERS if os.path.exists(b)), None)
@@ -65,6 +67,18 @@ def main():
         title = page.title()
         # the app fetches /api/latest itself; ask the page to do it again so a
         # failure shows up as a value rather than a silent empty dashboard
+        if args.sync:
+            # the whole path a user takes: pull the day CSVs off the device
+            # over the REST API, merge them, and draw
+            for sel in ("#btn-sync", "#btn-load"):
+                try:
+                    page.click(sel, timeout=10000)
+                    page.wait_for_timeout(15000)
+                except Exception as exc:
+                    print("click %s: %s" % (sel, str(exc)[:80]))
+            charted = page.evaluate(
+                "() => document.querySelectorAll('.js-plotly-plot').length")
+            print("plotly charts on the page:", charted)
         api = page.evaluate("""async () => {
             try {
                 const r = await fetch('/api/latest', {cache: 'no-store'});
@@ -83,8 +97,22 @@ def main():
         page.on("request", lambda r: conditional.append(
             (r.url, r.headers.get("if-none-match", ""))))
         page.reload(wait_until="load", timeout=int(args.timeout * 1000))
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(4000)
+        # ask for the vendor bundle again: it is lazy, so a reload alone
+        # never re-requests it, and its transfer size is the real evidence
+        # of whether the browser reused what it already had
+        try:
+            page.evaluate("""() => window.ensurePlotly && window.ensurePlotly()""")
+        except Exception:
+            pass
+        page.wait_for_timeout(15000)
         second = list(responses)
+        transfers = page.evaluate(r"""() => performance
+            .getEntriesByType('resource')
+            .filter(e => /plotly|icon\.svg|\/$/.test(e.name))
+            .map(e => ({name: e.name.split('/').slice(-1)[0] || '/',
+                        transferred: e.transferSize,
+                        size: e.decodedBodySize}))""")
         browser.close()
 
     print("\ntitle: %r" % title)
@@ -99,6 +127,10 @@ def main():
         print("   %s %s" % (status, url[:96]))
     revalidated = sum(1 for s, _ in second if s == 304)
     print("   -> %d served from cache as 304" % revalidated)
+    print("second-visit transfers (0 bytes = reused from cache):")
+    for t in transfers:
+        print("   %-20s transferred %7s of %s bytes"
+              % (t["name"], t["transferred"], t["size"]))
     asked = [(u, e) for u, e in conditional if e]
     print("   -> %d requests carried If-None-Match" % len(asked))
     for u, e in asked[:6]:
