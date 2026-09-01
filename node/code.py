@@ -80,10 +80,53 @@ _STASH_REC = struct.calcsize(_STASH_FMT)
 STASH_MAX = max(0, (len(alarm.sleep_memory) - STASH_START) // _STASH_REC)
 _NOVAL = 0xFFFF
 
+# Bench mode reloads instead of deep-sleeping, and a soft reboot CLEARS
+# alarm.sleep_memory (measured on the S3 devkit: boot counter and stash reset
+# every cycle, so nothing that depends on the stash or the message-id counter
+# could be tested there). Mirror the header + the first few stashed readings
+# through NVM across a bench reload -- one shot, cleared as soon as it is
+# read back, so a later cold boot cannot resurrect a stale stash. NVM[0:8] is
+# the pinned collector, so the mirror starts after it.
+BENCH_NVM_AT = 8
+BENCH_NVM_MAGIC = 0xE5
+BENCH_MIRROR = STASH_START + 8 * _STASH_REC
+
+
+def bench_state_save():
+    nvm = microcontroller.nvm
+    if nvm is None or len(nvm) < BENCH_NVM_AT + 1 + BENCH_MIRROR:
+        return
+    try:
+        nvm[BENCH_NVM_AT:BENCH_NVM_AT + 1 + BENCH_MIRROR] = (
+            bytes([BENCH_NVM_MAGIC])
+            + bytes(alarm.sleep_memory[0:BENCH_MIRROR]))
+    except (ValueError, OSError, MemoryError) as exc:
+        print("bench state save failed:", exc)
+
+
+def _bench_state_restore():
+    nvm = microcontroller.nvm
+    if nvm is None or len(nvm) < BENCH_NVM_AT + 1 + BENCH_MIRROR:
+        return False
+    if nvm[BENCH_NVM_AT] != BENCH_NVM_MAGIC:
+        return False
+    try:
+        alarm.sleep_memory[0:BENCH_MIRROR] = bytes(
+            nvm[BENCH_NVM_AT + 1:BENCH_NVM_AT + 1 + BENCH_MIRROR])
+        nvm[BENCH_NVM_AT] = 0
+    except (ValueError, OSError, MemoryError) as exc:
+        print("bench state restore failed:", exc)
+        return False
+    return alarm.sleep_memory[MEM_MAGIC] == MAGIC
+
+
 if alarm.sleep_memory[MEM_MAGIC] != MAGIC:
-    for i in range(STASH_START):
-        alarm.sleep_memory[i] = 0
-    alarm.sleep_memory[MEM_MAGIC] = MAGIC
+    if _bench_state_restore():
+        print("bench: sleep memory restored across the reload")
+    else:
+        for i in range(STASH_START):
+            alarm.sleep_memory[i] = 0
+        alarm.sleep_memory[MEM_MAGIC] = MAGIC
 
 alarm.sleep_memory[MEM_BOOTS] = (alarm.sleep_memory[MEM_BOOTS] + 1) % 256
 print("wake:", alarm.wake_alarm, "boot#", alarm.sleep_memory[MEM_BOOTS],
@@ -302,9 +345,10 @@ def blink(ok=True):
 def go_to_sleep(seconds):
     if not config.get("deep_sleep", True):
         # bench mode: keep USB/console alive, then rerun the wake cycle.
-        # sleep_memory (stash/seq/channel) survives a supervisor reload.
+        # A soft reboot wipes sleep_memory, so mirror it through NVM first.
         print("awake wait %ds (deep_sleep disabled)" % seconds)
         time.sleep(seconds)
+        bench_state_save()
         import supervisor
         supervisor.reload()
     print("deep sleep %ds" % seconds)

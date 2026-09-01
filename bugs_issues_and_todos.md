@@ -224,6 +224,35 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## 2026-09-01 devkit bench: delivery confirmation verified
+
+C6 devkit (`54:32:04:0c:d7:54`, console `/dev/ttyACM1`, IDF log `ttyACM0`)
+as hub with AP `BASE0CD754`; S3 DevKitC-1-N8 (`F4:12:FA:52:0B:F8`, console
+`ttyACM2`, IDF log `ttyUSB0`, CIRCUITPY also mounts on the Pi) as node with
+`"sensor": "sim"`. Node log:
+
+    read: {'co2': 622, ...}
+    delivered: hub confirmed sq=1 crc=82b5 on ch1
+    bench: resending the identical packet   (x2, "test_resend": 2)
+
+Hub log, same exchange:
+
+    dat sq=1 crc=82b5 from bench-s3: accepted, confirming
+    duplicate dat sq=1 from bench-s3: re-confirming, not storing   (x2)
+
+So: id + CRC round-trip intact over the air, retries re-confirmed and not
+double-stored, and the same for the discovery packet (`dsc sq=2 crc=b11b`).
+
+**New finding (node, bench mode): `alarm.sleep_memory` does NOT survive
+`supervisor.reload()`** on 10.3.0-alpha.4 (S3): every bench cycle came up
+`boot# 1 stash: 0` with the message-id counter back at 1. Only
+`microcontroller.nvm` (the pinned collector) survived. Bench mode now
+mirrors the sleep-memory header + the first 8 stashed readings through NVM
+across the reload, one shot, so stash and retransmission behaviour can be
+tested without a real deep sleep. Worth an upstream question: is clearing
+sleep_memory on a soft reboot intended? (It is documented as surviving
+deep sleep, which it does.)
+
 ## Known limits of the delivery confirmation (2026-09-01)
 
 Nodes now count a reading as delivered only when the hub echoes the message
