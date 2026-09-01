@@ -353,6 +353,17 @@ practical ones you need before touching the boards.
   bridge. A hard fault or a `BLE_INIT` failure shows up only on the latter.
 * **Entering the REPL disables auto-reload**, so a board parked at the
   "Press any key" prompt ignores file changes until it is reset.
+* **BLE only starts on a fresh boot.** After `supervisor.reload()` the
+  controller cannot be re-initialised in the same power cycle: `_bleio`
+  raises `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
+  failed`). Deep-sleeping nodes boot fresh every wake and are fine; bench
+  mode (which reloads) only gets BLE on its first cycle after a reset.
+  Coexistence is *not* the problem -- after a hard reset BLE came up
+  alongside wifi and ESP-NOW on an S3 with ~95 KB still free.
+* **Opening the UART-bridge port can drop the board into safe mode**
+  ("You pressed the BOOT button at start up"): the auto-reset circuit
+  drives IO0 from DTR/RTS. Reset from the REPL side
+  (`microcontroller.reset()`) instead.
 * **`supervisor.get_previous_traceback()`** recovers the crash you missed
   because nothing was attached to the console. Invaluable.
 * **`mpremote fs cp` is broken for new files** on the 10.3 alphas, and
