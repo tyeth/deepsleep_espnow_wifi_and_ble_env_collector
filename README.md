@@ -61,8 +61,28 @@ or frequently updated pieces go on the card. Vendor bundles are loaded from
 | File | Where | Notes |
 |---|---|---|
 | `www/vendor/plotly.min.js` | flash (1.1 MB, plotly-**basic**) or SD | charts are line traces; the basic dist suffices |
+| `www/vendor/plotly.min.js.gz` (optional twin) | same place | served instead when the browser accepts gzip — about a third of the bytes. Make it with `gzip -9 -k plotly.min.js` |
 | `www/vendor/pyodide/pyodide.js` + the rest of the Pyodide `full/` tree | SD only (tens of MB) | change detection / future offline Python |
 | `certs/fullchain.pem`, `certs/key.pem` | SD (`/sd/certs`) first, then flash `/certs` | HTTPS certificate for `192dot168dot4dot1.gundryconsultancy.com`; renewable via the page's *sync cert* / *upload* or auto when online |
+
+### How the hub serves those files
+
+The AP has no internet, so a browser that has forgotten the page pulls the
+whole bundle again. Three things keep that bearable, all in `net_wifi.py`:
+
+* **ETag + `Cache-Control`** on every static file, so a reload sends
+  `If-None-Match` and gets a 304 instead of a megabyte. Files under
+  `vendor/` are `immutable` (they are versioned by filename); everything
+  else revalidates; API responses are `no-store`.
+* **`Range` support** — a transfer interrupted part way (walking out of
+  range, a phone sleeping) resumes instead of restarting.
+* **A `.gz` twin wins when the browser accepts gzip**, with
+  `Vary: Accept-Encoding`. The board never compresses anything itself.
+
+Connections are keep-alive (HTTP as well as HTTPS) so a page does not pay
+for a new connection per asset, and when a browser has taken every slot the
+longest-idle one is evicted rather than refusing to accept — a refused
+connection is what leaves a page half-loaded.
 
 ## Install
 

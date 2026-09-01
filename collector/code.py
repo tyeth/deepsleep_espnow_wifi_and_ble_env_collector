@@ -81,6 +81,17 @@ _ble_uart = None
 _ble_adv = None
 if _ecfg.get("ble_enabled", True):
     try:
+        # CircuitPython's own BLE workflow advertises as CIRCUITPY{mac} from
+        # this same adapter, with its file-transfer GATT. Left running it
+        # competes with ours: the adapter name flips back to CIRCUITPYxxxx
+        # on a re-advertise, and a client that connected to one service set
+        # can be handed the other from its cache.
+        try:
+            import supervisor
+            supervisor.disable_ble_workflow()
+            print("CircuitPython BLE workflow disabled (ours takes the radio)")
+        except (ImportError, AttributeError):
+            pass
         from adafruit_ble import BLERadio
         from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
         from adafruit_ble.services.nordic import UARTService

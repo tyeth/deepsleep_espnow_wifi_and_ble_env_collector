@@ -72,6 +72,14 @@ class BleUartPortal:
             print("BLE not available on this board/build")
             return
         try:
+            if radio is None:
+                # stop CircuitPython's own workflow advertising as
+                # CIRCUITPY{mac} from the same adapter (see collector/code.py)
+                try:
+                    import supervisor
+                    supervisor.disable_ble_workflow()
+                except (ImportError, AttributeError):
+                    pass
             self.radio = radio or BLERadio()
             self.uart = uart or UARTService()
             if adv is not None:
