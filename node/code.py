@@ -187,6 +187,7 @@ DEFAULTS = {
     "cal_min_batt_v": 3.7,         # refuse a long awake window on a low cell
     "require_confirmation": True,  # False = trust the MAC-layer ACK (see
                                    # REQUIRE_CONF below)
+    "test_resend": 0,              # bench: extra identical resends per wake
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "deep_sleep": True,            # False = bench mode: stay awake between
@@ -276,6 +277,10 @@ COLLECTOR_MAC = bytes(
 # with BLE resident, issue 10): the MAC-layer ACK becomes good enough again,
 # at the price of losing the "the hub really stored it" guarantee.
 REQUIRE_CONF = bool(config.get("require_confirmation", True))
+
+# Bench only: after a confirmed report, send the identical packet again N
+# times. The hub must re-confirm each one and store none of them.
+TEST_RESEND = int(config.get("test_resend", 0))
 
 interval = mem_get_u16(MEM_INTERVAL) or config["interval_s"]
 
@@ -555,7 +560,15 @@ def espnow_report():
                 if not confirmed:
                     confirmed, obj = _send_confirmed(e, peer, packet, seq,
                                                      tries=1)
-                if not confirmed:
+                if confirmed:
+                    print("delivered: hub confirmed sq=%d crc=%04x on ch%d"
+                          % (seq, packet_crc, ch))
+                    for _ in range(TEST_RESEND):
+                        # bench hook: prove the hub re-confirms an identical
+                        # retry instead of storing the reading twice
+                        print("bench: resending the identical packet")
+                        _send_confirmed(e, peer, packet, seq, tries=1)
+                else:
                     # Do NOT go hunting: the hub answered at MAC level, so
                     # rediscovery would spend ~20s of awake time on 13
                     # channels to find the hub we are already talking to.

@@ -888,6 +888,8 @@ def take_node_packet(mac, obj, crc, rssi=None):
     else:
         try:
             _handle_node_packet(mac, obj, rssi)
+            print("%s sq=%s crc=%04x from %s: stored, confirming"
+                  % (kind, msg_id, crc, src))
         except Exception as exc:  # tell the node the truth: we lost it
             ok = False
             print("storing %s from %s failed: %s: %s"
