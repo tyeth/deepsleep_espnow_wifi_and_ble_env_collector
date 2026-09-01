@@ -78,6 +78,7 @@ _TLS_IDLE_NOREQ_S = 10    # TLS session with no request yet: the handshake itsel
 _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
 _MAX_CONNS = 6
+_ACCEPT_ERRS_BEFORE_RESTART = 5   # rebuild the listening socket after this many
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
 _TLS_WRAP_GIVEUP_S = 4      # how long to keep retrying wrap_socket on MemoryError
 _EAGAIN = 11
@@ -188,6 +189,7 @@ class WebPortal:
         self._buf = bytearray(1024)
         self._conns = []
         self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
+        self._accept_errs = 0   # consecutive listener failures
 
     # -- routing ------------------------------------------------------------
 
@@ -363,6 +365,28 @@ class WebPortal:
         self.ok = True
         return True
 
+    def _restart_listener(self):
+        """Rebuild the listening socket after repeated accept() failures.
+
+        Existing connections are left alone -- they may still be streaming.
+        """
+        try:
+            self.server.close()
+        except OSError:
+            pass
+        self.server = None
+        try:
+            pool = socketpool.SocketPool(wifi.radio)
+            s = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
+            s.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
+            s.bind(("0.0.0.0", self.port))
+            s.listen(4)
+            s.setblocking(False)
+            self.server = s
+            print("HTTP listener rebuilt on port", self.port)
+        except OSError as exc:
+            print("HTTP listener rebuild failed (will retry):", exc)
+
     def poll(self):
         if not self.server:
             return
@@ -385,8 +409,21 @@ class WebPortal:
         while len(self._conns) < _MAX_CONNS:
             try:
                 sock, _addr = self.server.accept()
-            except OSError:
+            except OSError as exc:
+                if exc.errno == _EAGAIN or exc.errno is None:
+                    self._accept_errs = 0     # nothing waiting: normal
+                else:
+                    # A listening socket that keeps failing takes the whole
+                    # portal down silently, and the user just sees a page
+                    # that never loads. Rebuild it rather than sit there.
+                    self._accept_errs += 1
+                    if self._accept_errs >= _ACCEPT_ERRS_BEFORE_RESTART:
+                        print("HTTP: listener failing (%s); restarting it"
+                              % exc)
+                        self._accept_errs = 0
+                        self._restart_listener()
                 break
+            self._accept_errs = 0
             sock.setblocking(False)
             self._conns.append(_Conn(sock))
         # https: accept() performs the TLS handshake (blocking, ~1 s); the served
