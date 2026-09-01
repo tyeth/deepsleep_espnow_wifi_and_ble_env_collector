@@ -88,10 +88,10 @@ if _ecfg.get("ble_enabled", True):
         # can be handed the other from its cache.
         try:
             import supervisor
-            supervisor.disable_ble_workflow()
-            print("CircuitPython BLE workflow disabled (ours takes the radio)")
-        except (ImportError, AttributeError):
-            pass
+            supervisor.runtime.ble_workflow = False
+            print("CircuitPython BLE workflow off (ours takes the radio)")
+        except (ImportError, AttributeError) as exc:
+            print("could not stop the CircuitPython BLE workflow:", exc)
         from adafruit_ble import BLERadio
         from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
         from adafruit_ble.services.nordic import UARTService
@@ -259,23 +259,43 @@ except (ValueError, OSError, RuntimeError, AttributeError, ImportError) as exc:
 # contiguous memory left to construct its ~40 display objects. Refreshes
 # only mutate it in place from here on.
 _dashboard = None
-if display is not None:
-    try:
-        gc.collect()
-        _dashboard = display_ui.Dashboard(
-            180 if display.width == 184 else display.width,
-            180 if display.height == 184 else display.height,
-            palette_mode,
-            lite=gc.mem_free() < 60000,  # C6 with BLE resident: slim tree
-        )
-        # attach now: the boot-screen group (already on the panel) becomes
-        # garbage and its RAM comes back; the panel itself keeps showing
-        # "Loading Data" until the first dashboard refresh
-        display.root_group = _dashboard.root
-        gc.collect()
-        print("dashboard tree built (mem %d)" % gc.mem_free())
-    except (MemoryError, ValueError) as exc:
-        print("dashboard build failed:", exc)
+# What the rest of bring-up still needs after the tree: datastore's ring,
+# the captive DNS, the HTTP server and the BLE portal. Judging "is there
+# room for the full tree?" BEFORE building it was wrong on a C6 running BLE
+# + AP + eInk: the check passed with 85KB free, the tree took ~70KB, and
+# bring-up then died allocating 2400 bytes for the ring.
+_DASH_MIN_FREE = 40000
+if display is not None and config.get("display_enabled", True):
+    for _slim in (False, True):
+        try:
+            gc.collect()
+            lite = _slim or gc.mem_free() < 60000
+            _dashboard = display_ui.Dashboard(
+                180 if display.width == 184 else display.width,
+                180 if display.height == 184 else display.height,
+                palette_mode,
+                lite=lite,
+            )
+            # attach now: the boot-screen group (already on the panel)
+            # becomes garbage and its RAM comes back; the panel itself keeps
+            # showing "Loading Data" until the first dashboard refresh
+            display.root_group = _dashboard.root
+            gc.collect()
+            print("dashboard tree built (%s, mem %d)"
+                  % ("lite" if lite else "full", gc.mem_free()))
+            if lite or gc.mem_free() >= _DASH_MIN_FREE:
+                break
+            print("dashboard leaves only %d free; rebuilding it slim"
+                  % gc.mem_free())
+            _dashboard = None
+            display.root_group = displayio.Group()
+            gc.collect()
+        except (MemoryError, ValueError) as exc:
+            print("dashboard build failed:", exc)
+            _dashboard = None
+            break
+elif display is not None:
+    print("display disabled by config")
 
 sd_mounted = False
 if SD_CS is not None:

@@ -77,7 +77,7 @@ class BleUartPortal:
                 # CIRCUITPY{mac} from the same adapter (see collector/code.py)
                 try:
                     import supervisor
-                    supervisor.disable_ble_workflow()
+                    supervisor.runtime.ble_workflow = False
                 except (ImportError, AttributeError):
                     pass
             self.radio = radio or BLERadio()
