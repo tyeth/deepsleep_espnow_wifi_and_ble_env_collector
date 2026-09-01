@@ -34,6 +34,7 @@ import wifi
 import calref
 import envproto
 import node_sensors
+import node_store
 from battery import BatteryMonitor
 
 # --------------------------------------------------------------------------
@@ -231,6 +232,10 @@ DEFAULTS = {
     "require_confirmation": True,  # False = trust the MAC-layer ACK (see
                                    # REQUIRE_CONF below)
     "test_resend": 0,              # bench: extra identical resends per wake
+    "ble_config_s": 0,             # seconds to serve the BLE config portal
+                                   # each wake (0 = off; awake time costs
+                                   # battery). Bench mode holds it open for
+                                   # the whole wait.
     "wifi_fallback": False,
     "collector_url": "",          # e.g. "http://192.168.1.50"
     "deep_sleep": True,            # False = bench mode: stay awake between
@@ -908,6 +913,103 @@ if _pending:
         print("CAL pending in %ds; next wake in %ds" % (_at - _now, interval))
 
 # --------------------------------------------------------------------------
+# BLE config window
+#
+# A node is configured over ESP-NOW (the hub's cfg push), over the web API
+# (the hub's /api/config), or here: the same Nordic-UART portal the hub
+# serves, so one phone page talks to either device. Off by default -- the
+# window is awake time a battery node pays for. Bench mode (deep_sleep
+# false) keeps it up for the whole wait instead.
+# --------------------------------------------------------------------------
+BLE_CONFIG_S = int(config.get("ble_config_s", 0))
+BLE_NAME = "SENSOR-" + envproto.short_mac(wifi.radio.mac_address)
+
+
+def h_ble_latest():
+    return {"n": config["name"], "type": sensor.kind, "m": metrics,
+            "vb": batt_v, "ts": reading_ts, "sq": seq,
+            "delivered": bool(sent),
+            "stash": alarm.sleep_memory[MEM_STASH_N],
+            "channel": alarm.sleep_memory[MEM_CHANNEL],
+            "interval_s": interval}
+
+
+def h_ble_config():
+    return dict(config)
+
+
+def h_ble_config_set(body):
+    """Merge settings in and persist them. Only known keys, and only with
+    the type the default has, so a typo cannot brick the next boot."""
+    if not isinstance(body, dict):
+        return {"err": "expected a JSON object"}
+    applied, rejected = {}, {}
+    for key, val in body.items():
+        if key not in DEFAULTS:
+            rejected[key] = "unknown setting"
+            continue
+        want = DEFAULTS[key]
+        if want is not None and not isinstance(val, type(want)) and not (
+                isinstance(want, (int, float)) and isinstance(val, (int, float))
+                and not isinstance(val, bool)):
+            rejected[key] = "expected %s" % type(want).__name__
+            continue
+        config[key] = val
+        applied[key] = val
+    if not applied:
+        return {"err": "nothing applied", "rejected": rejected}
+    config["configured"] = True
+    saved = node_store.save_config(config)
+    return {"ok": bool(saved), "saved_to": saved, "applied": applied,
+            "rejected": rejected,
+            "note": "settings apply from the next wake"
+            if saved else "could not write the file: settings are "
+            "in RAM only and will be lost at reset"}
+
+
+def h_ble_time(epoch):
+    apply_hub_time(int(epoch))
+    return {"ok": True, "ts": int(time.time())}
+
+
+def ble_window(seconds):
+    """Serve the BLE portal for `seconds`; returns the seconds spent.
+
+    A connected client extends the window so a phone is not cut off part
+    way through a sync, up to twice the requested time.
+    """
+    if seconds <= 0:
+        return 0
+    started = time.monotonic()
+    try:
+        import net_ble
+    except ImportError as exc:
+        print("BLE portal unavailable:", exc)
+        return 0
+    portal = net_ble.BleUartPortal(
+        {"latest": h_ble_latest, "config_get": h_ble_config,
+         "config_set": h_ble_config_set, "time_set": h_ble_time},
+        name=BLE_NAME)
+    if not portal.ok:
+        return time.monotonic() - started
+    print("BLE config window: %s for %ds" % (BLE_NAME, seconds))
+    deadline = started + seconds
+    hard_stop = started + 2 * seconds
+    try:
+        while time.monotonic() < deadline:
+            portal.poll()
+            if portal.connected and time.monotonic() > deadline - 15:
+                deadline = min(hard_stop, time.monotonic() + 15)
+            time.sleep(0.05)
+    finally:
+        try:
+            portal.stop()
+        except Exception as exc:      # never let BLE teardown skip the sleep
+            print("BLE portal stop failed:", exc)
+    return time.monotonic() - started
+
+
+# --------------------------------------------------------------------------
 # Sleep
 # --------------------------------------------------------------------------
 try:
@@ -918,4 +1020,12 @@ except (OSError, RuntimeError):
 if not sent and not _pending:
     # back off but never disappear for long when unreachable
     interval = min(interval, 300)
+
+if BLE_CONFIG_S:
+    # bench mode: hold the portal open through the whole wait instead of
+    # sleeping first, so a phone can always find the node
+    window = interval if not config.get("deep_sleep", True) else min(
+        BLE_CONFIG_S, interval)
+    interval = max(5, interval - int(ble_window(window)))
+
 go_to_sleep(interval)

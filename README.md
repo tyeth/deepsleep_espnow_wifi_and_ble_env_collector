@@ -263,6 +263,31 @@ discovery when unpinned) → apply the cfg reply (interval / metrics / ASC
 reading on failure → deep sleep. Falls back to `POST /api/ingest` over
 WiFi if configured. Every path ends in deep sleep.
 
+A reading counts as **delivered only when the hub confirms it** — the hub
+echoes the packet's message id and the CRC-16 of the bytes it received,
+after storing it. The ESP-NOW MAC-layer ACK alone proves nothing about the
+hub having the data, so an unconfirmed reading is retried, then sent over
+the WiFi fallback, then stashed. (`require_confirmation: false` reverts to
+the old MAC-ACK behaviour for a hub that can receive but not transmit.)
+
+**Three ways to configure a node**, all of them optional extras on top of
+the self-configuring default:
+
+* **ESP-NOW** — the hub's cfg push on every check-in (interval, metrics,
+  ASC policy, calibration window, epoch). This is the normal path.
+* **BLE** — `"ble_config_s": <seconds>` serves the same Nordic-UART portal
+  the hub does, advertising as `SENSOR-xxxxxx`, for that long after each
+  wake (bench mode holds it open for the whole wait). A phone gets
+  `latest`, `config`, `set <json>` and `time <epoch>`; anything the node
+  does not implement is answered with the list of what it does. Off by
+  default: the window is awake time a battery node pays for.
+* **Web API** — the hub's `/api/config`, which reaches the node in the next
+  ESP-NOW cfg push.
+
+plus the first-boot WiFi portal (`node_portal.py`) for naming a brand-new
+node. BLE and the WiFi portal both persist through `node_store.py`, which
+copes with USB mass storage holding CIRCUITPY read-only.
+
 ## Repo layout
 
 ```
