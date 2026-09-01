@@ -307,6 +307,57 @@ class Sen5x(_Base):
             self.s.stop()
 
 
+class SimSensor:
+    """Synthetic sensor for bench rigs: a bare devkit with nothing on I2C.
+
+    Enabled with "sensor": "sim" in node_config.json -- never by accident,
+    and never by falling back when a real sensor fails to answer, because
+    invented numbers must not be mistakable for measurements. The kind is
+    reported as "sim" so every record says where the values came from.
+
+    Values walk slowly around plausible indoor figures (LCG, no floats
+    beyond the final scaling) so the hub's alert, trend and calibration
+    paths have something realistic to chew on.
+    """
+
+    kind = "sim"
+
+    def __init__(self, seed=None):
+        self._r = (seed if seed is not None else int(time.monotonic() * 7)) or 1
+        self._co2 = 620
+        self._tc = 21.0
+        self._rh = 47.0
+        self.asc = False
+
+    def _walk(self, value, step, lo, hi):
+        self._r = (self._r * 1103515245 + 12345) & 0x7FFFFFFF
+        value += ((self._r >> 16) % (2 * step + 1)) - step
+        return min(hi, max(lo, value))
+
+    def begin(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def set_asc(self, enabled):
+        self.asc = bool(enabled)
+
+    def force_recal(self, ppm):
+        correction = int(ppm) - int(self._co2)
+        self._co2 = int(ppm)
+        return correction
+
+    def read(self, timeout_s=10):
+        self._co2 = self._walk(self._co2, 25, 400, 2200)
+        self._tc = round(self._walk(int(self._tc * 10), 4, 150, 300) / 10.0, 1)
+        self._rh = round(self._walk(int(self._rh * 10), 8, 250, 750) / 10.0, 1)
+        return {"co2": self._co2, "tc": self._tc, "rh": self._rh,
+                "pm25": round(self._walk(30, 6, 2, 400) / 10.0, 1),
+                "voc": self._walk(100, 5, 40, 260),
+                "nox": self._walk(1, 1, 1, 20)}
+
+
 def detect(i2c):
     """Scan the bus and return a wrapped driver, or None."""
     while not i2c.try_lock():

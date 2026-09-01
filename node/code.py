@@ -179,6 +179,8 @@ DEFAULTS = {
     "collector_mac": "",          # optional pin; blank = ESP-NOW discovery
     "interval_s": 120,
     "metrics": None,               # None = send everything the sensor has
+    "sensor": "",                  # "" = auto-detect on I2C, "sim" = bench
+                                   # rig with synthetic readings
     "pm_warmup_s": 20,             # extra fan spin-up for SEN5x/SEN6x PM
     "cal_measure_s": 180,          # fallback window when the hub sends none
     "cal_max_spread_ppm": 60,      # stability gate over the last 15 min
@@ -308,8 +310,18 @@ def go_to_sleep(seconds):
 # --------------------------------------------------------------------------
 # Sensor
 # --------------------------------------------------------------------------
-i2c = board.I2C()
-sensor = node_sensors.detect(i2c)
+if config.get("sensor") == "sim":
+    # bench rig: a devkit with nothing on the bus. Explicit config only.
+    i2c = None
+    sensor = node_sensors.SimSensor()
+    print("SIMULATED sensor: readings below are synthetic, not measurements")
+else:
+    try:
+        i2c = board.I2C()
+    except (RuntimeError, ValueError) as exc:
+        print("I2C bus unavailable:", exc)
+        i2c = None
+    sensor = node_sensors.detect(i2c) if i2c is not None else None
 if sensor is None:
     print("no sensor found; retrying in %ds" % interval)
     blink(False)
