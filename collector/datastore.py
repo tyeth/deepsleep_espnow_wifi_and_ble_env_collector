@@ -149,6 +149,7 @@ class DataStore:
         self._pending = []     # CSV lines waiting for storage
         self._pending_events = []
         self._last_flush = time.monotonic()
+        self.read_only = False   # set by _pick_root
         self.root = self._pick_root()
         self.write_errors = 0
         self.dropped_lines = 0
@@ -163,6 +164,8 @@ class DataStore:
 
     @property
     def mode(self):
+        if self.read_only:
+            return "%s (read-only)" % ("sd" if self.sd_ok else "flash")
         return "sd" if self.sd_ok else ("flash" if self.root else "ram")
 
     def data_dir(self):
@@ -180,14 +183,33 @@ class DataStore:
             return False
 
     def _pick_root(self):
+        """The first writable root, else one that at least holds data.
+
+        A hub whose storage has gone read-only -- USB mass storage mounted
+        on a computer, a write-protected or full card -- can still SERVE the
+        history it already has. Buffering new readings in RAM and refusing
+        to list the days on the card at the same time is the worst of both.
+        """
+        readable = None
         for root in self.roots:
             try:
                 os.listdir(root)
             except OSError:
                 continue
             if self._writable(root):
+                self.read_only = False
                 return root
-        return None
+            if readable is None:
+                try:
+                    os.listdir(root.rstrip("/") + "/data")
+                    readable = root      # has history, just cannot be written
+                except OSError:
+                    pass
+        self.read_only = readable is not None
+        if readable:
+            print("storage: %s is read-only (USB drive mounted?); serving "
+                  "existing days, buffering new data in RAM" % readable)
+        return readable
 
     def _free_bytes(self):
         try:
@@ -319,9 +341,11 @@ class DataStore:
         self._last_flush = time.monotonic()
         if not (self._pending or self._pending_events):
             return True
-        if self.root is None:
-            self.root = self._pick_root()  # SD inserted / storage appeared?
-        if self.root is None:
+        if self.root is None or self.read_only:
+            # re-probe: an SD card may have been inserted, or the USB drive
+            # ejected, making storage writable after all
+            self.root = self._pick_root()
+        if self.root is None or self.read_only:
             self._drop_bounded()
             return False
         need = sum(len(l) for _, l in self._pending) + sum(

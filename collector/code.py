@@ -507,6 +507,9 @@ def h_latest():
     # re-confirmed as a duplicate, or could not decode at all
     mesh = {"rx": hub.rx_count, "conf": hub.conf_count, "dup": hub.dup_count,
             "bad": hub.bad_count}
+    # storage state belongs in the status a phone can see: "ram" or
+    # "(read-only)" is why history looks empty
+    mesh["store"] = store.mode
     if hub.last_error:
         mesh["err"] = hub.last_error
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
