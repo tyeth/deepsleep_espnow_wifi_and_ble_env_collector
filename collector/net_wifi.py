@@ -18,6 +18,8 @@ Routes (all JSON unless noted):
                              "mode":"frc"|"asc"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
   POST /api/time            {"epoch": ...} browser clock sync
+  GET  /api/storage         who owns the filesystem (MCU logs / PC drive)
+  POST /api/storage         {"owner":"mcu"|"pc","now":true} set it
 
 The command handlers themselves live in code.py (shared with BLE); this
 module wires HTTP to them with a deliberately small non-blocking server on
@@ -242,6 +244,8 @@ class WebPortal:
                 return _json(h["events"]())
             if path == "/api/config":
                 return _json(h["config_get"]())
+            if path == "/api/storage":
+                return _json(h["storage"]())
             if path == "/api/calibrate":
                 return _json(h["cal_status"]())
             if path == "/api/cert":
@@ -268,6 +272,10 @@ class WebPortal:
                 return _json(self.install_cert(data.get("cert", ""), data.get("key", "")))
             if path == "/api/time":
                 return _json(h["time_set"](data.get("epoch")))
+            if path == "/api/storage":
+                # {"owner": "mcu"|"pc", "now": true} -- who may write the
+                # filesystem; "now" ejects a mounted drive immediately
+                return _json(h["storage"](data))
             if path == "/api/reset":
                 # a headless hub (no console, no button within reach) still
                 # has to be restartable after a deploy

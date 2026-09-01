@@ -97,11 +97,30 @@ driving Chromium):
 | `Range: bytes=0-99` | 206 with `Content-Range: bytes 0-99/354258` |
 | in the browser | `window.Plotly` defined, days synced, charts drawn from device data |
 
-**Storage note**: the hub cannot write to its own CIRCUITPY while a
-computer has the USB drive mounted. It says so (`"store": "flash
-(read-only)"` in `GET /api/latest`), still serves the history already on
-the card, buffers new readings in RAM, and starts writing again — without a
-restart — as soon as the drive is ejected or an SD card appears.
+### Who owns the filesystem: the hub or a PC
+
+On boards with USB mass storage the two cannot both write CIRCUITPY, and a
+hub that cannot write logs nothing. So `collector/boot.py` gives the
+filesystem to the **MCU by default** — the hub logs, and no drive appears
+on a computer. Three ways to change that:
+
+| | |
+|---|---|
+| `settings.toml` | `ENVHUB_USB_DRIVE = "pc"` |
+| `config.json` | `"usb_drive_owner": "pc"` |
+| BOOT button | held at power-up → PC for that boot, whatever the settings say — the way back in |
+
+The web page has the switch too (*filesystem: hub logs (MCU) / PC drive*,
+with a warning on each), over `GET`/`POST /api/storage`
+(`{"owner":"mcu"|"pc","now":true}`). `"now"` ejects a mounted drive
+straight away rather than waiting for a restart — only in that direction,
+since handing the drive *back* needs the boot-time call. It is the
+"unsafe" variant by name because a host part-way through a write loses it.
+
+Whatever the setting, a read-only hub still **serves the history it
+already has**, reports `"store": "flash (read-only)"` in `GET
+/api/latest`, buffers new readings in RAM, and starts writing the moment
+the drive is released or an SD card appears.
 
 ## Install
 

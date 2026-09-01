@@ -803,6 +803,62 @@ def h_reset():
     return {"ok": True, "resetting_in_s": 1.5}
 
 
+def h_storage(body=None):
+    """Read or set who owns the filesystem: the MCU (so the hub can log) or
+    a host PC (so you can drag files onto CIRCUITPY).
+
+    Only boards with USB mass storage have the choice at all; the C6 has no
+    drive, so it is always the MCU's. Takes effect at the next boot, which
+    is what makes it safe -- see collector/boot.py.
+    """
+    has_msc = True
+    try:
+        import storage
+        has_msc = hasattr(storage, "disable_usb_drive")
+    except ImportError:
+        has_msc = False
+    state = {"owner": config.get("usb_drive_owner", "mcu"),
+             "effective": "pc" if store.read_only else "mcu",
+             "supported": has_msc,
+             "store": store.mode}
+    if not body or "owner" not in body:
+        return state
+    want = str(body["owner"]).strip().lower()
+    if want not in ("mcu", "pc"):
+        return {"err": 'owner must be "mcu" or "pc"', **state}
+    if not has_msc:
+        return {"err": "this board has no USB drive to hand over", **state}
+    config["usb_drive_owner"] = want
+    saved = h_config_set({"usb_drive_owner": want})
+    state["owner"] = want
+    state["saved"] = saved.get("ok", False) if isinstance(saved, dict) else False
+    state["note"] = ("the hub keeps the filesystem and no drive appears"
+                     if want == "mcu" else
+                     "a computer gets the drive and the hub stops logging")
+    # "now": take the drive immediately instead of waiting for a boot. Only
+    # possible in this direction -- handing it BACK to a computer needs the
+    # boot-time call. The warning is real: a host part-way through a write
+    # loses it, which is why CircuitPython calls this one unsafe.
+    if want == "mcu" and body.get("now"):
+        try:
+            import storage as _st
+            _st.unsafe_disable_usb_drive()
+            _st.remount("/", readonly=False)
+            store.read_only = False
+            store.root = store._pick_root()
+            state["applied"] = True
+            state["store"] = store.mode
+            print("storage: USB drive ejected on request; logging to",
+                  store.root)
+        except Exception as exc:
+            state["applied"] = False
+            state["err"] = "%s: %s" % (type(exc).__name__, exc)
+            state["reset_required"] = True
+    else:
+        state["reset_required"] = True
+    return state
+
+
 def h_time_set(epoch):
     """Set the hub clock (browser time via web page / BLE). Pending
     records buffered with a wrong clock are retro-adjusted."""
@@ -859,6 +915,7 @@ handlers = {
     "data_dir": lambda: store.data_dir(),
     "time_set": h_time_set,
     "reset": h_reset,
+    "storage": h_storage,
 }
 
 # ---------------------------------------------------------------------------
