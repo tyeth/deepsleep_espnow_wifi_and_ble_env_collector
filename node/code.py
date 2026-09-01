@@ -28,6 +28,14 @@ import board
 import digitalio
 import espnow
 import microcontroller
+import supervisor
+
+# A deploy copies several files, and a node has a lot to lose from
+# restarting between them: a reload wipes alarm.sleep_memory -- the stash of
+# unsent readings, the message-id counter, the channel -- and cuts a report
+# or a calibration window in half. Reset deliberately when the copy is done
+# (Ctrl-D, the button, or microcontroller.reset()).
+supervisor.runtime.autoreload = False
 import rtc
 import wifi
 
@@ -354,7 +362,6 @@ def go_to_sleep(seconds):
         print("awake wait %ds (deep_sleep disabled)" % seconds)
         time.sleep(seconds)
         bench_state_save()
-        import supervisor
         supervisor.reload()
     print("deep sleep %ds" % seconds)
     t = alarm.time.TimeAlarm(monotonic_time=time.monotonic() + seconds)

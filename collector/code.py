@@ -831,7 +831,19 @@ def h_storage(body=None):
         has_msc = hasattr(storage, "disable_usb_drive")
     except ImportError:
         has_msc = False
-    state = {"owner": config.get("usb_drive_owner", "mcu"),
+    # the NVM flag is what boot.py actually obeys, so report that when set
+    # -- config.json can be stale precisely when it matters (a read-only
+    # filesystem is why the choice went to NVM in the first place)
+    owner_now = config.get("usb_drive_owner", "mcu")
+    try:
+        _flag = microcontroller.nvm[0]
+        if _flag == 0xF0:
+            owner_now = "mcu"
+        elif _flag == 0xF1:
+            owner_now = "pc"
+    except Exception:
+        pass
+    state = {"owner": owner_now,
              "effective": "pc" if store.read_only else "mcu",
              "supported": has_msc,
              "store": store.mode}
