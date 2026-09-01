@@ -288,6 +288,89 @@ plus the first-boot WiFi portal (`node_portal.py`) for naming a brand-new
 node. BLE and the WiFi portal both persist through `node_store.py`, which
 copes with USB mass storage holding CIRCUITPY read-only.
 
+## CircuitPython gotchas (learned the hard way on this project)
+
+Behaviours that cost real bench time. Firmware-level suspicions and the
+upstream-worthy ones live in `bugs_issues_and_todos.md`; these are the
+practical ones you need before touching the boards.
+
+**Radios**
+
+* **Importing `adafruit_ble` starts the BLE controller.** On an ESP32 with
+  the wifi stack already up there may not be a large enough contiguous
+  *internal* block left, and the import fails with
+  `espidf.IDFError: Invalid state` (IDF log: `BLE_INIT: controller init
+  failed`, e.g. `idf_free=5892 largest=3584`). Free the radio *before* the
+  import — `wifi.radio.enabled = False` — and turn it back on afterwards.
+* **On the C6, order is everything at boot**: BLE first, then ESP-NOW, then
+  the softAP. Creating `espnow.ESPNow()` while a user softAP is up kills the
+  AP; `wifi.radio.start_ap()` after heavy imports hard-faults rather than
+  raising `MemoryError`. A resident BLE stack also starves the ESP-NOW
+  *transmit* path (`0x3067 ESP_ERR_ESPNOW_NO_MEM`) — receive is unaffected.
+* **ESP-NOW error codes worth knowing**: `0x3067` = out of internal memory
+  (the coexistence problem above); `0x306d` = *peer channel is not equal to
+  the home channel* (ordinary channel hunting, not a fault).
+* **`ESPNow.send()`'s ACK counters are asynchronous.** Reading
+  `send_success` / `send_failure` immediately after `send()` reads the state
+  from *before* the callback fired, so every send looks failed. Poll them
+  for a few ms instead.
+* **The MAC-layer ACK is not delivery** — see the confirmation scheme in
+  *Node behaviour*.
+* **`_bleio`'s outgoing notification queue is ~5 packets deep and drops
+  silently** on the C6: long replies truncate at exactly 100 bytes unless
+  you pace them (`net_ble.py` sends 20 B every 50 ms). `PacketBuffer.write`
+  gives real flow control but blocks forever if the client disconnects, so
+  it is opt-in (`ble_tx_pktbuf`).
+
+**Storage and state**
+
+* **`alarm.sleep_memory` survives deep sleep but NOT `supervisor.reload()`.**
+  A bench-mode node (deep sleep disabled) came up `boot# 1 stash: 0` every
+  cycle until it mirrored the state through `microcontroller.nvm`.
+* **`open(path, "w").write(...)` without closing does not flush.** Reading
+  the file back in the same breath gets you a truncated file (`ValueError:
+  syntax error in JSON`). Use `with`, or call `close()`.
+* **CIRCUITPY is read-only to the board while USB mass storage holds it**
+  (S2/S3). Write to `/saves` (CPSAVES) instead, or call
+  `storage.unsafe_disable_usb_drive()` and remount — `node_store.py` walks
+  all three.
+* **Flashing a full `firmware.bin` WIPES CIRCUITPY.** Have the deploy ready
+  before you flash: code, modules, `lib/`, `certs/`, `www/`.
+* **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
+  a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
+
+**Talking to a board**
+
+* **The USB console only writes while a host holds DTR asserted.** Open the
+  port with `dtr=True`; a capture that attaches late (or a tool that opens
+  and closes) loses everything the board printed in between.
+* **Never toggle RTS on the C6's USB-Serial/JTAG** — it resets the chip
+  (`rst:0x15`). Opening a devkit's *UART bridge* port resets the board too
+  (the auto-reset circuit), which also makes the native USB port
+  re-enumerate and kills any capture on it.
+* **A devkit's two ports carry different things**: CircuitPython's console
+  and REPL on the chip's native USB, ESP-ROM + IDF debug logs on the UART
+  bridge. A hard fault or a `BLE_INIT` failure shows up only on the latter.
+* **Entering the REPL disables auto-reload**, so a board parked at the
+  "Press any key" prompt ignores file changes until it is reset.
+* **`supervisor.get_previous_traceback()`** recovers the crash you missed
+  because nothing was attached to the console. Invaluable.
+* **`mpremote fs cp` is broken for new files** on the 10.3 alphas, and
+  `fs ls` trips over `ilistdir`. `tools/serial_deploy.py` (raw REPL,
+  base64, 3 KB per round trip) is the reliable path, and
+  `tools/hil_bench.py` drives the two-board rig.
+* **esptool cannot reset a C6 out of the download stub** (`--after
+  watchdog-reset` is unsupported, RTS is a no-op on USB-JTAG): press the
+  button, or inject `microcontroller.reset()` at the REPL. A wedged S3
+  needs a 1200 bps touch to reach the ROM bootloader.
+
+**Sensors**
+
+* **Sensirion sensors refuse configuration while measuring**: SEN66 answers
+  `Cannot set CO2 ASC while measuring`. Stop, set, restart — and check the
+  result, because a driver that swallows the error will happily report a
+  calibration it never performed.
+
 ## Repo layout
 
 ```
