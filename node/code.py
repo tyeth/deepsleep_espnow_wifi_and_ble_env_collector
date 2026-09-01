@@ -1026,9 +1026,13 @@ def ble_window(seconds):
             time.sleep(0.05)
     finally:
         try:
-            # release the controller too: a deep-sleeping node wants the RAM
-            # and the power back, and its next wake is a fresh boot anyway
-            portal.stop(release=True)
+            # Stop advertising, but do NOT release the controller:
+            # `_bleio.adapter.enabled = False` here hard-faults CP
+            # 10.3.0-alpha.4 on the S3 (reproducible: "CircuitPython core
+            # code crashed hard... Hard fault: memory access or instruction
+            # error", straight into safe mode). A deep-sleeping node gets
+            # that RAM back at its next boot anyway.
+            portal.stop()
         except Exception as exc:      # never let BLE teardown skip the sleep
             print("BLE portal stop failed:", exc)
     return time.monotonic() - started

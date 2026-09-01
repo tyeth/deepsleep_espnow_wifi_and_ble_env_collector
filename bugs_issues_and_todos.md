@@ -273,6 +273,27 @@ tested without a real deep sleep. Worth an upstream question: is clearing
 sleep_memory on a soft reboot intended? (It is documented as surviving
 deep sleep, which it does.)
 
+### 11. S3: `_bleio.adapter.enabled = False` hard-faults the core (2026-09-01)
+
+Turning the adapter off after a BLE session -- to reclaim its RAM before a
+node sleeps -- crashes CircuitPython 10.3.0-alpha.4 outright:
+
+    Running in safe mode! Not running saved code.
+    You are in safe mode because:
+    CircuitPython core code crashed hard. Whoops!
+    Hard fault: memory access or instruction error.
+
+Reproducible on the S3 devkit: run the node's BLE config window (Nordic
+UART via adafruit_ble, wifi and ESP-NOW also up), then disable the adapter
+at teardown. Without the disable, the same code runs cycle after cycle and
+BLE even survives `supervisor.reload()`. A softer symptom of the same
+thing: once the adapter has been disabled, the next `import _bleio` in that
+power cycle raises `espidf.IDFError: Invalid state` (IDF log:
+`BLE_INIT: controller init failed`) -- the controller never comes back.
+
+Worth an upstream issue with the debug build's backtrace; our code simply
+stops advertising and leaves the adapter enabled.
+
 ## Known limits of the delivery confirmation (2026-09-01)
 
 Nodes now count a reading as delivered only when the hub echoes the message

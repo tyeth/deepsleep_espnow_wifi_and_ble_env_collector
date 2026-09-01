@@ -380,13 +380,18 @@ practical ones you need before touching the boards.
   bridge. A hard fault or a `BLE_INIT` failure shows up only on the latter.
 * **Entering the REPL disables auto-reload**, so a board parked at the
   "Press any key" prompt ignores file changes until it is reset.
-* **BLE only starts on a fresh boot.** After `supervisor.reload()` the
-  controller cannot be re-initialised in the same power cycle: `_bleio`
-  raises `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
-  failed`). Deep-sleeping nodes boot fresh every wake and are fine; bench
-  mode (which reloads) only gets BLE on its first cycle after a reset.
-  Coexistence is *not* the problem -- after a hard reset BLE came up
-  alongside wifi and ESP-NOW on an S3 with ~95 KB still free.
+* **Never turn the BLE adapter off to reclaim its memory.**
+  `_bleio.adapter.enabled = False` **hard-faults** CircuitPython
+  10.3.0-alpha.4 on the S3 -- straight into safe mode with "CircuitPython
+  core code crashed hard... Hard fault: memory access or instruction
+  error" -- and short of that it leaves the controller un-initialisable for
+  the rest of the power cycle, so the next `import _bleio` raises
+  `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
+  failed`). Stop advertising instead and leave the adapter up; a
+  deep-sleeping node gets the RAM back at its next boot anyway. With the
+  adapter left alone, BLE survives `supervisor.reload()` and coexists with
+  wifi and ESP-NOW (measured on an S3: BLE up after ESP-NOW with ~95 KB
+  free).
 * **Opening the UART-bridge port can drop the board into safe mode**
   ("You pressed the BOOT button at start up"): the auto-reset circuit
   drives IO0 from DTR/RTS. Reset from the REPL side
