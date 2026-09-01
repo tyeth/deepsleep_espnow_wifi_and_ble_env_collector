@@ -230,10 +230,15 @@ class BleUartPortal:
         out.append("mem")
         return sorted(out)
 
-    def stop(self):
-        """Close the portal and free the radio -- a node needs BLE gone
-        before it sleeps (and before the next ESP-NOW transmission on the
-        C6, where a resident BLE stack starves the ESP-NOW TX path)."""
+    def stop(self, release=False):
+        """Close the portal. release=True also turns the BLE controller off,
+        which a node wants before sleeping (RAM, power, and on the C6 a
+        resident BLE stack starves the ESP-NOW transmit path).
+
+        Note the controller cannot be brought back up later in the same
+        power cycle -- `_bleio` then raises `espidf.IDFError: Invalid state`
+        -- so only release it when the next start will follow a fresh boot.
+        """
         self.ok = False
         self.connected = False
         self._pb = None
@@ -242,6 +247,9 @@ class BleUartPortal:
                 self.radio.stop_advertising()
             for conn in self.radio.connections:
                 conn.disconnect()
+            if release:
+                import _bleio
+                _bleio.adapter.enabled = False
         except Exception as exc:
             print("BLE stop:", exc)
 

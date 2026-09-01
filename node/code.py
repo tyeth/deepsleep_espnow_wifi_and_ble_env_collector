@@ -981,27 +981,14 @@ def ble_window(seconds):
     if seconds <= 0:
         return 0
     started = time.monotonic()
-    # Hand the radio over BEFORE importing adafruit_ble: that import is what
-    # brings the BLE controller up, and the controller needs a large
-    # contiguous block of INTERNAL heap which the wifi stack is holding.
-    # Measured on an S3 devkit: `BLE_INIT: controller init failed` with
-    # idf_free=5892 largest=3584, surfacing in Python as
-    # `espidf.IDFError: Invalid state` from the import itself. We have
-    # finished reporting for this wake, so the radio is ours to give.
-    wifi_was_on = False
-    try:
-        wifi_was_on = wifi.radio.enabled
-        wifi.radio.enabled = False
-    except (AttributeError, RuntimeError, OSError) as exc:
-        print("could not free the wifi radio for BLE:", exc)
-
-    def _restore_wifi():
-        if wifi_was_on:
-            try:
-                wifi.radio.enabled = True   # next wake needs ESP-NOW again
-            except (AttributeError, RuntimeError, OSError) as exc:
-                print("could not bring the wifi radio back:", exc)
-
+    # BLE and the wifi/ESP-NOW stack coexist happily here -- measured on an
+    # S3 devkit, BLE came up after ESP-NOW with ~95KB still free. What does
+    # NOT work is BLE after a supervisor.reload(): the controller cannot be
+    # re-initialised in the same power cycle and every attempt raises
+    # `espidf.IDFError: Invalid state` (IDF: `BLE_INIT: controller init
+    # failed`). A deep-sleeping node boots fresh every wake and is fine;
+    # bench mode (deep_sleep false) reloads, so only its first cycle after a
+    # hard reset can serve BLE.
     portal = None
     try:
         import net_ble
@@ -1011,8 +998,10 @@ def ble_window(seconds):
             name=BLE_NAME)
     except Exception as exc:   # BLE must never cost the node its next report
         print("BLE portal unavailable: %s: %s" % (type(exc).__name__, exc))
+        if "Invalid state" in str(exc) and not config.get("deep_sleep", True):
+            print("  (bench mode reloads, and BLE only starts on a fresh "
+                  "boot -- reset the board to get the portal back)")
     if portal is None or not portal.ok:
-        _restore_wifi()
         return time.monotonic() - started
     print("BLE config window: %s for %ds" % (BLE_NAME, seconds))
     deadline = started + seconds
@@ -1025,10 +1014,11 @@ def ble_window(seconds):
             time.sleep(0.05)
     finally:
         try:
-            portal.stop()
+            # release the controller too: a deep-sleeping node wants the RAM
+            # and the power back, and its next wake is a fresh boot anyway
+            portal.stop(release=True)
         except Exception as exc:      # never let BLE teardown skip the sleep
             print("BLE portal stop failed:", exc)
-        _restore_wifi()
     return time.monotonic() - started
 
 
