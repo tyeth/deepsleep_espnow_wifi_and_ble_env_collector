@@ -124,38 +124,34 @@ class SampleRing:
         return {k: sums[k] / counts[k] for k in sums}
 
 
-def take_filesystem(tries=30, delay=0.1):
-    """Take the filesystem from the host so the board can write it.
+def take_filesystem(tries=1, delay=0.1):
+    """Take CIRCUITPY from the host so the board can write it.
 
-    `unsafe_disable_usb_drive()` returns before the drive has finished
-    disappearing, and a remount attempted in that window fails with
-    "Cannot remount path when visible via USB" -- so retry for a few
-    seconds. Returns True when the board can write.
+    `unsafe_disable_usb_drive()` is all it takes: the CircuitPython docs are
+    explicit that afterwards "CIRCUITPY becomes read/write, and can be
+    written from user code or the REPL... easier than arranging for a
+    remount() in boot.py". Calling remount() as well is what fails with
+    "Cannot remount path when visible via USB".
+
+    The call delays ~2.5 s on purpose, so the host sees the drive report
+    not-ready and unmounts it. Make sure the host has finished writing
+    first -- this is the equivalent of yanking the drive out.
     """
     import storage
-    import time as _t
     try:
         storage.unsafe_disable_usb_drive()
-    except Exception:
-        pass          # already ours, or no USB drive on this board
-    for _ in range(tries):
-        try:
-            storage.remount("/", readonly=False)
-            return True
-        except RuntimeError:
-            _t.sleep(delay)
-        except Exception:
-            return False
-    return False
+        return True
+    except Exception as exc:
+        print("storage: could not take the filesystem: %s: %s"
+              % (type(exc).__name__, exc))
+        return False
 
 
 def give_filesystem_back():
-    """Hand the drive back to a host: stop writing, then show the drive."""
+    """Hand CIRCUITPY back: the drive's logical unit becomes ready again and
+    the host re-mounts it on its next poll (every second or two). It returns
+    to read-only for our code by itself, so there is nothing else to undo."""
     import storage
-    try:
-        storage.remount("/", readonly=True)
-    except Exception:
-        pass
     storage.enable_usb_drive()
     return True
 

@@ -916,13 +916,11 @@ def h_storage(body=None):
             # device at all afterwards). A reset re-enumerates for certain,
             # and having just flushed, it costs nothing -- unlike the other
             # direction, where a reset would discard the queue.
-            store.flush()
+            store.flush()          # we still own it: nothing is at risk
             datastore.give_filesystem_back()
             store.read_only = True
-            _reset_at[0] = time.monotonic() + 1.5
-            state["restarting"] = True
-            print("storage: flushed and handed the drive back; restarting "
-                  "so the host re-enumerates it")
+            print("storage: flushed and handed the drive back; the host "
+                  "re-mounts it within a second or two")
         state["applied"] = True
         state["effective"] = want
         state["store"] = store.mode

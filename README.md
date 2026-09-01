@@ -116,13 +116,19 @@ with a warning on each), over `GET`/`POST /api/storage`
 would throw away the readings queued in RAM, which is the very data the
 feature exists to protect.
 
-Handing the drive *back* flushes everything to storage first — the hub
-still owns it at that moment, so nothing is at risk — then re-enables the
-drive and restarts, because `enable_usb_drive()` changes CircuitPython's
-USB descriptors while nothing re-enumerates the device: a host that had the
-drive taken away may never notice it is back (Windows saw no mass-storage
-device at all until a reset or a replug). Taking it is the direction that
-must never restart, and it can be refused: CircuitPython will not remount while anything holds the block
+Neither call needs `remount()`, and that matters: after
+`unsafe_disable_usb_drive()` CIRCUITPY *is* read/write to the board (the
+CircuitPython docs call it "easier than arranging for a remount()"), and
+adding a `remount()` is what fails with *"Cannot remount path when visible
+via USB"*. Taking the drive delays ~2.5 s on purpose so the host sees the
+logical unit go not-ready and unmounts it; handing it back makes the unit
+ready again and the host re-mounts on its next poll, a second or two later.
+
+Because it is the equivalent of yanking the drive out, make sure the host
+has finished writing first — eject it, or `sync` — which is what the page
+warns about. Handing it back flushes to storage first, while the hub still
+owns the filesystem, so nothing queued is ever at risk. If a take is
+refused anyway: CircuitPython will not remount while anything holds the block
 device (`blockdev_lock`) — the USB host, or the hub's own server streaming
 a file. So the hub closes its file transfers first (the browser re-requests,
 and `Range` lets it resume), then keeps retrying for two minutes while
