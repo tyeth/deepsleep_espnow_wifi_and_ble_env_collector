@@ -1006,11 +1006,21 @@ def ble_window(seconds):
     print("BLE config window: %s for %ds" % (BLE_NAME, seconds))
     deadline = started + seconds
     hard_stop = started + 2 * seconds
+    next_beat = started + 10
     try:
         while time.monotonic() < deadline:
             portal.poll()
             if portal.connected and time.monotonic() > deadline - 15:
                 deadline = min(hard_stop, time.monotonic() + 15)
+            if time.monotonic() >= next_beat:
+                # a console attached late still needs to see what the portal
+                # is doing -- "advertising" here vs. a phone seeing nothing
+                # is the difference between a radio and a scanner problem
+                next_beat += 10
+                print("BLE window: %ds left, advertising=%s, client=%s"
+                      % (int(deadline - time.monotonic()),
+                         getattr(portal.radio, "advertising", "?"),
+                         portal.connected))
             time.sleep(0.05)
     finally:
         try:

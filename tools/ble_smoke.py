@@ -35,10 +35,12 @@ async def find_hub(timeout=12, tries=3):
     for attempt in range(tries):
         print("scanning for %s ..." % NAME)
         dev = await BleakScanner.find_device_by_filter(
-            # with both a hub and a node advertising, match the name first
-            # and fall back to any Nordic-UART device
+            # Match the name when the advertisement carries one -- a
+            # 128-bit service UUID fills the packet, so the name often ends
+            # up absent (bleak reports None) and the service UUID is the
+            # only thing to go on.
             lambda d, ad: (d.name or "").startswith(NAME)
-            or (NAME == "ENVHUB" and UART_SVC in (ad.service_uuids or [])),
+            or UART_SVC in (ad.service_uuids or []),
             timeout=timeout,
         )
         if dev is not None:
