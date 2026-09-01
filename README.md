@@ -82,7 +82,26 @@ whole bundle again. Three things keep that bearable, all in `net_wifi.py`:
 Connections are keep-alive (HTTP as well as HTTPS) so a page does not pay
 for a new connection per asset, and when a browser has taken every slot the
 longest-idle one is evicted rather than refusing to accept — a refused
-connection is what leaves a page half-loaded.
+connection is what leaves a page half-loaded. Responses carry `Date` once
+the clock is set: without it a browser will not store them at all, and
+every reload re-downloads.
+
+Measured on the bench (Pi joined to the hub's own AP, `tools/page_check.py`
+driving Chromium):
+
+| | |
+|---|---|
+| page | 200, 53 KB — or 18.7 KB gzipped, and 304 on revalidation |
+| `vendor/plotly.min.js` | 354 KB gzipped in **1.5 s** (238 KB/s), inflated by the browser to the full 1.07 MB |
+| second visit | **0 bytes transferred** for the bundle and the icon |
+| `Range: bytes=0-99` | 206 with `Content-Range: bytes 0-99/354258` |
+| in the browser | `window.Plotly` defined, days synced, charts drawn from device data |
+
+**Storage note**: the hub cannot write to its own CIRCUITPY while a
+computer has the USB drive mounted. It says so (`"store": "flash
+(read-only)"` in `GET /api/latest`), still serves the history already on
+the card, buffers new readings in RAM, and starts writing again — without a
+restart — as soon as the drive is ejected or an SD card appears.
 
 ## Install
 
