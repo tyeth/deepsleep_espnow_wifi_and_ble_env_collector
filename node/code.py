@@ -508,6 +508,7 @@ def _set_home_channel(ch):
             _home_ch = 0
         if ch == _home_ch:
             return True
+        print("hop -> ch%d" % ch)   # one line per hop: a hunt is visible
         wifi.radio.start_ap(ssid="CH%d" % ch, channel=ch)
         wifi.radio.stop_ap()
     except (RuntimeError, OSError, ValueError) as exc:
@@ -634,7 +635,30 @@ def _unicast_hunt(e, mac, payload, prefer_ch):
         peer = _mk_peer(e, peer, mac, ch)
         if _try_send(e, peer, payload):
             return ch, peer
+    if peer is not None:
+        # leave no peer for this MAC behind: discovery re-adds the same hub
+        # MAC after a channel change, and IDF refuses a duplicate (0x306b)
+        try:
+            e.peers.remove(peer)
+        except (RuntimeError, OSError, ValueError):
+            pass
     return 0, None
+
+
+def _hub_channel(cfg, reached_ch):
+    """The channel the hub says it is on, if the reply carries one and it
+    differs from the channel we reached it on. At short range an ADJACENT
+    channel ACKs (bench: hub on 11, hunt pinned 10), and 1..13 order makes
+    the lower neighbour win; that pin fails at real distances."""
+    try:
+        hub_ch = int(cfg.get("ch") or 0) if cfg else 0
+    except (TypeError, ValueError):
+        return 0
+    if 1 <= hub_ch <= 13 and hub_ch != reached_ch:
+        print("hub is on ch%d (reached on ch%d): pinning ch%d"
+              % (hub_ch, reached_ch, hub_ch))
+        return hub_ch
+    return 0
 
 
 def _discover(e):
@@ -701,8 +725,12 @@ def espnow_report():
                     # Report undelivered and let the caller fall back.
                     print("hub on ch%d did not confirm; keeping the channel"
                           % ch)
-                return confirmed, (obj if obj and obj.get("k") == "cfg"
-                                   else None)
+                cfg = obj if obj and obj.get("k") == "cfg" else None
+                hub_ch = _hub_channel(cfg, ch)
+                if hub_ch:
+                    alarm.sleep_memory[MEM_CHANNEL] = hub_ch
+                    nvm_save_collector(mac, hub_ch)
+                return confirmed, cfg
             print("known collector unreachable; rediscovering...")
             nvm_forget_collector()
         # discovery: learn MAC + channel from the cfg reply, then send data
@@ -710,6 +738,11 @@ def espnow_report():
         if mac is None:
             alarm.sleep_memory[MEM_CHANNEL] = 0
             return False, None
+        hub_ch = _hub_channel(cfg, ch)
+        if hub_ch and _set_home_channel(hub_ch):
+            ch = hub_ch
+        # (a failed hop keeps the channel that just answered: this wake's
+        # reading still gets through, the pin is corrected next time)
         alarm.sleep_memory[MEM_CHANNEL] = ch
         nvm_save_collector(mac, ch)
         peer = espnow.Peer(mac=mac, channel=ch)

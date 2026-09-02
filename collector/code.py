@@ -129,6 +129,16 @@ _espnow_obj = None
 try:
     import espnow as _espnow_mod
     wifi.radio.enabled = True
+    # Optional radio TX power cap (dBm). A devkit on a weak USB port browns
+    # out on the first softAP beacon burst ("Power dipped" safe mode); a
+    # lower power also helps a battery hub. Set before any radio use.
+    _txp = _ecfg.get("wifi_tx_power_dbm")
+    if _txp:
+        try:
+            wifi.radio.tx_power = float(_txp)
+            print("wifi tx power capped at %s dBm" % wifi.radio.tx_power)
+        except (AttributeError, ValueError, RuntimeError) as exc:
+            print("wifi tx_power not applied:", exc)
     _espnow_obj = _espnow_mod.ESPNow()
     print("early ESP-NOW up")
 except Exception as exc:
@@ -1017,6 +1027,21 @@ handlers = {
 # Node packet handling
 # ---------------------------------------------------------------------------
 
+def _radio_channel():
+    """The WiFi channel this radio is on, or 0 when not known for sure: the
+    router's when we are a connected station (it overrides the AP), else
+    the softAP's while it is up. Told to nodes so they pin the real channel
+    rather than the adjacent one whose ACK reached them first."""
+    try:
+        if wifi.radio.connected and wifi.radio.ap_info:
+            return int(wifi.radio.ap_info.channel)
+        if wifi.radio.ap_active:
+            return AP_CHANNEL
+    except (AttributeError, RuntimeError, ValueError):
+        pass
+    return 0
+
+
 def _cfg_reply_for(src, ack_id=None, ack_crc=None):
     interval = config.get("node_intervals", {}).get(
         src, config.get("node_default_interval_s", 120)
@@ -1037,7 +1062,7 @@ def _cfg_reply_for(src, ack_id=None, ack_crc=None):
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
         cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
-        ack_id=ack_id, ack_crc=ack_crc,
+        ack_id=ack_id, ack_crc=ack_crc, channel=_radio_channel(),
     )
 
 

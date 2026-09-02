@@ -29,11 +29,13 @@ Data packet (node -> collector):
    "m":{"co2":612,"tc":21.4,"rh":48.2,"pm25":3.1,"voc":101,"nox":1}}
 
 Config reply (collector -> node, unicast to the node's MAC):
-  {"v":1,"k":"cfg","int":120,"asc":0,"m":["co2","tc","rh"],"t":1787595725,
-   "cal":420,"cat":1787630400,"cdur":3600,"cdry":0,
+  {"v":1,"k":"cfg","int":120,"asc":0,"ch":6,"m":["co2","tc","rh"],
+   "t":1787595725,"cal":420,"cat":1787630400,"cdur":3600,"cdry":0,
    "aq":42,"ac":51966,"ok":1}
   "int" sleep seconds, "asc" 0/1 automatic self calibration (always 0),
-  "m" enabled metric keys, "t" hub epoch (time service). Calibration
+  "ch" the hub radio's WiFi channel when known (nodes pin it: an adjacent
+  channel can ACK at short range), "m" enabled metric keys, "t" hub epoch
+  (time service). Calibration
   fields are ONLY present while the user has armed a reference
   calibration: "cal" target ppm, "cat" epoch at which the measurement
   window starts (absent/0 = now), "cdur" window length in seconds,
@@ -194,7 +196,7 @@ def make_data_packet(name, sensor_type, seq, batt_v, measurements,
 def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
                        epoch=None, cal_at=None, cal_dur=None, cal_dry=False,
                        cal_asc=False, ack_id=None, ack_crc=None,
-                       ack_ok_flag=True) -> bytes:
+                       ack_ok_flag=True, channel=None) -> bytes:
     """Collector-side helper: build a 'cfg' reply for a node.
 
     epoch: hub's current time (only sent when the hub clock is synced via
@@ -204,8 +206,16 @@ def make_config_packet(interval_s, metrics=None, asc=False, cal_target=None,
     ack_id/ack_crc: confirmation of the packet this is a reply to (message
     id + CRC-16 of the received bytes). The cfg reply doubles as the ack so
     a check-in stays one packet each way.
+
+    channel: the WiFi channel the hub's radio is actually on, when it knows
+    (its softAP channel, or the router's when it is a station). A node
+    hunting 1..13 gets a MAC ACK from an ADJACENT channel at short range
+    (measured: hub on 11, node pinned 10), which works on a bench and fails
+    across a house; with "ch" it pins the real one.
     """
     pkt = {"k": "cfg", "int": int(interval_s), "asc": 1 if asc else 0}
+    if channel:
+        pkt["ch"] = int(channel)
     if ack_crc is not None:
         pkt["aq"] = int(ack_id or 0)
         pkt["ac"] = int(ack_crc)

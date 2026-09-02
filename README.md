@@ -271,6 +271,8 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   connectivity probes are redirected, so joining the AP pops the portal.
   `ap_channel` (default 1) is also the ESP-NOW channel: nodes hunt for it,
   so the mesh can be moved off a busy channel with one setting.
+  `wifi_tx_power_dbm` (0 = leave the default) caps the radio; both are
+  read at boot, so a change over the API takes effect on the next restart.
 * **WiFi portal**: `http://<hub-ip>/` (AP side: `http://192.168.4.1/`) —
   serves the full Analyzer app when `webapp/` is deployed to `/sd/www/`
   (or flash `/www/`), else a minimal dashboard (always at `/mini`).
@@ -347,8 +349,9 @@ Wake → (first power-on: config portal, see Self-configuration) → detect
 sensor by I2C address (0x62 SCD4x / 0x61 SCD30 / 0x69 SEN5x / 0x6B SEN6x;
 SEN5x prefers the `sensirion_i2c_sen5x` bundle lib, minimal built-in
 fallback) → read with `pm_warmup_s` fan spin-up for PM sensors → ESP-NOW
-unicast to the pinned collector (channel-hunting 1–13; broadcast
-discovery when unpinned) → apply the cfg reply (interval / metrics / ASC
+unicast to the pinned collector (channel-hunting 1–13, parking the radio
+on each; broadcast discovery when unpinned; the hub's stated channel wins
+over the one that ACKed) → apply the cfg reply (interval / metrics / ASC
 / calibration / **epoch**) → retransmit any stashed backlog / stash this
 reading on failure → deep sleep. Falls back to `POST /api/ingest` over
 WiFi if configured. Every path ends in deep sleep.
@@ -409,6 +412,13 @@ practical ones you need before touching the boards.
   `0x306c`, wrong interface); and a *connected* station pins the AP to the
   router's channel, so the node drops its WiFi link before hopping (it
   matters when `CIRCUITPY_WIFI_SSID` in settings.toml autoconnects).
+* **An adjacent channel ACKs at short range.** Hunting 1–13 with the hub
+  on 11, the node got its MAC ACK on 10 and pinned that (bench, 20 cm).
+  It works on a desk and not across a house, so the hub states its channel
+  (`ch`) in every cfg reply and the node pins the stated one.
+* **A devkit on a weak USB port browns out at AP start** ("Power dipped"
+  safe mode, at boot, every time). `wifi_tx_power_dbm` in the hub config
+  caps the radio (8 dBm on the bench) before anything transmits.
 * **ESP-NOW error codes worth knowing**: `0x3067` = out of internal memory
   (the coexistence problem above); `0x306d` = peer channel ≠ home channel
   (a hop that did not happen: a fault since the hop above); `0x3068` = the

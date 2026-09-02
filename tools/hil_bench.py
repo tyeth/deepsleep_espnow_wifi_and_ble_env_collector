@@ -62,6 +62,30 @@ def open_port(port, timeout=0.2, uart_bridge=None):
     return s
 
 
+def find_consoles():
+    """(hub, node) console ports by USB identity, or None for a missing one.
+
+    The kernel numbers the ttyACM devices in enumeration order, which is
+    whatever board came up first after the last reset, so a fixed default
+    points at the wrong board sooner or later (it did). The C6's native USB
+    enumerates as the ROM's "USB JTAG/serial debug unit"; the S3 devkit's
+    CircuitPython CDC names the board.
+    """
+    hubs, nodes = [], []
+    for p in list_ports.comports():
+        text = ((p.description or "") + " " + (p.hwid or "")).lower()
+        if "cdc2" in text:
+            continue        # a second CircuitPython CDC (usb_cdc.data)
+        if "usb jtag" in text:
+            hubs.append(p.device)
+        elif "esp32-s3" in text or "devkitc" in text:
+            nodes.append(p.device)
+    # An S3 dropped into its ROM bootloader also enumerates as "USB JTAG/
+    # serial debug unit": with two candidates for a role, pick neither.
+    return (hubs[0] if len(hubs) == 1 else None,
+            nodes[0] if len(nodes) == 1 else None)
+
+
 def cmd_ports(_args):
     for p in sorted(list_ports.comports(), key=lambda p: p.device):
         role = "?"
@@ -179,8 +203,10 @@ def cmd_outage(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--hub", default="/dev/ttyACM1", help="C6 console port")
-    ap.add_argument("--node", default="/dev/ttyACM2", help="S3 console port")
+    ap.add_argument("--hub", default=None,
+                    help="C6 console port (default: found by USB identity)")
+    ap.add_argument("--node", default=None,
+                    help="S3 console port (default: found by USB identity)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("ports").set_defaults(func=cmd_ports)
     c = sub.add_parser("console")
@@ -196,6 +222,14 @@ def main():
         s.add_argument("--seconds", type=float, default=100)
         s.set_defaults(func=fn)
     args = ap.parse_args()
+    if args.hub is None or args.node is None:
+        hub, node = find_consoles()
+        args.hub = args.hub or hub
+        args.node = args.node or node
+        if args.cmd in ("confirm", "outage") and not (args.hub and args.node):
+            print("could not identify both consoles (hub=%s node=%s); "
+                  "run `ports` and pass --hub/--node" % (args.hub, args.node))
+            return 2
     return args.func(args)
 
 
