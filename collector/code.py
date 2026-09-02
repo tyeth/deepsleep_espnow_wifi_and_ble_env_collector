@@ -129,19 +129,35 @@ _espnow_obj = None
 try:
     import espnow as _espnow_mod
     wifi.radio.enabled = True
+    # Optional radio TX power cap (dBm). A devkit on a weak USB port browns
+    # out on the first softAP beacon burst ("Power dipped" safe mode); a
+    # lower power also helps a battery hub. Set before any radio use.
+    _txp = _ecfg.get("wifi_tx_power_dbm")
+    if _txp:
+        try:
+            wifi.radio.tx_power = float(_txp)
+            print("wifi tx power capped at %s dBm" % wifi.radio.tx_power)
+        except (AttributeError, ValueError, RuntimeError) as exc:
+            print("wifi tx_power not applied:", exc)
     _espnow_obj = _espnow_mod.ESPNow()
     print("early ESP-NOW up")
 except Exception as exc:
     print("early ESP-NOW failed:", type(exc).__name__, exc)
 
 ap_started = False
+# The softAP's channel is also the ESP-NOW channel (one radio, one home
+# channel; a connected station overrides it). Configurable so the mesh can
+# sit away from a busy channel -- and so the bench can prove that nodes
+# find a hub that is not on channel 1.
+AP_CHANNEL = int(_ecfg.get("ap_channel", 1) or 1)
 if _ecfg.get("ap_enabled", True):
     try:
         wifi.radio.enabled = True
         if AP_PASSWORD and len(AP_PASSWORD) >= 8:
-            wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
+            wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD,
+                                channel=AP_CHANNEL)
         else:
-            wifi.radio.start_ap(ssid=AP_SSID)
+            wifi.radio.start_ap(ssid=AP_SSID, channel=AP_CHANNEL)
         # CP 10.3-a4 does NOT auto-start the softAP DHCP server: without
         # this, phones associate and immediately drop (no lease)
         try:
@@ -360,6 +376,9 @@ elif HTTP_WANTED:
 
 MAC = envproto.mac_str(wifi.radio.mac_address)
 print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
+# ESP-NOW users upstream see spontaneous WATCHDOG resets (issue 7903); a
+# boot log that names the reset reason is the only way to spot them here.
+print("reset reason:", microcontroller.cpu.reset_reason)
 
 # hub time service: synced by NTP (net_wifi.connect) or by a browser via
 # POST /api/time / BLE "time <epoch>"; pushed to nodes in every cfg reply
@@ -368,7 +387,7 @@ print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
-hub = net_espnow.EspNowHub(existing=_espnow_obj)
+hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
 print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
 if HTTP_WANTED:
@@ -377,8 +396,12 @@ if HTTP_WANTED:
         password=AP_PASSWORD,
         enabled=config.get("ap_enabled", True),
         already_active=ap_started,
+        channel=AP_CHANNEL,
     )
     print("bring-up: captive DNS done (AP active=%s)" % captive.ap_active)
+    # the portal starts the AP itself when the early start failed: the hub
+    # wrapper must know, or a later ESP-NOW rebuild would kill it (issue 6)
+    hub.ap_active = hub.ap_active or captive.ap_active
 else:
     class _NoCaptive:
         ap_active = False
@@ -1004,6 +1027,21 @@ handlers = {
 # Node packet handling
 # ---------------------------------------------------------------------------
 
+def _radio_channel():
+    """The WiFi channel this radio is on, or 0 when not known for sure: the
+    router's when we are a connected station (it overrides the AP), else
+    the softAP's while it is up. Told to nodes so they pin the real channel
+    rather than the adjacent one whose ACK reached them first."""
+    try:
+        if wifi.radio.connected and wifi.radio.ap_info:
+            return int(wifi.radio.ap_info.channel)
+        if wifi.radio.ap_active:
+            return AP_CHANNEL
+    except (AttributeError, RuntimeError, ValueError):
+        pass
+    return 0
+
+
 def _cfg_reply_for(src, ack_id=None, ack_crc=None):
     interval = config.get("node_intervals", {}).get(
         src, config.get("node_default_interval_s", 120)
@@ -1024,7 +1062,7 @@ def _cfg_reply_for(src, ack_id=None, ack_crc=None):
         interval, metrics=metrics, asc=False, cal_target=cal,
         epoch=int(time.time()) if TIME_SYNCED else None,
         cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
-        ack_id=ack_id, ack_crc=ack_crc,
+        ack_id=ack_id, ack_crc=ack_crc, channel=_radio_channel(),
     )
 
 
@@ -1386,6 +1424,12 @@ while True:
                           % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
+        if hub.needs_reset and not _reset_at[0]:
+            # the receiver is dead (corrupt ring buffer, CP issue 9816) and
+            # cannot be rebuilt under the softAP: same path as an HTTP/BLE
+            # reset request, so buffered data reaches storage first
+            hub.needs_reset = False
+            h_reset()
 
         # 2. local sensor sampling into the RAM ring
         if local_sensor and now_m - _last_sample >= config.get(

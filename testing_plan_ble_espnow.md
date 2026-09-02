@@ -104,8 +104,13 @@ Starter client: `tools/ble_smoke.py` (works on Windows too, best on Pi).
    node keeps waking ("stashed reading (N held)" on node console) → power
    the collector ON → backlog arrives ("retransmitted N stashed"), day
    CSV contains the missed readings with their original timestamps.
-6. **Channel agility**: give the collector STA creds (channel moves to the
-   router's) → node's pinned channel goes stale → it re-hunts and repins.
+6. **Channel agility**: move the collector's channel (`ap_channel` in
+   config.json, or STA creds so it follows the router) → node's pinned
+   channel goes stale → it re-hunts and repins. **Verified 2026-09-02**
+   (devkits, Pi bench): hub moved 1 → 6 → 11; the node rediscovered it each
+   time and later wakes hop straight to the pinned channel. Watch for a pin
+   on an ADJACENT channel (hub 11, node pinned 10 once): at bench range the
+   neighbour ACKs; the hub's `ch` in every cfg reply is what corrects it.
 7. **Sniffer assertions** (optional 3rd board): every `dat` gets a `cfg`
    reply ≤100 ms; payloads ≤250 B; no packet storms.
 

@@ -6,6 +6,8 @@
   "ap_enabled": false,
   "ap_ssid": "",
   "ap_password": "",
+  "ap_channel": 1,
+  "wifi_tx_power_dbm": 0,
   "ble_enabled": false,
   "http_port": 80,
   "sample_interval_s": 15,

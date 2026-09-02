@@ -84,8 +84,11 @@ def main():
     big = envproto.make_config_packet(
         120, metrics=["co2", "tc", "rh", "pm25", "voc", "nox"],
         epoch=1787595725, cal_target=420, cal_at=1787630400, cal_dur=3600,
-        cal_dry=True, cal_asc=True, ack_id=65535, ack_crc=65535)
+        cal_dry=True, cal_asc=True, ack_id=65535, ack_crc=65535, channel=13)
     check("cfg <= 250 bytes (%d)" % len(big), len(big) <= 250)
+    check("cfg carries the hub channel", envproto.decode(big).get("ch") == 13)
+    check("no channel field when unknown",
+          "ch" not in envproto.decode(envproto.make_config_packet(120)))
 
     print()
     if FAILURES:

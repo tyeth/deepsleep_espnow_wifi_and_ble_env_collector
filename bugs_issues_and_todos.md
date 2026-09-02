@@ -4,6 +4,16 @@ Findings from the 2026-08-24 hardware bring-up (Feather ESP32-C6 +
 CircuitPython **10.3.0-alpha.4** + eInk Feather Friend #4446 + 3.52" quad
 JD79667; node = Feather ESP32-S3 No PSRAM, same CP version).
 
+**State of this file (2026-09-02)**: the numbered items below have not
+been re-checked since 2026-09-01. What PR #2 (delivery confirmation), PR #3
+(node BLE portal, hub-served web app) and the storage-handover commits
+found is recorded in the README's *CircuitPython gotchas* and *Who owns the
+filesystem* sections and in those PR bodies, not yet folded in here: the
+31-byte advertisement trap, `supervisor.runtime.ble_workflow`, the `Date`
+header and browser caching, the C6 not fitting BLE + AP + HTTP + eInk at
+once, and the USB drive handover without a remount. Only the ESP-NOW table
+further down is current.
+
 ## Suspected CircuitPython core bugs (worth filing upstream)
 
 ### 1. C6: `wifi.radio.start_ap()` hard-faults when called after heavy imports
@@ -224,6 +234,51 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## 2026-09-02 devkit bench: channel agility verified (and what got in the way)
+
+Same two devkits. The Pi moved to 192.168.1.191 (hostname `rpi-hil003b`),
+and the two native-USB consoles had **swapped numbers** since 09-01 (node
+on `ttyACM1`, hub on `ttyACM2`): `hil_bench.py` now finds them by USB
+identity instead of a fixed default.
+
+Hub `ap_enabled`+`ble_enabled`, display off, `ap_channel` 6 then 11, node
+in bench mode. Node console, hub moved to 6 (pinned 1 before):
+
+    hop -> ch1 ... hop -> ch13        (unicast hunt, no ACK anywhere)
+    known collector unreachable; rediscovering...
+    discovery from bench-s3           (hub console)
+    hop -> ch6
+    delivered: hub confirmed sq=45 crc=8d6a on ch6
+
+Hub moved to 11: the node **pinned ch10** first — the broadcast on 10 was
+answered by the hub on 11 (adjacent channel, 20 cm apart) and 1..13 order
+makes the lower neighbour win. It worked on the bench (every unicast to
+"ch10" was ACKed from 11) and would not across a house. Fix: the hub puts
+its channel (`ch`) in every cfg reply and the node pins that. Then, on the
+same run, `IDFError 0x306b` (peer exists): the failed unicast hunt left its
+peer for the hub MAC behind and discovery re-added it. Fixed (the hunt
+removes its peer on failure); the reading was stashed and retransmitted
+next wake, so nothing was lost.
+
+Things that were NOT the new code but cost an hour each:
+* **Stale modules on the hub.** Deploying only the changed files onto a C6
+  whose other modules were from PR #2 gave `TypeError: unexpected keyword
+  argument 'allow_usb_release'` (new code.py, old datastore.py). The C6
+  has no drive to diff: deploy the whole `collector/*.py` set.
+* **"Power dipped" safe mode** on the C6 at every boot for a while — a real
+  brownout at AP start on the Pi's USB. `wifi_tx_power_dbm: 8` in the hub
+  config made it go away (or coincided with it; kept as a bench setting).
+* **The S3 hard-faulted twice, both times within ~2 min of the Pi writing
+  `code.py` onto CIRCUITPY while the node was running** (bench mode, radio
+  hops and BLE in progress); after the second one the drive still held the
+  OLD file, so the MSC write was lost with the crash. Hundreds of reloads
+  and hops without a host write never faulted. Working rule: halt code.py
+  (Ctrl-C) before copying to the drive, `cmp` the copy, then Ctrl-D — done
+  that way the deploy was clean. Worth an upstream report if it reproduces
+  deliberately (MSC flash write racing wifi `start_ap` on the S3?).
+* Hub `ResetReason.POWER_ON` on every boot is what the UART-bridge open does
+  (DTR/RTS toggle) — not a symptom.
+
 ## 2026-09-01 devkit bench: delivery confirmation verified
 
 C6 devkit (`54:32:04:0c:d7:54`, console `/dev/ttyACM1`, IDF log `ttyACM0`)
@@ -315,9 +370,41 @@ scheme deliberately does not fully cover:
   channel), and `require_confirmation: false` in `node_config.json` reverts
   to the old MAC-ACK semantics for such a hub.
 
+## Upstream ESP-NOW issues and what protects us (audited 2026-09-02)
+
+Open/recent adafruit/circuitpython issues mentioning ESP-NOW, checked against
+`node/code.py` and `collector/net_espnow.py` on CP 10.3.0-alpha.4.
+
+| Issue | Behaviour | Node | Hub |
+|---|---|---|---|
+| 7903 | Send to a peer whose channel ≠ the radio's home channel raises (`0x306a` then, `0x306d ESP_ERR_ESPNOW_CHAN` now). A `Peer(channel=)` never moves the radio. | **Was broken**: the hunt only ever reached a hub on channel 1 (fresh boot = ch1; every other peer channel raised, read as "no ACK"). Now `_set_home_channel()` parks the radio with `start_station()` once, then `start_ap(channel)`+`stop_ap()` before each hunt step, and before stash drains / cal results. **Bench-verified 2026-09-02** with the hub on 6 and 11 (below). | Replies with `Peer(mac)` (channel 0 = current), so never affected; now also states its channel (`ch`) in every cfg reply. |
+| 9380 | Broadcast raises `0x3069` unless the broadcast peer is passed to `send()`. | `_discover` passes the peer explicitly. OK. | Never broadcasts. |
+| 9816 | `read()` raises `ValueError: Invalid buffer` and every later read raises too; only `deinit()` + new `ESPNow()` recovers. Ring buffer is written from the WiFi task without locking, so it is a timing race, not a node-count problem. | `_listen_reply` now catches it, gives up on that reply (reading is stashed) and the next wake's fresh object recovers. Before: the ValueError aborted `espnow_report` (same outcome, uglier log). | `poll()` only caught RuntimeError/OSError: the ValueError escaped to the main loop, skipping sensor sampling, records and display work every pass until the 20-strike reset (the idle-slice portal poll kept running). Now caught: rebuild in BLE mode; in AP mode (rebuild kills the AP, issue 6) flag `needs_reset` → `h_reset()` flushes and resets. |
+| 9790 | `phy_rate` / long-range mode has no effect (CP ignores it since the `esp_now_set_peer_rate_config` change). | Not used. | Not used. |
+| 9276 | `ESPNow()` failed on C6 ("Generic Failure", then `0x3065` on alpha.3). Closed 2026-06-29; alpha.4 works on our C6. | Init inside try → WiFi fallback / stash. | Init failure → `enabled=False`, hub keeps running without nodes. |
+| 7903 (addendum) | Senders/receivers reset spontaneously with `ResetReason.WATCHDOG`. | Both now print `microcontroller.cpu.reset_reason` at boot so a bench log can tell a WDT reset from a power cycle. Hub data is bounded by `store.maybe_flush()`. | same |
+| IDF peer table | Max 20 peers (`0x3068 ESP_ERR_ESPNOW_FULL`). | ≤2 peers per object. | `_peers` grew unbounded; a 21st node MAC failed the add and triggered a rebuild. Now LRU-capped at 16 with `peers.remove()`. |
+| 7903 (dup peer) | Adding the same MAC twice raises `0x306b`. | Peers are retuned or removed first. | Cached per MAC; cache cleared on rebuild. |
+| our issue 6 | `ESPNow()` while a softAP is up kills the AP (C6). | n/a | `_reinit()` documented the rule but did not enforce it; now refuses when `ap_active`. |
+
+Still open on our side: with BLE resident on the C6 every send spins up to
+2 s inside `esp_now_send` on `0x3067` before raising (CP's own NO_MEM retry
+loop), times 4 attempts — a confirmation attempt can stall the main loop for
+~8 s. Config keeps BLE and the ESP-NOW hub apart (issue 10); a send circuit
+breaker would be the code answer if that ever has to change.
+
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
+* [x] Channel agility on the bench (2026-09-02, below): hub on 6 then 11,
+      node re-hunts and repins; a hop then a send on channel 1 still ACKs;
+      `start_ap`/`stop_ap` beside a live ESPNow object is benign on the S3
+      (13 hops per hunt, hundreds of hops, no fault).
+* [ ] Node with `CIRCUITPY_WIFI_SSID` in settings.toml (CP autoconnects
+      before code.py): confirm the hop drops the link and the hunt works.
+* [ ] Channel agility with the hub as a STATION (router channel) rather
+      than via `ap_channel`; `_radio_channel()` then reports
+      `ap_info.channel`.
 * [ ] Node ↔ collector: verify ESP-NOW discovery end-to-end on the bench
       (S3 node with SCD41 → BASE597BE4), incl. stash retransmission after
       a collector outage and hub-time retro-adjustment.
