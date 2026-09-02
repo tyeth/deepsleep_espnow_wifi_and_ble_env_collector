@@ -268,10 +268,14 @@ Things that were NOT the new code but cost an hour each:
 * **"Power dipped" safe mode** on the C6 at every boot for a while — a real
   brownout at AP start on the Pi's USB. `wifi_tx_power_dbm: 8` in the hub
   config made it go away (or coincided with it; kept as a bench setting).
-* **The S3 hard-faulted once** right after a deploy + `keys reset`
-  (Ctrl-C during the BLE window, then Ctrl-D). Not reproduced on two
-  hardware resets and dozens of bench reloads with the new code; the same
-  fault class as issue 11 (BLE adapter teardown on the S3) is the suspect.
+* **The S3 hard-faulted twice, both times within ~2 min of the Pi writing
+  `code.py` onto CIRCUITPY while the node was running** (bench mode, radio
+  hops and BLE in progress); after the second one the drive still held the
+  OLD file, so the MSC write was lost with the crash. Hundreds of reloads
+  and hops without a host write never faulted. Working rule: halt code.py
+  (Ctrl-C) before copying to the drive, `cmp` the copy, then Ctrl-D — done
+  that way the deploy was clean. Worth an upstream report if it reproduces
+  deliberately (MSC flash write racing wifi `start_ap` on the S3?).
 * Hub `ResetReason.POWER_ON` on every boot is what the UART-bridge open does
   (DTR/RTS toggle) — not a symptom.
 
