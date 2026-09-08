@@ -106,8 +106,8 @@ only for the BLE UART path (`collector/net_ble.py`, `node/net_ble.py`,
 
 ### CI assets on tyeth/circuitpython
 
-Two separate Actions runs are involved. Artifacts expire 90 days after
-the run (early December 2026).
+Two separate Actions runs are involved. Only the first produced anything;
+its artifacts expire 90 days after the run (2026-12-07).
 
 **1. mpy-cross -- run [34253440312](https://github.com/tyeth/circuitpython/actions/runs/34253440312)**
 (the normal `Build CI` workflow on `zephyr-pico2w-ble` @ `f4d3e598`).
@@ -123,18 +123,40 @@ run. This is what `tools/build_bundle.sh` downloads by default.
 dispatched for board `raspberrypi_rpi_pico2_w_zephyr`, language `en_US`,
 version `latest`, on branch `ci/pico2w-ble-assets` @ `f9626482`).
 
-**Status at the time of writing (2026-09-08T17:53Z): `queued`, conclusion empty.**
-The run had been dispatched but no runner had picked it up
-(`gh run view --repo tyeth/circuitpython 34258666665 --json status,conclusion`
-returned `"status":"queued","conclusion":""`, about twelve minutes after it was
-created at 17:41Z). So there is **no firmware artifact yet and no pass/fail
-result** -- this is a dispatched-but-unfinished run, not a success. This
-document is a snapshot; check the run link above for the current state
-rather than trusting it. If the run does complete, the artifact to look for
-is `raspberrypi_rpi_pico2_w_zephyr-en_US-latest`, containing `firmware.uf2`
-and `firmware.elf`; if it fails, there is still no CI-built Pico 2 W
-firmware and the `.uf2` has to be built locally with
-`make BOARD=raspberrypi_rpi_pico2_w_zephyr` in `ports/zephyr-cp`.
+**Outcome: failure, no artifact.** (An earlier revision of this file
+recorded the run as `queued`; it was picked up at ~18:11Z and failed.)
+The job died after 5m49s in the `Set up port` step (`west update`),
+before the build step ran, so the expected artifact
+`raspberrypi_rpi_pico2_w_zephyr-en_US-latest` (`firmware.uf2` +
+`firmware.elf`) was **not produced** and there is still no CI-built
+Pico 2 W firmware anywhere. The `.uf2` still has to be built locally
+with `make BOARD=raspberrypi_rpi_pico2_w_zephyr` in `ports/zephyr-cp`.
+The error:
+
+```
+--- hal_rpi_pico: fetching, need revision integration-pico2w-ble
+fatal: couldn't find remote ref integration-pico2w-ble
+...
+ERROR: update failed for project hal_rpi_pico
+```
+
+The CI-only west manifest (below) points `hal_rpi_pico` at
+`tyeth/hal_rpi_pico @ integration-pico2w-ble`, a branch that **does not
+exist** -- the fork only has the two PR head branches,
+`cyw43-shared-bus-ble` (#1) and `flash-ram-helpers-force-inline` (#2).
+This is the "both hal_rpi_pico commits must be cherry-picked onto one
+branch" prerequisite surfacing in CI: the integration branch was assumed
+but never pushed. The other two fork refs (`tyeth/zephyr` and
+`tyeth/hal_infineon` @ `cyw43-shared-bus-ble`) fetched fine, and the two
+workflow fixes on the branch were never reached, so they remain
+unexercised. To get the asset: push a branch to `tyeth/hal_rpi_pico`
+carrying both PR commits under the name the manifest expects (or change
+the manifest to a real branch name), then re-dispatch
+`Build board (custom)` on `ci/pico2w-ble-assets`.
+
+Had it succeeded, the artifact would have been
+`raspberrypi_rpi_pico2_w_zephyr-en_US-latest`, containing `firmware.uf2`
+(drag onto the BOOTSEL drive) and `firmware.elf` (for SWD/gdb).
 
 `ci/pico2w-ble-assets` is a **CI-only branch**: it is `zephyr-pico2w-ble`
 (the PR #4 branch) plus one commit that does three things --
