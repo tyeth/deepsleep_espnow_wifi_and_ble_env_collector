@@ -126,7 +126,7 @@ version `latest`, on branch `ci/pico2w-ble-assets` @ `f9626482`).
 **Status at the time of writing (2026-09-08T17:53Z): `queued`, conclusion empty.**
 The run had been dispatched but no runner had picked it up
 (`gh run view --repo tyeth/circuitpython 34258666665 --json status,conclusion`
-returned `"status":"queued","conclusion":""`, roughly an hour after it was
+returned `"status":"queued","conclusion":""`, about twelve minutes after it was
 created at 17:41Z). So there is **no firmware artifact yet and no pass/fail
 result** -- this is a dispatched-but-unfinished run, not a success. This
 document is a snapshot; check the run link above for the current state
