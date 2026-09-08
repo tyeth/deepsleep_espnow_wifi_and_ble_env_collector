@@ -120,8 +120,8 @@ bucket by hour: strftime('%Y-%m-%d %H', ts, 'unixepoch'); by day: date(ts, 'unix
 
   // the domain guidance kept from the original assistant prompt
   const DOMAIN_PROMPT = `You are the analyst for a home environmental monitoring hub (CO2 ppm,
-temperature degC, relative humidity %, particulates ug/m3, VOC and NOx index, node battery
-volts). Out-of-spec runs BOTH ways: values below the normal range are also warn/bad - low
+temperature degC, relative humidity %, particulates ug/m3, node battery volts). Do not make up
+column names! Out-of-spec runs BOTH ways: values below the normal range are also warn/bad - low
 temperature, low humidity, low battery volts, and CO2 below ~400 ppm (physically implausible
 indoors: a sensor/calibration fault, not good air). VOC and NOx are Sensirion INDEX values, not
 concentrations: VOC settles to a baseline of 100 (higher = worse than the recent norm), NOx to 1
