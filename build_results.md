@@ -87,27 +87,107 @@ mpy-cross, though `tools/` is host-side Python and not deployed.
 The mpy-cross above comes from CI of branch `zephyr-pico2w-ble` on
 `tyeth/circuitpython` ([tyeth/circuitpython#4](https://github.com/tyeth/circuitpython/pull/4)),
 which adds a CYW43439 shared-gSPI-bus HCI driver so the Pico 2 W gets
-BLE under `ports/zephyr-cp`. It is stacked on
-[tyeth/circuitpython#5](https://github.com/tyeth/circuitpython/pull/5)
-and needs companion module PRs:
-[tyeth/zephyr#1](https://github.com/tyeth/zephyr/pull/1) (stacked on
-[tyeth/zephyr#2](https://github.com/tyeth/zephyr/pull/2)),
-[tyeth/hal_rpi_pico#1](https://github.com/tyeth/hal_rpi_pico/pull/1) and
-[tyeth/hal_rpi_pico#2](https://github.com/tyeth/hal_rpi_pico/pull/2)
-(**no single hal_rpi_pico branch builds working firmware — both commits
-must be cherry-picked onto one branch**), and
-[tyeth/hal_infineon#1](https://github.com/tyeth/hal_infineon/pull/1).
+BLE under `ports/zephyr-cp`. The whole prerequisite stack is still open:
 
-What that CI run ([34253440312](https://github.com/tyeth/circuitpython/actions/runs/34253440312))
-actually provides: only the `mpy-cross` artifacts (`mpy-cross`,
-`mpy-cross.static`, `mpy-cross.static-aarch64`, `mpy-cross.static-raspbian`,
-`mpy-cross.static.exe`, `mpy-cross-macos-arm64`). There is **no Pico 2 W
-firmware artifact**; the `.uf2` has to be built locally with
-`make BOARD=raspberrypi_rpi_pico2_w_zephyr` in `ports/zephyr-cp`. The
-run's overall status is **failure** (its `tests / zephyr` job fails), so
-the mpy-cross binaries come from an otherwise-red run.
+* [tyeth/circuitpython#4](https://github.com/tyeth/circuitpython/pull/4),
+  stacked on [tyeth/circuitpython#5](https://github.com/tyeth/circuitpython/pull/5)
+* [tyeth/zephyr#1](https://github.com/tyeth/zephyr/pull/1), stacked on
+  [tyeth/zephyr#2](https://github.com/tyeth/zephyr/pull/2)
+* [tyeth/hal_rpi_pico#1](https://github.com/tyeth/hal_rpi_pico/pull/1) and
+  [tyeth/hal_rpi_pico#2](https://github.com/tyeth/hal_rpi_pico/pull/2) --
+  **no single hal_rpi_pico branch builds working firmware; both commits
+  must be cherry-picked onto one branch**
+* [tyeth/hal_infineon#1](https://github.com/tyeth/hal_infineon/pull/1)
 
 Relevance to this repo: both examples target ESP32 Feathers and lean on
 ESP-NOW, which the Pico 2 W does not have. The Pico 2 W BLE work matters
 only for the BLE UART path (`collector/net_ble.py`, `node/net_ble.py`,
 `adafruit_ble`), not for the ESP-NOW mesh.
+
+### CI assets on tyeth/circuitpython
+
+Two separate Actions runs are involved. Artifacts expire 90 days after
+the run (early December 2026).
+
+**1. mpy-cross -- run [34253440312](https://github.com/tyeth/circuitpython/actions/runs/34253440312)**
+(the normal `Build CI` workflow on `zephyr-pico2w-ble` @ `f4d3e598`).
+Provides only the `mpy-cross` artifacts: `mpy-cross`, `mpy-cross.static`,
+`mpy-cross.static-aarch64`, `mpy-cross.static-raspbian`,
+`mpy-cross.static.exe`, `mpy-cross-macos-arm64`. It does **not** build
+board firmware. The run's overall conclusion is **failure** (its
+`tests / zephyr` job fails), so these binaries come from an otherwise-red
+run. This is what `tools/build_bundle.sh` downloads by default.
+
+**2. Pico 2 W firmware -- run [34258666665](https://github.com/tyeth/circuitpython/actions/runs/34258666665)**
+(the `Build board (custom)` workflow, `.github/workflows/build-board-custom.yml`,
+dispatched for board `raspberrypi_rpi_pico2_w_zephyr`, language `en_US`,
+version `latest`, on branch `ci/pico2w-ble-assets` @ `f9626482`).
+
+**Status at the time of writing (2026-09-08T17:53Z): `queued`, conclusion empty.**
+The run had been dispatched but no runner had picked it up
+(`gh run view --repo tyeth/circuitpython 34258666665 --json status,conclusion`
+returned `"status":"queued","conclusion":""`, roughly an hour after it was
+created at 17:41Z). So there is **no firmware artifact yet and no pass/fail
+result** -- this is a dispatched-but-unfinished run, not a success. This
+document is a snapshot; check the run link above for the current state
+rather than trusting it. If the run does complete, the artifact to look for
+is `raspberrypi_rpi_pico2_w_zephyr-en_US-latest`, containing `firmware.uf2`
+and `firmware.elf`; if it fails, there is still no CI-built Pico 2 W
+firmware and the `.uf2` has to be built locally with
+`make BOARD=raspberrypi_rpi_pico2_w_zephyr` in `ports/zephyr-cp`.
+
+`ci/pico2w-ble-assets` is a **CI-only branch**: it is `zephyr-pico2w-ble`
+(the PR #4 branch) plus one commit that does three things --
+
+* adds `tools/board_build_extensions.py` and makes the custom-board
+  workflow ask for `firmware.<ext>` targets by name. The zephyr-cp
+  Makefile's default goal is the Zephyr ELF, so without this the
+  `firmware.*` copies the artifact upload globs for are never produced
+  and the upload is empty. (The workflow predates the zephyr-cp port.)
+* checks out hal_rpi_pico's `cyw43-driver` submodule during port setup,
+  which the CYW43 shared-bus Bluetooth transport needs for the controller
+  patchram.
+* **repoints `ports/zephyr-cp/zephyr-config/west.yml` at fork branches**:
+  `tyeth/zephyr` @ `cyw43-shared-bus-ble`, `tyeth/hal_rpi_pico` @
+  `integration-pico2w-ble` (the two hal_rpi_pico PR commits cherry-picked
+  onto one branch), `tyeth/hal_infineon` @ `cyw43-shared-bus-ble`.
+
+> **The firmware is BLE-capable only because of that west.yml override.**
+> It is marked `CI-ONLY OVERRIDES -- do not merge to main` in the manifest
+> and must not be merged; PR tyeth/circuitpython#4 itself does not carry
+> it, so building #4 as-is against upstream Zephyr modules gives a Pico 2 W
+> build *without* working BLE. The first two changes (the workflow fixes)
+> are candidates for a real PR; the third is not.
+
+## Continuous integration (this repo)
+
+`.github/workflows/build-bundle.yml` runs `tools/build_bundle.sh` on
+every push to `main`, on pull requests, and on demand, and uploads the
+compiled `.mpy` files plus the staged `node/lib` and `collector/lib` as
+an artifact (`bundle-<sha>`). It fails if mpy-cross rejects any source or
+if circup leaves either `lib/` empty (the script pipes circup through
+`grep`, which would otherwise mask a circup error).
+
+It downloads `mpy-cross` from tyeth/circuitpython with `gh run download`,
+which needs a token with **Actions: read** on *that* repository -- the
+job's own `GITHUB_TOKEN` is scoped to this repo and cannot do it. The
+workflow reads a repository secret named **`CP_CI_TOKEN`**, which has to
+be created by hand:
+
+1. GitHub -> Settings -> Developer settings -> Fine-grained personal
+   access tokens -> Generate new token.
+2. Repository access: *Only select repositories* -> `tyeth/circuitpython`.
+3. Repository permissions: **Actions: Read-only** (Metadata: Read-only is
+   added automatically). Nothing else.
+4. In this repo: Settings -> Secrets and variables -> Actions -> New
+   repository secret, name `CP_CI_TOKEN`, paste the token.
+
+(A classic PAT works too but needs the whole `repo` scope, which is far
+broader; prefer the fine-grained token.) The workflow's own
+`permissions:` block is `contents: read` only. Pull requests from forks
+do not receive secrets, so the job can only pass for branches in this
+repository. On `workflow_dispatch` the run id to take mpy-cross from can
+be overridden (`mpy_cross_run`), and an optional `firmware_run` input
+re-hosts the Pico 2 W firmware artifact from a `Build board (custom)` run
+alongside the bundle -- informational only, the bundle build does not
+use it.
