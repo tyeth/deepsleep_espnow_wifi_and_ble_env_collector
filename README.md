@@ -1,5 +1,8 @@
 # ESP-NOW / WiFi / BLE Environmental Collector
 
+https://tyeth.github.io/deepsleep_espnow_wifi_and_ble_env_collector/webapp/ (no data yet)
+https://tyeth.github.io/deepsleep_espnow_wifi_and_ble_env_collector/webapp/?demo=1 (fake data)
+
 A CircuitPython environmental monitoring system:
 
 * **Collector hub** (`collector/`) — Feather ESP32-C6 (bench) / S3 / S2
