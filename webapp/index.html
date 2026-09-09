@@ -169,6 +169,9 @@ a{color:var(--acc)}
  <div class="row">
   <button id="micbtn" class="sec" title="voice input">&#127908; speak</button>
   <button id="askbtn">Ask</button>
+  <!-- a small model on a slow machine can think for a long time, and the first
+       run may be downloading it: one AbortController covers every stage -->
+  <button id="stopbtn" class="sec" hidden title="stop the model">&#9632; stop</button>
   <span class="mut">Ctrl+Enter asks, Enter makes a new line</span>
  </div>
  <div class="mut" id="aistatus"></div>
@@ -961,8 +964,36 @@ function aiDiagnostics(extra){
  return bits.join(" | ");
 }
 let aiStamp=-1;
+/* --- stopping the model ---------------------------------------------------
+   Everything the model does is slow enough to want a way out: the one-time
+   download, loading it into memory, and each turn of the tool loop (a wrong
+   question on a laptop can sit there for a minute). One AbortController per
+   run is handed to LanguageModel.create() and every prompt(), and the loop
+   re-checks it around the parts that cannot be aborted (Pyodide, SQL). */
+let aiAbort=null;
+function aiStart(){
+ aiAbort=new AbortController();
+ $("stopbtn").hidden=false;$("askbtn").disabled=true;$("btn-ai").disabled=true;
+ return aiAbort.signal;
+}
+function aiEnd(){
+ aiAbort=null;
+ $("stopbtn").hidden=true;$("askbtn").disabled=false;
+ $("btn-ai").disabled=$("btn-ai").textContent==="AI ready";
+}
+function aiStop(){
+ if(!aiAbort)return;
+ aiAbort.abort(new DOMException("stopped by the user","AbortError"));
+ setStatus("aistatus","stopping...",true);
+}
+// true for "the user pressed stop" however the rejection was dressed up
+const wasAborted=e=>!!e&&(e.name==="AbortError"||/abort/i.test(String(e.message||e)));
+// throw the same way an aborted await would, for the gaps between them
+function throwIfStopped(signal){
+ if(signal&&signal.aborted)throw new DOMException("stopped by the user","AbortError");
+}
 // create the pre-warmed session (system prompt = domain guidance + live schema doc)
-async function warmAI(){
+async function warmAI(signal){
  if(!("LanguageModel" in self)){chip("chip-ai","ai: unsupported",false);
   setStatus("aistatus",aiDiagnostics(),false,true);showCanned(true);
   return null;}
@@ -984,6 +1015,7 @@ async function warmAI(){
    initialPrompts:[{role:"system",content:T.buildSystemPrompt(dataMeta())}],
    expectedInputs:[{type:"text",languages:["en"]}],
    expectedOutputs:[{type:"text",languages:["en"]}],
+   signal,                       // stop button: abandons the download/load
    monitor(m){m.addEventListener("downloadprogress",e=>{
     setStatus("aistatus",
      "downloading model: "+Math.round(e.loaded*100)+"%",true);
@@ -992,30 +1024,39 @@ async function warmAI(){
   aiStamp=dataVersion;
   chip("chip-ai","ai: ready",true);setStatus("aistatus","model ready");
   return aiSession;
- }catch(e){chip("chip-ai","ai: error",false);
+ }catch(e){
+  if(wasAborted(e)){ // Chrome keeps whatever of the model it already fetched
+   chip("chip-ai","ai: stopped",false);
+   setStatus("aistatus","stopped - any partial model download is kept by Chrome, "+
+    "so enabling AI again resumes rather than restarts");
+   return null;}
+  chip("chip-ai","ai: error",false);
   setStatus("aistatus","AI init failed: "+e,false,true);
   return null;}
 }
 // tokens used / window, across the renamed (contextUsage) and old (inputUsage) properties
 function quota(s){return {used:s.contextUsage??s.inputUsage??0,window:s.contextWindow??s.inputQuota??Infinity};}
 // one constrained turn; falls back to plain JSON prompting on browsers without responseConstraint
-async function promptJSON(s,text){
- try{return await s.prompt(text,{responseConstraint:T.TOOL_SCHEMA,omitResponseConstraintInput:true});}
- catch(e){if(!/constraint|schema|NotSupported|TypeError/i.test(String(e)))throw e;
-  return await s.prompt(text+"\nReply with a single JSON object only.");}
+async function promptJSON(s,text,signal){
+ try{return await s.prompt(text,
+  {responseConstraint:T.TOOL_SCHEMA,omitResponseConstraintInput:true,signal});}
+ catch(e){ // a stop is not a "this browser lacks responseConstraint" failure
+  if(wasAborted(e)||!/constraint|schema|NotSupported|TypeError/i.test(String(e)))throw e;
+  return await s.prompt(text+"\nReply with a single JSON object only.",{signal});}
 }
 // decide -> query -> answer loop (max TOOL_ITER queries), returns {text, steps}
-async function askWithTools(q){
- const steps=[];let s=await aiSession.clone();
+async function askWithTools(q,signal){
+ const steps=[];let s=await aiSession.clone({signal});
  let turn=`QUESTION: ${q}`;
  try{
   for(let i=0;i<=TOOL_ITER;i++){
    const {used,window:win}=quota(s);
-   if(used>win*AI_QUOTA_FRACTION){s.destroy();s=await aiSession.clone();} // near quota: fresh clone
+   if(used>win*AI_QUOTA_FRACTION){s.destroy();s=await aiSession.clone({signal});} // near quota: fresh clone
    setStatus("aistatus",i?"model is reading the results...":"model is deciding what to query...",true);
    let reply;
-   try{reply=T.classifyReply(T.parseToolReply(await promptJSON(s,turn)));}
-   catch(e){turn=`Your reply was not valid (${e.message}). Answer QUESTION: ${q} with {"answer":...} using the tool_result(s) you already have.`;
+   try{reply=T.classifyReply(T.parseToolReply(await promptJSON(s,turn,signal)));}
+   catch(e){if(wasAborted(e))throw e;   // a stop must not become a "fix your JSON" retry
+    turn=`Your reply was not valid (${e.message}). Answer QUESTION: ${q} with {"answer":...} using the tool_result(s) you already have.`;
     if(i===TOOL_ITER)break;continue;}
    if(reply.kind==="answer")return {text:reply.text,steps};
    if(i===TOOL_ITER)break;
@@ -1024,6 +1065,7 @@ async function askWithTools(q){
    try{step={reason:reply.reason,...(await sqlTool(reply.query))};}
    catch(e){step.error=String(e.message||e);}
    steps.push(step);showSteps(steps);
+   throwIfStopped(signal);   // a query is capped at ~2 s, but stop should land after it
    const payload=step.error?{tool_error:step.error,query:step.sql}:{tool_result:T.capToolResult(step)};
    turn=JSON.stringify(payload)+`\nQUESTION: ${q}\n`+(steps.length>=TOOL_ITER?
     'You have used all your queries: reply with {"answer":...} now.':
@@ -1032,7 +1074,7 @@ async function askWithTools(q){
   // out of iterations: force a prose answer from whatever was gathered
   setStatus("aistatus","summarising...",true);
   const gathered=steps.filter(x=>!x.error).map(x=>JSON.stringify(T.capToolResult(x,20,600))).join("\n");
-  const text=await s.prompt(`Using only these query results:\n${gathered||"(none succeeded)"}\nAnswer briefly in plain prose: ${q}`);
+  const text=await s.prompt(`Using only these query results:\n${gathered||"(none succeeded)"}\nAnswer briefly in plain prose: ${q}`,{signal});
   return {text,steps};
  }finally{s.destroy();}
 }
@@ -1040,6 +1082,8 @@ let asking=false;
 async function ask(){
  const q=$("question").value.trim();
  if(asking)return;
+ if(aiAbort){setStatus("aistatus","the model is already busy - press stop first",false,true);
+  return;}
  if(!q){setStatus("aistatus","type or speak a question first",false,true);
   return;}
  if(!rows.length){
@@ -1048,29 +1092,34 @@ async function ask(){
    "Load data first: sync from the device (or drop CSVs), then "+
    "'Load & merge all'. Then ask again.";
   return;}
- asking=true;$("askbtn").disabled=true;
+ asking=true;
+ const signal=aiStart();
  const t0=Date.now();
  try{
   if(!aiSession||aiStamp!==dataVersion){ // no session yet, or the schema doc is stale
    $("answer").textContent="";
-   if(!(await warmAI())){asking=false;$("askbtn").disabled=false;return;}
+   if(!(await warmAI(signal)))return;    // warmAI has already said why (stop included)
   }
   showSteps([]);
   setStatus("aistatus","loading the query engine (Pyodide + sqlite3)...",true);
-  await ensureSqlDb();
-  const {text,steps}=await askWithTools(q);
+  await ensureSqlDb();                   // not abortable; stop lands as soon as it returns
+  throwIfStopped(signal);
+  const {text,steps}=await askWithTools(q,signal);
   $("answer").textContent=text; // textContent: output stays plain text
   showSteps(steps);
   setStatus("aistatus",`done in ${((Date.now()-t0)/1000).toFixed(1)}s, ${steps.length} quer${steps.length===1?"y":"ies"}`);
   if(!text)setStatus("aistatus","model returned nothing - try rephrasing",
    false,true);
  }catch(e){
+  if(wasAborted(e)){ // stopped on purpose: keep whatever ran, say nothing alarming
+   setStatus("aistatus","stopped"+(!$("how").hidden?" - the queries that already ran are below":""));
+   return;}
   setStatus("aistatus","AI failed: "+e,false,true);
   if(!$("answer").textContent)$("answer").textContent=
    "The on-device model errored ("+e+"). The threshold/change tables "+
    "above still have the numbers, and the canned queries below work without the model.";
   showCanned(true);
- }finally{asking=false;$("askbtn").disabled=false;}
+ }finally{asking=false;aiEnd();}
 }
 /* --- deterministic fallback (no Prompt API, e.g. Chrome for Android) --- */
 // show the canned-query row and fill its selects from the loaded dataset
@@ -1197,15 +1246,19 @@ $("btn-thr").onclick=()=>{$("thrbox").hidden=!$("thrbox").hidden;};
 $("btn-py").onclick=runPy;
 $("btn-pyedit").onclick=()=>{$("pybox").hidden=!$("pybox").hidden;};
 $("askbtn").onclick=ask;
+$("stopbtn").onclick=aiStop;
 $("micbtn").onclick=mic;
 $("cq-run").onclick=runCanned;
 // header AI controls: model creation must happen inside a user gesture
 function showAi(){$("ai").hidden=false;growQuestion(); // now measurable
  $("ai").scrollIntoView({behavior:"smooth",block:"start"});}
+// the download can be gigabytes: showAi() first so the stop button is on screen
 $("btn-ai").onclick=async()=>{
- const b=$("btn-ai");b.disabled=true;b.textContent="loading AI...";showAi();
- const ok=await warmAI();
- b.textContent=ok?"AI ready":"enable AI";b.disabled=!!ok;};
+ if(aiAbort)return;
+ const b=$("btn-ai");b.textContent="loading AI...";showAi();
+ const signal=aiStart();
+ try{b.textContent=(await warmAI(signal))?"AI ready":"enable AI";}
+ finally{aiEnd();}};
 $("hdr-mic").onclick=()=>{showAi();mic();};
 $("hdr-ask").onclick=()=>{showAi();$("question").focus();};
 

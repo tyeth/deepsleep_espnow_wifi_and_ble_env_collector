@@ -78,6 +78,10 @@ by Chrome; state at `chrome://on-device-internals`. See
   window (`contextUsage`/`contextWindow`) nears its quota, and the answer is
   rendered as plain text. Voice input via the Web Speech API. The ask box is
   multiline and grows as you type (Enter = new line, **Ctrl/Cmd+Enter** asks).
+  A **stop** button aborts whatever the model is doing — the one-time
+  download, loading it into memory, or a turn of the tool loop — through one
+  `AbortController` passed to `LanguageModel.create()` and every `prompt()`.
+  Stopping a download loses nothing: Chrome keeps the part it already has.
 
   Example: *"my dehumidifier stopped over the last couple of days, how bad
   did the CO2 and humidity get and was it totally fucked?"* → the assistant
