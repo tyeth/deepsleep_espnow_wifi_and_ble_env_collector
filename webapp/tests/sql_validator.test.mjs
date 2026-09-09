@@ -69,6 +69,24 @@ ok("schema doc and system prompt mention every table and the zones", () => {
   for (const t of Object.keys(T.SQL_TABLES)) assert.ok(p.includes(t + "("), "mentions " + t);
   assert.ok(p.includes("local, bedroom") && p.includes("UTC+01:00") && p.includes("tool_result"));
 });
+ok("a user's system prompt replaces the built-in one, placeholders stay live", () => {
+  const meta = {sources: ["local", "shed"], from: "2026-08-22 00:00", to: "2026-08-24 23:55",
+    rows: 10, days: 1, tzOffsetMin: 0};
+  const mine = "MY RULES: be blunt.\n{{schema}}\nReply with JSON only.";
+  const p = T.buildSystemPrompt(meta, mine);
+  assert.ok(p.startsWith("MY RULES"), "the user's text leads");
+  assert.ok(p.includes("zones present: local, shed"), "{{schema}} filled from the dataset");
+  assert.ok(!p.includes("{{"), "no placeholder left behind");
+  // {{domain}} pulls in the built-in guidance, so an edit can keep it in one line
+  assert.equal(T.renderSystemPrompt("{{domain}}", meta), T.DOMAIN_PROMPT);
+  // empty / whitespace-only override falls back to the built-in template
+  assert.equal(T.buildSystemPrompt(meta, "   "), T.buildSystemPrompt(meta));
+  assert.equal(T.buildSystemPrompt(meta, null), T.buildSystemPrompt(meta));
+  // the built-in template renders with nothing left unexpanded
+  assert.ok(!T.buildSystemPrompt(meta).includes("{{"));
+  // the stamp the page compares a saved edit against must sort as a date
+  assert.match(T.PROMPT_STAMP, /^\d{4}-\d{2}-\d{2}$/);
+});
 ok("canned fallback queries all pass the validator", () => {
   for (const c of T.CANNED)
     T.validateSql(c.sql("co2", " AND src = 'local'", 1787356800, 1787443200));

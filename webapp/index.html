@@ -178,6 +178,34 @@ a{color:var(--acc)}
  <div id="answer"></div>
  <!-- transparency: every SQL query the model asked for, post-validation, with row counts -->
  <details id="how" hidden><summary>how I got this</summary><div id="how-body"></div></details>
+ <!-- The system prompt is the model's whole brief: domain guidance, the tool
+      protocol, and the few-shot examples. People tune it for their own home
+      (zones, tolerances, house style), so it is editable and kept in
+      localStorage together with the stamp of the built-in copy it was based
+      on. When the built-in one moves on the page says so, instead of silently
+      keeping an old brief or silently throwing the edit away. -->
+ <details id="spbox">
+  <summary>system prompt <span class="mut" id="sp-tag"></span></summary>
+  <div id="sp-warn" class="row" hidden
+   style="background:var(--warn);border-radius:6px;padding:.4em .6em">
+   <span id="sp-warn-text"></span>
+   <button id="sp-keep" class="sec">keep mine</button>
+   <button id="sp-show" class="sec">show the built-in one</button>
+  </div>
+  <label class="mut"><input type="checkbox" id="sp-use">
+   use my prompt (otherwise the built-in one is used)</label>
+  <textarea id="sp-text" rows="12" spellcheck="false"></textarea>
+  <div class="mut"><code>{{schema}}</code> is replaced at session time with the live
+   table/zone/date-range description and <code>{{domain}}</code> with the built-in
+   domain guidance. Keep <code>{{schema}}</code>, or the model will not know what it
+   can query.</div>
+  <div class="row">
+   <button id="sp-save">Save</button>
+   <button id="sp-reset" class="sec">Reset to built-in</button>
+   <span class="mut" id="sp-status"></span>
+  </div>
+  <textarea id="sp-builtin" rows="12" readonly hidden></textarea>
+ </details>
  <!-- no Prompt API (Chrome for Android, other browsers): canned questions on the same
       local sqlite engine, so the query side stays useful without the model -->
  <div id="canned" class="row" hidden>
@@ -1001,6 +1029,41 @@ const wasAborted=(e,signal)=>!!(signal&&signal.aborted)||!!(e&&e.name==="AbortEr
 function throwIfStopped(signal){
  if(signal&&signal.aborted)throw new DOMException("stopped by the user","AbortError");
 }
+/* --- the system prompt: built-in template, optionally overridden -----------
+   Stored as {text, ts, use, base}: `base` is T.PROMPT_STAMP at the time of the
+   edit, so the page can tell that the built-in prompt has since changed. */
+const SP_KEY="envhub.sysprompt";
+function spLoad(){
+ try{const o=JSON.parse(localStorage.getItem(SP_KEY)||"null");
+  return o&&typeof o.text==="string"?o:null;}catch(e){return null;}
+}
+function spStore(o){
+ try{localStorage.setItem(SP_KEY,JSON.stringify(o));return true;}
+ catch(e){setStatus("sp-status","could not save: "+e,false,true);return false;}
+}
+// the text warmAI() should brief the model with, or null for the built-in one
+function spActive(){const o=spLoad();return o&&o.use&&o.text.trim()?o.text:null;}
+// the built-in prompt has moved on since this copy was saved
+function spStale(o){return !!(o&&o.use&&o.base&&o.base<T.PROMPT_STAMP);}
+function spRender(){
+ const o=spLoad(),mine=!!(o&&o.use);
+ $("sp-use").checked=mine;
+ $("sp-text").value=o?o.text:T.SYSTEM_TEMPLATE;
+ $("sp-tag").textContent=mine?`(yours, edited ${String(o.ts||"").slice(0,10)})`:"(built-in)";
+ const stale=spStale(o);
+ $("sp-warn").hidden=!stale;
+ if(stale){
+  $("sp-warn-text").textContent=
+   `The built-in system prompt changed on ${T.PROMPT_STAMP}; yours is based on the `+
+   `${o.base} one and is still what the model gets.`;
+  $("spbox").open=true;   // do not let this hide inside a collapsed section
+ }
+}
+// a changed brief invalidates the warmed session: the next question re-creates it
+function spInvalidate(){
+ if(aiSession){try{aiSession.destroy();}catch(e){}}
+ aiSession=null;aiStamp=-1;
+}
 // create the pre-warmed session (system prompt = domain guidance + live schema doc)
 async function warmAI(signal){
  if(!("LanguageModel" in self)){chip("chip-ai","ai: unsupported",false);
@@ -1025,7 +1088,7 @@ async function warmAI(signal){
   if(aiSession){try{aiSession.destroy();}catch(e){}}
   aiSession=null;aiStamp=-1;
   aiSession=await LanguageModel.create({
-   initialPrompts:[{role:"system",content:T.buildSystemPrompt(dataMeta())}],
+   initialPrompts:[{role:"system",content:T.buildSystemPrompt(dataMeta(),spActive())}],
    expectedInputs:[{type:"text",languages:["en"]}],
    expectedOutputs:[{type:"text",languages:["en"]}],
    signal,                       // stop button: abandons the download/load
@@ -1035,7 +1098,8 @@ async function warmAI(signal){
     chip("chip-ai","ai: downloading",false);});},
   });
   aiStamp=dataVersion;
-  chip("chip-ai","ai: ready",true);setStatus("aistatus","model ready");
+  chip("chip-ai","ai: ready",true);
+  setStatus("aistatus","model ready"+(spActive()?" (briefed with your system prompt)":""));
   return aiSession;
  }catch(e){
   if(wasAborted(e,signal)){ // Chrome keeps whatever of the model it already fetched
@@ -1261,6 +1325,30 @@ $("btn-pyedit").onclick=()=>{$("pybox").hidden=!$("pybox").hidden;};
 $("askbtn").onclick=ask;
 $("stopbtn").onclick=aiStop;
 $("micbtn").onclick=mic;
+/* --- system prompt editor --- */
+$("sp-save").onclick=()=>{
+ const text=$("sp-text").value,use=$("sp-use").checked;
+ if(!spStore({text,ts:new Date().toISOString(),use,base:T.PROMPT_STAMP}))return;
+ spInvalidate();spRender();
+ setStatus("sp-status",use?"saved - the next question starts a session with your prompt"
+  :"saved, but not in use - tick the box to brief the model with it");
+};
+$("sp-reset").onclick=()=>{
+ try{localStorage.removeItem(SP_KEY);}catch(e){}
+ spInvalidate();spRender();$("sp-builtin").hidden=true;
+ setStatus("sp-status","back to the built-in prompt");
+};
+// "keep mine": stop warning about this version of the built-in prompt
+$("sp-keep").onclick=()=>{
+ const o=spLoad();if(!o)return;
+ o.base=T.PROMPT_STAMP;spStore(o);spRender();
+ setStatus("sp-status","keeping yours - no more warnings until the built-in one changes again");
+};
+$("sp-show").onclick=()=>{
+ const b=$("sp-builtin");b.value=T.SYSTEM_TEMPLATE;b.hidden=!b.hidden;
+ $("sp-show").textContent=b.hidden?"show the built-in one":"hide the built-in one";
+};
+spRender();
 $("cq-run").onclick=runCanned;
 // header AI controls: model creation must happen inside a user gesture
 function showAi(){$("ai").hidden=false;growQuestion(); // now measurable

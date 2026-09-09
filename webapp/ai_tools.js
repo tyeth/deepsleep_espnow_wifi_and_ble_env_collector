@@ -130,12 +130,18 @@ beyond acceptable limits and for how long". A good answer gives 1) what happened
 peaks and durations, 2) a verdict: fine / briefly out of range / bad / severely out of range for
 an excessive period, 3) anything to check. If gaps overlap the period say the record is incomplete.`;
 
-  // tool-protocol rules + few-shot examples the model sees at session creation
-  function buildSystemPrompt(meta) {
-    return `${DOMAIN_PROMPT}
+  // Bump this whenever SYSTEM_TEMPLATE or DOMAIN_PROMPT changes in a way a user
+  // who has saved their own copy should know about: the page compares it with the
+  // stamp stored beside their edit and warns that the built-in one moved on.
+  const PROMPT_STAMP = "2026-09-09";
+
+  // tool-protocol rules + few-shot examples the model sees at session creation.
+  // {{domain}} and {{schema}} are filled in by renderSystemPrompt at session time --
+  // a user-edited copy keeps {{schema}} so the zones/date range stay live.
+  const SYSTEM_TEMPLATE = `{{domain}}
 
 TOOL: you have a Python/Pyodide tool holding the user's data in an in-memory sqlite3 database.
-${schemaDoc(meta)}
+{{schema}}
 Rules: reply with JSON only. To look something up reply {"tool":"sql","query":"SELECT ...","reason":"..."}
 - at most ONE query per turn, SELECT only, prefer aggregates (MIN/MAX/AVG/COUNT, GROUP BY src or
 day/hour), never raw rows without LIMIT (results are capped at 50 rows / ~2000 chars). The next
@@ -160,6 +166,18 @@ Q: which hour had the highest PM2.5?
 A: {"tool":"sql","query":"SELECT strftime('%Y-%m-%d %H',ts,'unixepoch') AS hour, src, ROUND(AVG(pm25),1) AS avg_pm25 FROM readings WHERE pm25 IS NOT NULL GROUP BY hour, src ORDER BY avg_pm25 DESC LIMIT 3","reason":"worst hours by mean PM2.5"}
 {"tool_result":{"cols":["hour","src","avg_pm25"],"rows":[["2026-08-22 18","local",41.2],["2026-08-22 19","local",33.8],["2026-08-22 17","local",22.5]],"row_count":3}}
 A: {"answer":"The worst hour was 2026-08-22 18:00 UTC at the hub (local): mean PM2.5 41.2 ug/m3, above the bad threshold of 35 ug/m3 - probably cooking or an open window near traffic."}`;
+
+  // fill the placeholders in a template (built-in or user-edited) for this dataset
+  function renderSystemPrompt(template, meta) {
+    return String(template)
+      .replace(/\{\{\s*domain\s*\}\}/g, DOMAIN_PROMPT)
+      .replace(/\{\{\s*schema\s*\}\}/g, schemaDoc(meta));
+  }
+
+  // the system prompt for a session; `override` is the user's saved text, if in use
+  function buildSystemPrompt(meta, override) {
+    const t = override && String(override).trim() ? override : SYSTEM_TEMPLATE;
+    return renderSystemPrompt(t, meta);
   }
 
   // canned questions for the no-model fallback: {label, sql(metric, zone, from, to)}
@@ -178,7 +196,9 @@ A: {"answer":"The worst hour was 2026-08-22 18:00 UTC at the hub (local): mean P
   ];
 
   const api = {METRICS, UNITS, SQL_TABLES, SQL_WORDS, SQL_BAD, TOOL_SCHEMA, CANNED,
-    validateSql, parseToolReply, classifyReply, capToolResult, schemaDoc, buildSystemPrompt};
+    DOMAIN_PROMPT, SYSTEM_TEMPLATE, PROMPT_STAMP,
+    validateSql, parseToolReply, classifyReply, capToolResult, schemaDoc,
+    renderSystemPrompt, buildSystemPrompt};
   root.EnvAiTools = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof self !== "undefined" ? self : globalThis);

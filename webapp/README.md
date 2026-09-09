@@ -83,6 +83,19 @@ by Chrome; state at `chrome://on-device-internals`. See
   `AbortController` passed to `LanguageModel.create()` and every `prompt()`.
   Stopping a download loses nothing: Chrome keeps the part it already has.
 
+  The **system prompt is editable** (*system prompt* disclosure under the
+  answer): the built-in template is `SYSTEM_TEMPLATE` in `ai_tools.js`, and
+  a saved copy lives in `localStorage` as
+  `{text, ts, use, base}` — `base` being `T.PROMPT_STAMP`, the date of the
+  built-in prompt it was written against. `{{schema}}` (live tables, zones
+  and date range) and `{{domain}}` (the built-in domain guidance) are
+  substituted at session-creation time, so an edited prompt still describes
+  the data actually loaded. Saving destroys the warmed session, so the next
+  question is asked with the new brief. When the built-in prompt is revised
+  (bump `PROMPT_STAMP`) the panel opens itself and warns that yours is based
+  on the older one; *keep mine* silences it until the next revision, *Reset
+  to built-in* drops the edit.
+
   Example: *"my dehumidifier stopped over the last couple of days, how bad
   did the CO2 and humidity get and was it totally fucked?"* → the assistant
   queries peaks/durations vs thresholds and gives a severity verdict
