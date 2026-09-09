@@ -158,11 +158,14 @@ a{color:var(--acc)}
 
 <section id="ai" hidden>
  <h2>Ask about your data <span class="mut">(on-device AI, Chrome built-in)</span></h2>
+ <!-- multiline: questions about several zones/metrics run long, and dictation
+      fills this too. Enter makes a new line, Ctrl/Cmd+Enter asks. -->
+ <textarea id="question" rows="2" style="font-family:inherit"
+  placeholder='e.g. "my dehumidifier stopped the last couple of days - how bad did CO2 and humidity get?"'></textarea>
  <div class="row">
   <button id="micbtn" class="sec" title="voice input">&#127908; speak</button>
-  <input id="question" size="50"
-   placeholder='e.g. "my dehumidifier stopped the last couple of days - how bad did CO2 and humidity get?"'>
   <button id="askbtn">Ask</button>
+  <span class="mut">Ctrl+Enter asks, Enter makes a new line</span>
  </div>
  <div class="mut" id="aistatus"></div>
  <div id="answer"></div>
@@ -1096,6 +1099,14 @@ async function runCanned(){
  }catch(e){setStatus("aistatus","query failed: "+e,false,true);}
  finally{$("cq-run").disabled=false;}
 }
+/* --- the ask box grows with the question, up to ~8 lines, then scrolls --- */
+function growQuestion(){
+ const t=$("question");if(!t)return;
+ t.style.height="auto";
+ // the AI section starts hidden, where scrollHeight is 0: pinning height:0px
+ // there would leave a zero-height box when the section is finally shown
+ if(t.scrollHeight)t.style.height=Math.min(t.scrollHeight,200)+"px";
+}
 /* --- voice --- */
 function mic(){
  const SR=self.SpeechRecognition||self.webkitSpeechRecognition;
@@ -1105,7 +1116,8 @@ function mic(){
  $("micbtn").classList.add("rec");
  setStatus("aistatus","listening... (tap speak again to cancel)",true);
  rec.onresult=e=>{
-  $("question").value=[...e.results].map(r=>r[0].transcript).join("");};
+  $("question").value=[...e.results].map(r=>r[0].transcript).join("");
+  growQuestion();};   // dictation is often long: let the box grow with it
  rec.onend=()=>{$("micbtn").classList.remove("rec");
   if($("question").value.trim()){setStatus("aistatus","heard it - asking...",true);ask();}
   else setStatus("aistatus","didn't catch anything - try again",false,true);};
@@ -1181,7 +1193,8 @@ $("askbtn").onclick=ask;
 $("micbtn").onclick=mic;
 $("cq-run").onclick=runCanned;
 // header AI controls: model creation must happen inside a user gesture
-function showAi(){$("ai").hidden=false;$("ai").scrollIntoView({behavior:"smooth",block:"start"});}
+function showAi(){$("ai").hidden=false;growQuestion(); // now measurable
+ $("ai").scrollIntoView({behavior:"smooth",block:"start"});}
 $("btn-ai").onclick=async()=>{
  const b=$("btn-ai");b.disabled=true;b.textContent="loading AI...";showAi();
  const ok=await warmAI();
@@ -1271,7 +1284,12 @@ if(!self.isSecureContext){ // hub-served http copy: no AI here
  // the hub also serves this page over HTTPS at its certificate's hostname
  if(/^192\.168\.4\.1$/.test(location.hostname)){$("lnk-secure").href=HUB_HTTPS+"/";$("lnk-secure").hidden=false;}}
 if(location.protocol==="https:"){$("lnk-fast").href="http://192.168.4.1/";$("lnk-fast").hidden=false;}
-$("question").addEventListener("keydown",e=>{if(e.key==="Enter")ask();});
+// The ask box is a textarea: Enter makes a new line, Ctrl/Cmd+Enter asks. Shift+Enter
+// is a newline too, so muscle memory from chat apps still does something sensible.
+$("question").addEventListener("keydown",e=>{
+ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();ask();}});
+$("question").addEventListener("input",growQuestion);
+growQuestion();
 $("filein").onchange=async e=>{
  for(const f of e.target.files)
   await idb.put(f.name.replace(/\.csv$/,""),await f.text());
