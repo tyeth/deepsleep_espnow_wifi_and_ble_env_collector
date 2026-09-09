@@ -86,6 +86,14 @@ ok("a user's system prompt replaces the built-in one, placeholders stay live", (
   assert.ok(!T.buildSystemPrompt(meta).includes("{{"));
   // the stamp the page compares a saved edit against must sort as a date
   assert.match(T.PROMPT_STAMP, /^\d{4}-\d{2}-\d{2}$/);
+  // an override that dropped {{schema}} still gets one: without column names
+  // every query the model invents is refused by the validator
+  const noSchema = T.buildSystemPrompt(meta, "Just answer in one line.");
+  assert.ok(noSchema.includes("readings(ts INT"), "schema appended");
+  // $& / $' in the inserted text must not splice the template back in
+  const dollarMeta = {...meta, sources: ["shed$'x", "a$&b"]};
+  const p2 = T.buildSystemPrompt(dollarMeta, "HEAD\n{{schema}}\nTAIL");
+  assert.ok(p2.includes("shed$'x, a$&b") && p2.endsWith("TAIL"), "literal substitution");
 });
 ok("canned fallback queries all pass the validator", () => {
   for (const c of T.CANNED)

@@ -90,7 +90,9 @@ by Chrome; state at `chrome://on-device-internals`. See
   built-in prompt it was written against. `{{schema}}` (live tables, zones
   and date range) and `{{domain}}` (the built-in domain guidance) are
   substituted at session-creation time, so an edited prompt still describes
-  the data actually loaded. Saving destroys the warmed session, so the next
+  the data actually loaded — and an edit that drops `{{schema}}` gets the
+  schema appended anyway, since without column names every query the model
+  invents is refused by the validator. Saving destroys the warmed session, so the next
   question is asked with the new brief. When the built-in prompt is revised
   (bump `PROMPT_STAMP`) the panel opens itself and warns that yours is based
   on the older one; *keep mine* silences it until the next revision, *Reset

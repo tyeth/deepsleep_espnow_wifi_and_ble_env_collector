@@ -1063,6 +1063,16 @@ function spRender(){
 function spInvalidate(){
  if(aiSession){try{aiSession.destroy();}catch(e){}}
  aiSession=null;aiStamp=-1;
+ if($("btn-ai").textContent==="AI ready"){ // no session behind that label any more
+  $("btn-ai").textContent="enable AI";$("btn-ai").disabled=false;}
+}
+// A warmAI() already in flight read the prompt before it was edited and will
+// install that session when it resolves, so refuse to save under it.
+function spBusy(){
+ if(!aiAbort)return false;
+ setStatus("sp-status","the model is busy - wait for it, or press stop, then save",
+  false,true);
+ return true;
 }
 // create the pre-warmed session (system prompt = domain guidance + live schema doc)
 async function warmAI(signal){
@@ -1327,6 +1337,7 @@ $("stopbtn").onclick=aiStop;
 $("micbtn").onclick=mic;
 /* --- system prompt editor --- */
 $("sp-save").onclick=()=>{
+ if(spBusy())return;
  const text=$("sp-text").value,use=$("sp-use").checked;
  if(!spStore({text,ts:new Date().toISOString(),use,base:T.PROMPT_STAMP}))return;
  spInvalidate();spRender();
@@ -1334,6 +1345,7 @@ $("sp-save").onclick=()=>{
   :"saved, but not in use - tick the box to brief the model with it");
 };
 $("sp-reset").onclick=()=>{
+ if(spBusy())return;
  try{localStorage.removeItem(SP_KEY);}catch(e){}
  spInvalidate();spRender();$("sp-builtin").hidden=true;
  setStatus("sp-status","back to the built-in prompt");

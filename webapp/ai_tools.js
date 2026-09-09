@@ -167,17 +167,23 @@ A: {"tool":"sql","query":"SELECT strftime('%Y-%m-%d %H',ts,'unixepoch') AS hour,
 {"tool_result":{"cols":["hour","src","avg_pm25"],"rows":[["2026-08-22 18","local",41.2],["2026-08-22 19","local",33.8],["2026-08-22 17","local",22.5]],"row_count":3}}
 A: {"answer":"The worst hour was 2026-08-22 18:00 UTC at the hub (local): mean PM2.5 41.2 ug/m3, above the bad threshold of 35 ug/m3 - probably cooking or an open window near traffic."}`;
 
-  // fill the placeholders in a template (built-in or user-edited) for this dataset
+  // fill the placeholders in a template (built-in or user-edited) for this dataset.
+  // Function replacers: the inserted text carries zone names and dates, and a $&
+  // or $' in there would otherwise splice part of the template back in.
   function renderSystemPrompt(template, meta) {
     return String(template)
-      .replace(/\{\{\s*domain\s*\}\}/g, DOMAIN_PROMPT)
-      .replace(/\{\{\s*schema\s*\}\}/g, schemaDoc(meta));
+      .replace(/\{\{\s*domain\s*\}\}/g, () => DOMAIN_PROMPT)
+      .replace(/\{\{\s*schema\s*\}\}/g, () => schemaDoc(meta));
   }
 
-  // the system prompt for a session; `override` is the user's saved text, if in use
+  // the system prompt for a session; `override` is the user's saved text, if in use.
+  // An override that dropped {{schema}} still gets the schema appended -- without it
+  // the model has no column names and every query it invents is refused.
   function buildSystemPrompt(meta, override) {
-    const t = override && String(override).trim() ? override : SYSTEM_TEMPLATE;
-    return renderSystemPrompt(t, meta);
+    const custom = override && String(override).trim();
+    if (!custom) return renderSystemPrompt(SYSTEM_TEMPLATE, meta);
+    const out = renderSystemPrompt(override, meta);
+    return /\{\{\s*schema\s*\}\}/.test(override) ? out : out + "\n" + schemaDoc(meta);
   }
 
   // canned questions for the no-model fallback: {label, sql(metric, zone, from, to)}
