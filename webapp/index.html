@@ -40,6 +40,10 @@ td,th{padding:.25em .5em;border-bottom:1px solid var(--line);text-align:left}
 #charts .plot{min-height:260px;margin-bottom:.6em}
 textarea{width:100%;box-sizing:border-box;font-family:ui-monospace,monospace}
 .row{display:flex;flex-wrap:wrap;gap:.5em;align-items:center;margin:.35em 0}
+/* an author display: beats the UA sheet's [hidden]{display:none}, so every
+   hidden .row (the canned-question bar, and anything added later) stayed on
+   screen. This puts the attribute back in charge. */
+[hidden]{display:none!important}
 #micbtn.rec{background:#c92a2a}
 a{color:var(--acc)}
 .spin::after{content:"";display:inline-block;width:.85em;height:.85em;
@@ -1105,7 +1109,10 @@ function growQuestion(){
  t.style.height="auto";
  // the AI section starts hidden, where scrollHeight is 0: pinning height:0px
  // there would leave a zero-height box when the section is finally shown
- if(t.scrollHeight)t.style.height=Math.min(t.scrollHeight,200)+"px";
+ // box-sizing is border-box here, so the border has to be added back or the
+ // box is 2px short of its own content and scrolls for every question
+ if(t.scrollHeight)t.style.height=
+  Math.min(t.scrollHeight+(t.offsetHeight-t.clientHeight),200)+"px";
 }
 /* --- voice --- */
 function mic(){
