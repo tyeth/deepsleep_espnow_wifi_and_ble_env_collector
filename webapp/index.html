@@ -986,8 +986,9 @@ function aiStop(){
  aiAbort.abort(new DOMException("stopped by the user","AbortError"));
  setStatus("aistatus","stopping...",true);
 }
-// true for "the user pressed stop" however the rejection was dressed up
-const wasAborted=e=>!!e&&(e.name==="AbortError"||/abort/i.test(String(e.message||e)));
+// true for "the user pressed stop": ask the signal, not the error text, so a
+// genuine failure that happens to say "abort" is still reported as a failure
+const wasAborted=(e,signal)=>!!(signal&&signal.aborted)||!!(e&&e.name==="AbortError");
 // throw the same way an aborted await would, for the gaps between them
 function throwIfStopped(signal){
  if(signal&&signal.aborted)throw new DOMException("stopped by the user","AbortError");
@@ -1010,7 +1011,11 @@ async function warmAI(signal){
   // pre-warm per do's & don'ts: create early with system prompt
   setStatus("aistatus",avail==="available"?
    "loading model into memory...":"downloading on-device model...",true);
+  // clear the stamp with the session: if create() is stopped or fails, leaving
+  // a destroyed session behind with a current stamp makes every later ask()
+  // skip warmAI and throw InvalidStateError out of clone() instead
   if(aiSession){try{aiSession.destroy();}catch(e){}}
+  aiSession=null;aiStamp=-1;
   aiSession=await LanguageModel.create({
    initialPrompts:[{role:"system",content:T.buildSystemPrompt(dataMeta())}],
    expectedInputs:[{type:"text",languages:["en"]}],
@@ -1025,7 +1030,7 @@ async function warmAI(signal){
   chip("chip-ai","ai: ready",true);setStatus("aistatus","model ready");
   return aiSession;
  }catch(e){
-  if(wasAborted(e)){ // Chrome keeps whatever of the model it already fetched
+  if(wasAborted(e,signal)){ // Chrome keeps whatever of the model it already fetched
    chip("chip-ai","ai: stopped",false);
    setStatus("aistatus","stopped - any partial model download is kept by Chrome, "+
     "so enabling AI again resumes rather than restarts");
@@ -1041,7 +1046,7 @@ async function promptJSON(s,text,signal){
  try{return await s.prompt(text,
   {responseConstraint:T.TOOL_SCHEMA,omitResponseConstraintInput:true,signal});}
  catch(e){ // a stop is not a "this browser lacks responseConstraint" failure
-  if(wasAborted(e)||!/constraint|schema|NotSupported|TypeError/i.test(String(e)))throw e;
+  if(wasAborted(e,signal)||!/constraint|schema|NotSupported|TypeError/i.test(String(e)))throw e;
   return await s.prompt(text+"\nReply with a single JSON object only.",{signal});}
 }
 // decide -> query -> answer loop (max TOOL_ITER queries), returns {text, steps}
@@ -1055,7 +1060,7 @@ async function askWithTools(q,signal){
    setStatus("aistatus",i?"model is reading the results...":"model is deciding what to query...",true);
    let reply;
    try{reply=T.classifyReply(T.parseToolReply(await promptJSON(s,turn,signal)));}
-   catch(e){if(wasAborted(e))throw e;   // a stop must not become a "fix your JSON" retry
+   catch(e){if(wasAborted(e,signal))throw e; // a stop must not become a "fix your JSON" retry
     turn=`Your reply was not valid (${e.message}). Answer QUESTION: ${q} with {"answer":...} using the tool_result(s) you already have.`;
     if(i===TOOL_ITER)break;continue;}
    if(reply.kind==="answer")return {text:reply.text,steps};
@@ -1111,7 +1116,7 @@ async function ask(){
   if(!text)setStatus("aistatus","model returned nothing - try rephrasing",
    false,true);
  }catch(e){
-  if(wasAborted(e)){ // stopped on purpose: keep whatever ran, say nothing alarming
+  if(wasAborted(e,signal)){ // stopped on purpose: keep whatever ran, say nothing alarming
    setStatus("aistatus","stopped"+(!$("how").hidden?" - the queries that already ran are below":""));
    return;}
   setStatus("aistatus","AI failed: "+e,false,true);
