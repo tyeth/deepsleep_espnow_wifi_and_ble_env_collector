@@ -54,6 +54,10 @@ class CaptivePortal:
                     wifi.radio.start_dhcp_ap()
                 except (AttributeError, RuntimeError):
                     pass
+                if not wifi.radio.ap_active:
+                    # zephyr-cp: start_ap() is a stub that starts nothing
+                    raise RuntimeError("start_ap() returned but ap_active "
+                                       "is False: no softAP on this port")
                 self.ap_active = True
                 print("AP up: %s @ %s" % (ssid, wifi.radio.ipv4_address_ap))
             except (RuntimeError, ValueError, OSError,

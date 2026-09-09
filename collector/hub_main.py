@@ -30,11 +30,16 @@ import board
 import digitalio
 import displayio
 import microcontroller
-import rtc
-import sdcardio
 import storage
 import supervisor
 import wifi
+
+import caps   # what this port can do + a wall clock that needs no RTC
+
+try:
+    import sdcardio
+except ImportError:
+    sdcardio = None
 
 # deploys copy several files: don't restart on each write, half-updated.
 # Reset (Ctrl-D / button / microcontroller.reset()) when the copy is done.
@@ -58,6 +63,11 @@ def _early_cfg():
         return {}
 
 _ecfg = _early_cfg()
+# Firmware with a raised socket ceiling (zephyr-cp CONFIG_NET_MAX_CONTEXTS)
+# cannot be detected from Python: tell the hub in config.json.
+if _ecfg.get("max_sockets"):
+    caps.MAX_SOCKETS = int(_ecfg["max_sockets"])
+print("platform:", caps.summary())
 AP_SSID = (os.getenv("ENVHUB_AP_SSID")
            or _ecfg.get("ap_ssid")
            or "BASE" + envproto.short_mac(wifi.radio.mac_address))
@@ -79,6 +89,7 @@ BLE_NAME = (os.getenv("ENVHUB_BLE_NAME")
 _ble_radio = None
 _ble_uart = None
 _ble_adv = None
+scanner = None      # BLE advertisement receiver for espnow-less nodes (later)
 if _ecfg.get("ble_enabled", True):
     try:
         # CircuitPython's own BLE workflow advertises as CIRCUITPY{mac} from
@@ -126,7 +137,12 @@ if _ecfg.get("ble_enabled", True):
 # wedge USB outright. The object lives forever and is handed to
 # net_espnow.EspNowHub later.
 _espnow_obj = None
+if not caps.HAS_ESPNOW:
+    print("ESP-NOW not available on this port: nodes reach this hub over "
+          "BLE advertisements (net_blescan) and/or WiFi POST /api/ingest")
 try:
+    if not caps.HAS_ESPNOW:
+        raise ImportError("espnow")
     import espnow as _espnow_mod
     wifi.radio.enabled = True
     # Optional radio TX power cap (dBm). A devkit on a weak USB port browns
@@ -141,6 +157,8 @@ try:
             print("wifi tx_power not applied:", exc)
     _espnow_obj = _espnow_mod.ESPNow()
     print("early ESP-NOW up")
+except ImportError:
+    pass
 except Exception as exc:
     print("early ESP-NOW failed:", type(exc).__name__, exc)
 
@@ -150,7 +168,12 @@ ap_started = False
 # sit away from a busy channel -- and so the bench can prove that nodes
 # find a hub that is not on channel 1.
 AP_CHANNEL = int(_ecfg.get("ap_channel", 1) or 1)
-if _ecfg.get("ap_enabled", True):
+if _ecfg.get("ap_enabled", True) and not caps.AP_SUPPORTED:
+    print("softAP not available on this port: wifi.radio.start_ap() is a "
+          "stub that starts nothing. Join the hub to your WiFi with "
+          "CIRCUITPY_WIFI_SSID/PASSWORD in settings.toml; the portal is "
+          "served on that address")
+elif _ecfg.get("ap_enabled", True):
     try:
         wifi.radio.enabled = True
         if AP_PASSWORD and len(AP_PASSWORD) >= 8:
@@ -164,6 +187,10 @@ if _ecfg.get("ap_enabled", True):
             wifi.radio.start_dhcp_ap()
         except (AttributeError, RuntimeError) as exc:
             print("start_dhcp_ap:", exc)
+        if not wifi.radio.ap_active:
+            # trust the radio, not the call: a port whose start_ap() is a
+            # stub would otherwise "serve" a portal on an AP that is not there
+            raise RuntimeError("start_ap() returned but no AP is active")
         ap_started = True
         print("early AP up: %s @ %s" % (AP_SSID, wifi.radio.ipv4_address_ap))
     except Exception as exc:
@@ -181,6 +208,13 @@ HTTP_WANTED = (_ecfg.get("ap_enabled", True)
 # pulls in adafruit_display_text and adafruit_bitmap_font, tens of KB of
 # flash and heap for a panel that is not there.
 DISPLAY_WANTED = _ecfg.get("display_enabled", True)
+if DISPLAY_WANTED and not (caps.PIN_BUSIO
+                           or callable(getattr(board, "SPI", None))):
+    # zephyr-cp: board.SPI is the radio's own bus object and custom-pin
+    # busio raises -- there is nothing to hang an eInk on (caps.spi)
+    print("no user SPI bus on this board: eInk dashboard skipped; the web "
+          "page and the BLE UART are the display")
+    DISPLAY_WANTED = False
 del _ecfg
 
 import alerts
@@ -190,7 +224,8 @@ import datastore
 if DISPLAY_WANTED:
     import display_hw
     import display_ui
-import net_espnow
+if caps.HAS_ESPNOW:
+    import net_espnow
 import sensors_local
 if HTTP_WANTED:
     import net_captive
@@ -247,7 +282,12 @@ displayio.release_displays()
 def _make_spi():
     # Feathers/QT Py expose board.SPI(); bare devkits (bring-up bench) don't,
     # so fall back to busio on free GPIOs (C6: SCK=IO6 MOSI=IO7 MISO=IO2).
-    if hasattr(board, "SPI"):
+    # zephyr-cp (Pico W / Pico 2 W) has neither: board.SPI is the CYW43439
+    # radio's own PIO bus and custom-pin busio raises NotImplementedError.
+    # caps.spi() returns None there and the display + SD are skipped.
+    if not caps.PIN_BUSIO:
+        return caps.spi()
+    if callable(getattr(board, "SPI", None)):
         return board.SPI()
     import busio
     return busio.SPI(board.IO6, board.IO7, board.IO2)
@@ -257,7 +297,7 @@ spi = _make_spi()
 
 # SRAM on the FeatherWing is unused -- hold its CS deselected so it never
 # answers on the shared bus.
-if SRAM_CS is not None:
+if SRAM_CS is not None and spi is not None:
     _sram_cs = digitalio.DigitalInOut(SRAM_CS)
     _sram_cs.switch_to_output(value=True)
 
@@ -266,7 +306,7 @@ if SRAM_CS is not None:
 # ---------------------------------------------------------------------------
 display = None
 palette_mode = "quad"
-if not DISPLAY_WANTED:
+if not DISPLAY_WANTED or spi is None:
     # Headless hub (and the bench rigs): the panel itself, not just its
     # dashboard tree, costs ~56KB of heap on the C6 -- the difference
     # between BLE + AP + HTTP fitting comfortably and not fitting at all.
@@ -325,7 +365,7 @@ if display is not None:
             break
 
 sd_mounted = False
-if SD_CS is not None:
+if SD_CS is not None and spi is not None and sdcardio is not None:
     try:
         _sd = sdcardio.SDCard(spi, SD_CS)
         storage.mount(storage.VfsFat(_sd), "/sd")
@@ -352,7 +392,7 @@ if SD_CS is not None:
         else:
             print("WARNING: SPI bus still locked - display will not refresh")
 else:
-    print("no SD slot on this rig (QT Py BFF); RAM-only buffering")
+    print("no SD card bus on this rig: flash (or RAM-only) buffering")
 
 # Runtime overrides live on writable storage (SD preferred; CPSAVES or the
 # flash root on no-MSC boards like the C6) -- never remounted USB flash.
@@ -382,12 +422,29 @@ print("reset reason:", microcontroller.cpu.reset_reason)
 
 # hub time service: synced by NTP (net_wifi.connect) or by a browser via
 # POST /api/time / BLE "time <epoch>"; pushed to nodes in every cfg reply
-TIME_SYNCED = time.localtime()[0] >= 2025
+TIME_SYNCED = caps.synced()
 print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)")
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
-hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
+if caps.HAS_ESPNOW:
+    hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
+else:
+    class _NoHub:
+        """Same counters and calls as EspNowHub, never receives: the port
+        has no espnow. Nodes arrive over BLE advertisements or WiFi."""
+        enabled = False
+        ap_active = False
+        needs_reset = False
+        rx_count = conf_count = dup_count = bad_count = 0
+        last_error = "no espnow on this port"
+
+        def poll(self):
+            return ()
+
+        def send(self, mac, data):
+            return False
+    hub = _NoHub()
 print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
 if HTTP_WANTED:
@@ -424,12 +481,11 @@ i2c = None
 local_sensor = None
 try:
     # prefer the STEMMA QT connector where it's a separate bus (QT Py)
-    if hasattr(board, "STEMMA_I2C"):
-        i2c = board.STEMMA_I2C()
-    elif hasattr(board, "I2C"):
-        i2c = board.I2C()
-    else:  # bare devkit: SDA=IO19 SCL=IO20
-        import busio
+    i2c = caps.i2c()   # board.STEMMA_I2C()/board.I2C(), or board.I2C0 on zephyr-cp
+    if i2c is None:
+        if not caps.PIN_BUSIO:
+            raise RuntimeError("no I2C bus object on this board")
+        import busio   # bare devkit: SDA=IO19 SCL=IO20
         i2c = busio.I2C(board.IO20, board.IO19)
     local_sensor = sensors_local.LocalSensor(i2c)
     print("SEN66:", local_sensor.product, local_sensor.serial)
@@ -509,7 +565,7 @@ def _node_batt_warnings():
 
 
 def h_latest():
-    now = int(time.time())
+    now = caps.now()
     sources = {}
     for src, entry in store.latest.items():
         states = {}
@@ -547,6 +603,10 @@ def h_latest():
         mesh["dropped"] = store.dropped_lines
     if hub.last_error:
         mesh["err"] = hub.last_error
+    if scanner is not None:
+        mesh["ble_rx"] = scanner.rx_count
+        if scanner.last_error:
+            mesh["ble_err"] = scanner.last_error
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
             "mesh": mesh}
 
@@ -616,7 +676,7 @@ def _cal_defaults():
 
 def h_cal_status():
     """Pending/armed/scheduled calibrations + last results, per source."""
-    now = int(time.time())
+    now = caps.now()
     out = {"pending": {}, "results": cal_results, "local": None}
     for src, p in pending_cal.items():
         d = dict(p)
@@ -654,7 +714,7 @@ def h_calibrate(src, step, opts=None):
     except (TypeError, ValueError):
         return {"err": "bad target_ppm"}
     if step == 1:
-        pending_cal[src] = {"step": 1, "ts": int(time.time())}
+        pending_cal[src] = {"step": 1, "ts": caps.now()}
         return {"ok": True, "src": src, "step": 1, "target_ppm": target,
                 "msg": calref.STEP1_GUIDANCE % {
                     "src": src, "min_v": min_v, "target": target,
@@ -669,7 +729,7 @@ def h_calibrate(src, step, opts=None):
     asc = str(opts.get("mode", "frc")).lower() == "asc"
     when = str(opts.get("when", "now" if asc else "4am")).lower()
     dry = bool(opts.get("dry")) and not asc
-    now = int(time.time())
+    now = caps.now()
     if when == "now":
         at, dur = 0, (asc_s if asc else now_s)
     else:
@@ -974,15 +1034,15 @@ def h_time_set(epoch):
         return {"err": "epoch (seconds) required"}
     if epoch < envproto.PLAUSIBLE_EPOCH:
         return {"err": "implausible epoch"}
-    delta = epoch - int(time.time())
-    rtc.RTC().datetime = time.localtime(epoch)
+    delta = epoch - caps.now()
+    caps.set_epoch(epoch)     # the RTC where there is one, else our offset
     adjusted = 0
     if abs(delta) > 5:
         adjusted = store.adjust_pending(delta)
     TIME_SYNCED = True
     print("clock set by client: %+ds (%d pending adjusted)" % (delta, adjusted))
     return {"ok": True, "delta_s": delta, "adjusted": adjusted,
-            "now": int(time.time())}
+            "now": caps.now()}
 
 
 def h_history_lines(day):
@@ -1060,7 +1120,7 @@ def _cfg_reply_for(src, ack_id=None, ack_crc=None):
         cal_asc = False
     return envproto.make_config_packet(
         interval, metrics=metrics, asc=False, cal_target=cal,
-        epoch=int(time.time()) if TIME_SYNCED else None,
+        epoch=caps.now() if TIME_SYNCED else None,
         cal_at=cal_at, cal_dur=cal_dur, cal_dry=cal_dry, cal_asc=cal_asc,
         ack_id=ack_id, ack_crc=ack_crc, channel=_radio_channel(),
     )
@@ -1195,11 +1255,11 @@ def _handle_node_packet(mac, obj, rssi):
                             "ref": obj.get("ref"), "ref_start": obj.get("ref0"),
                             "why": obj.get("why"),
                             "mode": "asc" if was.get("asc") else "frc",
-                            "dry": was.get("dry", False), "ts": int(time.time())}
+                            "dry": was.get("dry", False), "ts": caps.now()}
         if src in pending_cal:
             del pending_cal[src]   # node has run it (or refused): disarm
         store.log_event({
-            "ts": int(time.time()), "src": src, "metric": "co2",
+            "ts": caps.now(), "src": src, "metric": "co2",
             "state": ("cal_asc" if was.get("asc") else
                       "cal_dry" if was.get("dry") else "cal_ok") if ok
             else "cal_fail", "prev": obj.get("why") or "",
@@ -1253,6 +1313,24 @@ else:
             pass
     ble = _NoBle()
 _mem("after BLE")
+# Nodes on boards without ESP-NOW (Pico W / Pico 2 W) broadcast each reading
+# as a BLE advertisement; the hub scans for them whenever it has an adapter.
+# Broadcast has no confirmation path: the reading is stored, nothing goes
+# back to the node (config/time reach such nodes over WiFi POST, if at all).
+if caps.HAS_BLE and config.get("ble_scan_nodes", True):
+    try:
+        import net_blescan
+        scanner = net_blescan.AdvReceiver(
+            scan_s=config.get("ble_scan_s", 1.0),
+            every_s=config.get("ble_scan_every_s", 5.0))
+        if not scanner.ok:
+            scanner = None
+    except Exception as exc:
+        print("BLE node scanning unavailable: %s: %s"
+              % (type(exc).__name__, exc))
+        scanner = None
+print("bring-up: BLE node scan", "on" if scanner else "off")
+_mem("after BLE scan")
 
 # ---------------------------------------------------------------------------
 # Trend tracking: keep per-source averaged snapshots; compare now vs the
@@ -1384,13 +1462,13 @@ print("collector running; portal:", "http://%s/" % ip if ip else "no wifi")
 _last_sample = 0.0
 _last_record = 0.0
 _last_gc = 0.0
-_boot_epoch = time.time()
+_boot_epoch = caps.now()
 
 _err_streak = 0
 
 while True:
     now_m = time.monotonic()
-    now_e = int(time.time())
+    now_e = caps.now()
     if _fs_take_until[0]:
         # a switch to MCU ownership that the host would not allow yet
         if now_m >= _fs_take_until[0]:
@@ -1424,6 +1502,14 @@ while True:
                           % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
+        # 1b. nodes broadcasting over BLE advertisements (a short timed scan
+        #     at most every few seconds; see net_blescan). No reply path.
+        if scanner is not None:
+            for _src, obj, rssi, raw in scanner.poll():
+                try:
+                    take_node_packet(None, obj, envproto.crc16(raw), rssi)
+                except Exception as exc:
+                    print("BLE node packet error:", type(exc).__name__, exc)
         if hub.needs_reset and not _reset_at[0]:
             # the receiver is dead (corrupt ring buffer, CP issue 9816) and
             # cannot be rebuilt under the softAP: same path as an HTTP/BLE

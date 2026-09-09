@@ -15,6 +15,8 @@ import binascii
 import os
 import time
 
+import caps   # wall clock that works without an RTC
+
 HOST = "192dot168dot4dot1.gundryconsultancy.com"
 RENEW_URL_BASE = "https://www.gundryconsultancy.com/"
 SEARCH = ("/sd/certs", "/certs")
@@ -92,7 +94,7 @@ def not_after(cert_path):
 def days_left(cert_path):
     """Days until expiry, or None when the clock is unsynced / cert unreadable."""
     exp = not_after(cert_path)
-    now = time.time()
+    now = caps.now()
     if exp is None or now < 1700000000:
         return None
     return (exp - now) / 86400
@@ -164,12 +166,12 @@ def renew(pool, root="/certs"):
         with open(root + "/" + KEY + ".new", "wb") as f:
             f.write(key)
         exp = not_after(root + "/" + CERT + ".new")
-        if not exp or exp < time.time():
+        if not exp or exp < caps.now():
             print("certstore: downloaded cert not valid, keeping old")
             return False
         os.rename(root + "/" + CERT + ".new", root + "/" + CERT)
         os.rename(root + "/" + KEY + ".new", root + "/" + KEY)
-        print("certstore: renewed, expires in %.0f days" % ((exp - time.time()) / 86400))
+        print("certstore: renewed, expires in %.0f days" % ((exp - caps.now()) / 86400))
         return True
     except Exception as exc:  # renewal is best effort, never fatal
         print("certstore: renew failed:", type(exc).__name__, exc)
@@ -191,7 +193,7 @@ def install(chain, key, root="/certs"):
         with open(root + "/" + KEY + ".new", "w") as f:
             f.write(key)
         exp = not_after(root + "/" + CERT + ".new")
-        if exp is None or (time.time() > 1700000000 and exp < time.time()):
+        if exp is None or (caps.now() > 1700000000 and exp < caps.now()):
             return False
         os.rename(root + "/" + CERT + ".new", root + "/" + CERT)
         os.rename(root + "/" + KEY + ".new", root + "/" + KEY)

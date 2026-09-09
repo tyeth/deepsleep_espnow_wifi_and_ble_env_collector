@@ -25,6 +25,8 @@ import os
 import struct
 import time
 
+import caps   # wall clock that works without an RTC
+
 # Ring record: ts(I) src(B) flags(B) tc*100(h) rh*100(H) co2(H)
 #              pm25*10(H) voc(H) nox(H) vb_mv(H)
 _REC_FMT = "<IBBhHHHHHH"
@@ -74,7 +76,7 @@ class SampleRing:
 
     def add(self, src, m, flags=0, ts=None):
         """Append one sample. m is a metric dict (envproto keys, vb allowed)."""
-        ts = int(ts if ts is not None else time.time())
+        ts = int(ts if ts is not None else caps.now())
         tc = m.get("tc")
         struct.pack_into(
             _REC_FMT, self._buf, self._head * _REC_SIZE,
@@ -92,7 +94,7 @@ class SampleRing:
             self._count += 1
 
     def _iter_recent(self, max_age_s, src=None, now=None):
-        now = now if now is not None else time.time()
+        now = now if now is not None else caps.now()
         sid = self._src_ids.get(src) if src else None
         for i in range(self._count):
             idx = (self._head - 1 - i) % self.capacity
@@ -304,7 +306,7 @@ class DataStore:
     def update_latest(self, src, metrics, batt_v=None, sensor_type=None,
                       rssi=None, ts=None):
         entry = self.latest.setdefault(src, {})
-        entry["ts"] = int(ts if ts is not None else time.time())
+        entry["ts"] = int(ts if ts is not None else caps.now())
         entry["m"] = metrics
         if batt_v is not None:
             entry["vb"] = batt_v
@@ -320,7 +322,7 @@ class DataStore:
         """Queue one averaged record. Timestamp kept separate from the CSV
         tail so pending records can be retro-adjusted when the clock syncs
         (see adjust_pending)."""
-        ts = int(ts if ts is not None else time.time())
+        ts = int(ts if ts is not None else caps.now())
 
         def f(key, fmt="%.2f"):
             v = m.get(key)
