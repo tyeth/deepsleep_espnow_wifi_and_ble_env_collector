@@ -978,13 +978,21 @@ function aiStart(){
 }
 function aiEnd(){
  aiAbort=null;
- $("stopbtn").hidden=true;$("askbtn").disabled=false;
+ $("stopbtn").hidden=true;$("stopbtn").disabled=false;
+ $("askbtn").disabled=false;
  $("btn-ai").disabled=$("btn-ai").textContent==="AI ready";
+ // "stopping..." is a promise nobody else is obliged to keep: the run may end
+ // by returning normally, or there may have been nothing in flight to reject.
+ // This is the one path every run passes through, so settle the text here.
+ if(/^stopping/.test($("aistatus").textContent))setStatus("aistatus","stopped");
 }
 function aiStop(){
  if(!aiAbort)return;
  aiAbort.abort(new DOMException("stopped by the user","AbortError"));
- setStatus("aistatus","stopping...",true);
+ $("stopbtn").disabled=true;   // one press is enough; aiEnd re-enables it
+ // the step in flight may not be abortable (the Pyodide load above all), so
+ // say what is being waited on rather than looking hung
+ setStatus("aistatus","stopping - waiting for the step in flight to finish...",true);
 }
 // true for "the user pressed stop": ask the signal, not the error text, so a
 // genuine failure that happens to say "abort" is still reported as a failure
