@@ -97,18 +97,30 @@ Measured against the pinned submodules with build-tools 1.20.1:
 | `"sensirion_i2c_driver, sensirion_i2c_sen5x"` (as CI passed it) | `is_package=False`, `module_name=conftest`, 1 file each | 4 KB |
 | `sensirion_i2c_driver, sensirion_i2c_sen5x` (quotes removed) | `is_package=True`, correct names, 20 + 33 files | 178.5 KB |
 
-Because this bundle carries exactly two libraries, both entries in the
-list are the quoted ones, so every asset built since the tooling moved on
-would have been empty. Upstream `adafruit/CircuitPython_Community_Bundle`
-has the identical `build.sh`, but with hundreds of libraries only the
-first and last of the `ls -U` ordering are lost, which is why it goes
-unnoticed there.
+Two things make it total here rather than partial. This bundle carries
+exactly two libraries, so *both* entries in the list are the damaged ones;
+and both drivers are third-party Sensirion repos with no
+`[tool.setuptools]` metadata, so they reach the legacy autodetection path
+that is the only consumer of the prefix. Every asset built since the
+tooling moved on would have been empty.
+
+Upstream `adafruit/CircuitPython_Community_Bundle` has the identical
+`build.sh`, but there the defect is **latent**, not active -- checked
+rather than assumed. Its `py` bundle is byte-identical (1788 files,
+6839808 B) with and without the fix. Of its 185 submodules, 47 ship a
+package folder and so form the prefix list, but only 11 of those still use
+legacy autodetection; the other 36 declare `tool.setuptools.packages` in
+`pyproject.toml`, which takes precedence and never consults the prefix.
+The two damaged entries currently belong to the 36, so nothing breaks --
+until a library is added, removed or reordered.
 
 Fixed in
 [good-enough-technology/CircuitPython_GoodEnough_Bundle#1](https://github.com/good-enough-technology/CircuitPython_GoodEnough_Bundle/pull/1):
-drop the literal quotes, and quote the expansion in `release.yml` (which
-expands the value unquoted -- the literal quotes were accidentally doing
-that job). Verified by run
+drop the literal quotes, and compute the prefix in the step that consumes
+it rather than routing it through `$GITHUB_OUTPUT` and an expression that
+splices a directory name into the next step as script text. Reported
+upstream as hardening in adafruit/CircuitPython_Community_Bundle#290.
+Verified by run
 [34541266869](https://github.com/good-enough-technology/CircuitPython_GoodEnough_Bundle/actions/runs/34541266869),
 which produces `10.x-mpy`, `9.x-mpy` and `py` bundles all containing both
 drivers.
