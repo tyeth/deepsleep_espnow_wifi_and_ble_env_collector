@@ -12,6 +12,8 @@ optional lower bounds ("lo_warn"/"lo_bad") for range metrics like temp/rh.
 
 import time
 
+import caps   # wall clock that works without an RTC
+
 OK = 0
 WARN = 1
 BAD = 2
@@ -51,7 +53,7 @@ class AlertTracker:
 
     def update(self, src, metrics, now=None):
         """Feed the latest metric dict for a source. Returns worst state."""
-        now = now if now is not None else int(time.time())
+        now = now if now is not None else int(caps.now())
         worst = OK
         for key, value in metrics.items():
             th = self.thresholds.get(key)
@@ -93,7 +95,7 @@ class AlertTracker:
 
     def active_abnormal(self, now=None):
         """List of dicts for everything currently out of spec, worst first."""
-        now = now if now is not None else int(time.time())
+        now = now if now is not None else int(caps.now())
         out = []
         for (src, metric), (state, since) in self._states.items():
             if state != OK:

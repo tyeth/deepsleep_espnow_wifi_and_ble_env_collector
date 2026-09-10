@@ -35,6 +35,8 @@ import time
 
 import wifi
 
+import caps
+
 try:
     import socketpool
     _HAVE_HTTP = True
@@ -79,7 +81,10 @@ _IDLE_S = 8          # drop a plain connection that goes quiet this long
 _TLS_IDLE_NOREQ_S = 10    # TLS session with no request yet: the handshake itself spans ~2-3 s of polls on the C6
 _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
-_MAX_CONNS = 6
+# Zephyr boards have CONFIG_NET_MAX_CONTEXTS=6 sockets in total, and the
+# listener plus any UDP socket come out of the same pool; cap the client
+# connections so accept() does not start failing at the fourth phone tab.
+_MAX_CONNS = min(6, caps.MAX_SOCKETS - 2)
 _ACCEPT_ERRS_BEFORE_RESTART = 5   # rebuild the listening socket after this many
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
 _TLS_WRAP_GIVEUP_S = 4      # how long to keep retrying wrap_socket on MemoryError
@@ -98,11 +103,12 @@ def connect(ssid, password, tz_offset_h=0):
     print("WiFi up:", ip, "channel", wifi.radio.ap_info.channel
           if wifi.radio.ap_info else "?")
     try:
-        import rtc
         import adafruit_ntp
         pool = socketpool.SocketPool(wifi.radio)
         ntp = adafruit_ntp.NTP(pool, tz_offset=tz_offset_h, cache_seconds=3600)
-        rtc.RTC().datetime = ntp.datetime
+        # time.mktime is a pure conversion, so this also works on ports
+        # without an RTC (caps keeps the offset there)
+        caps.set_epoch(time.mktime(ntp.datetime))
         print("NTP synced")
     except Exception as exc:  # NTP failure must never kill startup
         print("NTP failed:", exc)
@@ -124,7 +130,7 @@ def _http_date():
     clock), hence the year check -- the page POSTs /api/time on connect,
     so the very first page load is the only one served undated.
     """
-    t = time.localtime()
+    t = caps.localtime()
     if t[0] < 2025:
         return b""
     return b"Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n" % (
@@ -371,7 +377,7 @@ class WebPortal:
         Returns days left, or None when unknown."""
         if not self.tls_expiry:
             return None
-        now = time.time()
+        now = caps.now()
         if now < 1700000000:  # clock not synced yet (no RTC battery)
             return None
         days = (self.tls_expiry - now) / 86400

@@ -34,6 +34,13 @@ slot — RAM-only buffering).
 > **CircuitPython:** use the **latest alpha** build (it contains required
 > BLE fixes). <https://circuitpython.org/downloads>
 
+> **Raspberry Pi Pico W / Pico 2 W** (CircuitPython's Zephyr port): these
+> boards have **no ESP-NOW, no deep sleep, no RTC, no softAP and no user SPI
+> bus**, so the hub runs on the Pico 2 W over your home WiFi + BLE, the
+> Pico W runs a minimal awake-loop node that broadcasts readings as BLE
+> advertisements, and neither deep-sleeps. What runs, what cannot, the RAM
+> numbers and the bench plan: [`pico_w_zephyr.md`](pico_w_zephyr.md).
+
 ## Hardware / pins (collector)
 
 eInk Feather Friend #4446 on the shared SPI bus (`board.SPI()`):
@@ -525,17 +532,28 @@ practical ones you need before touching the boards.
 ## Repo layout
 
 ```
-collector/   hub firmware (code.py + modules, config.json, lib/ via circup)
-node/        node firmware (code.py, node_sensors.py, node_portal.py, ...)
+collector/   hub firmware: code.py is a small capability gate that loads
+             hub_main.py (the hub) only on a board that can run it;
+             net_blescan.py receives BLE-advertised node readings;
+             config.json, lib/ via circup
+node/        node firmware: code.py picks node_full.py (ESP32: ESP-NOW +
+             deep sleep) or node_lite.py (Pico W / Pico 2 W: awake loop,
+             BLE advertisements via net_bleadv.py); node_sensors.py,
+             node_portal.py, ...
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
-tools/       serial_deploy.py, serve_webapp.py, gen_sample_data.py
+tools/       serial_deploy.py, serve_webapp.py, gen_sample_data.py,
+             board_budget.py (per-board import graph + heap estimate),
+             test_envproto.py / test_envadv.py (host-side protocol checks)
+pico_w_zephyr.md           Pico W / Pico 2 W: what runs, numbers, bench plan
 bugs_issues_and_todos.md   upstream-worthy findings + open TODOs
 ```
 
-`envproto.py` (wire protocol) and `battery.py` are duplicated into both
-device folders — keep the copies identical.
+`envproto.py` (wire protocol), `envadv.py` (BLE advertisement format),
+`caps.py` (port capabilities + RTC-less clock), `calref.py` and
+`battery.py` are duplicated into both device folders — keep the copies
+identical (`tools/test_envproto.py` and `tools/test_envadv.py` check).
 
 ## Bring-up state (as of 2026-08-24 evening) — read this to resume
 
