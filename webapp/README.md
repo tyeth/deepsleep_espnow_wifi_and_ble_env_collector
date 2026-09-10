@@ -116,6 +116,12 @@ by Chrome; state at `chrome://on-device-internals`. See
   parsing, prompt builder, canned queries) and
   `node webapp/tests/check_inline.mjs` (syntax check of the inline scripts).
 
+  Before changing any of this, read
+  [`docs/chrome-built-in-ai-reference.md`](../docs/chrome-built-in-ai-reference.md):
+  the documented API surface (session/quota/structured output/polyfills), the
+  official do's and don'ts, and the list of places our implementation and the
+  Chrome docs have drifted apart.
+
 ## Future
 
 * Optional upload of averaged subsets to online storage (e.g. Adafruit IO)
