@@ -8,13 +8,13 @@
 #
 # Without MPY_CROSS, and with `gh` authenticated, it fetches the mpy-cross
 # artifact from a tyeth/circuitpython Actions run (MPY_CROSS_RUN, default
-# 34253440312 = the zephyr-pico2w-ble branch). circup is used from the venv
+# 34494018766 = the green ci/pico2w-ble-assets run). circup is used from the venv
 # at $VENV (default ./venv), created and populated if missing.
 set -u
 cd "$(dirname "$0")/.."
 BUILD=${BUILD_DIR:-build}
 VENV=${VENV:-venv}
-MPY_CROSS_RUN=${MPY_CROSS_RUN:-34253440312}
+MPY_CROSS_RUN=${MPY_CROSS_RUN:-34494018766}
 
 if [ -z "${MPY_CROSS:-}" ]; then
     MPY_CROSS=$BUILD/mpy-cross/mpy-cross

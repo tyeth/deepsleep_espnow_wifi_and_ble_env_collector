@@ -26,7 +26,7 @@ on:
       mpy_cross_run:
         description: 'tyeth/circuitpython Actions run id that has an `mpy-cross` artifact'
         required: false
-        default: '34253440312'
+        default: '34494018766'
         type: string
       firmware_run:
         description: >-
@@ -43,7 +43,7 @@ permissions:
   contents: read
 
 env:
-  MPY_CROSS_RUN: ${{ inputs.mpy_cross_run || '34253440312' }}
+  MPY_CROSS_RUN: ${{ inputs.mpy_cross_run || '34494018766' }}
   # Consumed by `gh` inside tools/build_bundle.sh and by the steps below.
   GH_TOKEN: ${{ secrets.CP_CI_TOKEN }}
 

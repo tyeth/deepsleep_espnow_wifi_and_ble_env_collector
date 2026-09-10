@@ -11,11 +11,11 @@ CircuitPython will accept it and that every requested library exists.
 
 | Tool | Version | Source |
 |---|---|---|
-| mpy-cross | `CircuitPython 10.3.0-alpha.4-73-gf1ae373ad0 on 2026-09-08; mpy-cross emitting mpy v6.3` (x86-64 Linux, dynamically linked) | `gh run download --repo tyeth/circuitpython 34253440312 --name mpy-cross` |
+| mpy-cross | `CircuitPython 10.3.0-alpha.4-73-gf1ae373ad0 on 2026-09-08; mpy-cross emitting mpy v6.3` (x86-64 Linux, dynamically linked) | `gh run download --repo tyeth/circuitpython 34494018766 --name mpy-cross` |
 | circup | 3.0.4 (in a venv) | PyPI |
 | Adafruit_CircuitPython_Bundle | 20260905, `10.x-mpy` platform | via circup |
 | CircuitPython_Community_Bundle | 20260826 | via circup (not actually needed) |
-| good-enough-technology/circuitpython_goodenough_bundle | 202311252150 — **no `10mpy` platform**, circup fell back to `.py` | via `circup bundle-add` (SEN5x only) |
+| good-enough-technology/circuitpython_goodenough_bundle | 202311252150 — **no `10.x-mpy` platform**, circup fell back to `.py`. Cause found and fixed, see below | via `circup bundle-add` (SEN5x only) |
 
 The committed `boot_out.txt` files pin circup to CircuitPython
 10.3.0-alpha.4; circup notes 10.3.0 final is now released. The bundle
@@ -41,7 +41,8 @@ adafruit_bus_device==5.2.17  adafruit_pixelbuf==2.1.0  adafruit_register==1.12.1
 
 SEN5x driver (`sensirion_i2c_sen5x` + `sensirion_i2c_driver`) resolved
 from the custom bundle **as source**: that bundle has no `10.x-mpy`
-build, so circup installed the `.py` trees. All 22 of those `.py` files
+build, so circup installed the `.py` trees. The reason is a bug in the
+bundle's own build, now fixed -- see *The missing 10.x-mpy* below. All 22 of those `.py` files
 compile with this mpy-cross (0 rejected). circup also warned
 `circuitpython_sensirion_i2c_driver is not a known CircuitPython library`
 — a dependency-metadata name mismatch inside the custom bundle; harmless,
@@ -71,6 +72,56 @@ empty package `__init__.py` placeholders plus `adafruit_ble/services/microbit.py
 Informational: the 5 files in `examples/` and 9 in `tools/` also pass
 mpy-cross, though `tools/` is host-side Python and not deployed.
 
+## The missing 10.x-mpy in the good-enough bundle
+
+The custom bundle's newest release is `202311252150` (November 2023) and
+carries only `8.x-mpy` and `9.x-mpy` platform zips, which is why circup
+falls back to installing the SEN5x driver as `.py`. Re-running its CI does
+produce a `10.x-mpy` -- `requirements.txt` is unpinned, so a fresh run
+picks up circuitpython-build-tools 1.20.1, which builds against mpy-cross
+10.0.0 -- but the first re-run came back green with an **empty** bundle:
+4 KB, containing `lib/conftest.py` and nothing else.
+
+The cause is in the bundle repo's `build.sh` and `release.yml`. Both build
+the `--package_folder_prefix` list with a gawk that wraps it in **literal
+double quotes**. `circuitpython-build-bundles` splits that argument on
+`", "` and matches each entry with `str.startswith()`, so the entries
+arrive as `"sensirion_i2c_driver` and `sensirion_i2c_sen5x"` and match no
+folder. Both libraries then fall back to legacy autodetection, which finds
+only the top-level `conftest.py`.
+
+Measured against the pinned submodules with build-tools 1.20.1:
+
+| `--package_folder_prefix` | detection | `py` bundle |
+|---|---|---|
+| `"sensirion_i2c_driver, sensirion_i2c_sen5x"` (as CI passed it) | `is_package=False`, `module_name=conftest`, 1 file each | 4 KB |
+| `sensirion_i2c_driver, sensirion_i2c_sen5x` (quotes removed) | `is_package=True`, correct names, 20 + 33 files | 178.5 KB |
+
+Because this bundle carries exactly two libraries, both entries in the
+list are the quoted ones, so every asset built since the tooling moved on
+would have been empty. Upstream `adafruit/CircuitPython_Community_Bundle`
+has the identical `build.sh`, but with hundreds of libraries only the
+first and last of the `ls -U` ordering are lost, which is why it goes
+unnoticed there.
+
+Fixed in
+[good-enough-technology/CircuitPython_GoodEnough_Bundle#1](https://github.com/good-enough-technology/CircuitPython_GoodEnough_Bundle/pull/1):
+drop the literal quotes, and quote the expansion in `release.yml` (which
+expands the value unquoted -- the literal quotes were accidentally doing
+that job). Verified by run
+[34541266869](https://github.com/good-enough-technology/CircuitPython_GoodEnough_Bundle/actions/runs/34541266869),
+which produces `10.x-mpy`, `9.x-mpy` and `py` bundles all containing both
+drivers.
+
+**Still outstanding:** circup reads GitHub *releases*, so the `10.x-mpy`
+only reaches this project once that PR is merged and a new release is
+published. Until then the SEN5x driver keeps installing as `.py`, which
+works -- all 22 files compile with this mpy-cross -- but costs flash and
+import time on the node. One known wart survives the fix: build-tools'
+`is_package` flag is sticky across files, so the drivers' `tests/` and
+`docs/` trees get swept into `lib/` as well (52.5 KB against 32 KB in
+2023). Harmless for circup, which installs per-module.
+
 ## What this does not cover
 
 * No firmware was flashed and nothing ran on hardware. The runtime
@@ -95,8 +146,8 @@ BLE under `ports/zephyr-cp`. The whole prerequisite stack is still open:
   [tyeth/zephyr#2](https://github.com/tyeth/zephyr/pull/2)
 * [tyeth/hal_rpi_pico#1](https://github.com/tyeth/hal_rpi_pico/pull/1) and
   [tyeth/hal_rpi_pico#2](https://github.com/tyeth/hal_rpi_pico/pull/2) --
-  **no single hal_rpi_pico branch builds working firmware; both commits
-  must be cherry-picked onto one branch**
+  neither PR branch alone builds working firmware; both commits have to sit
+  on one branch, which is what `integration-pico2w-ble` now is
 * [tyeth/hal_infineon#1](https://github.com/tyeth/hal_infineon/pull/1)
 
 Relevance to this repo: both examples target ESP32 Feathers and lean on
@@ -106,32 +157,43 @@ only for the BLE UART path (`collector/net_ble.py`, `node/net_ble.py`,
 
 ### CI assets on tyeth/circuitpython
 
-Two separate Actions runs are involved. Only the first produced anything;
-its artifacts expire 90 days after the run (2026-12-07).
+All three artefacts now come from `ci/pico2w-ble-assets`, and all three
+runs are green. Artifacts expire 90 days after their run.
 
-**1. mpy-cross -- run [34253440312](https://github.com/tyeth/circuitpython/actions/runs/34253440312)**
-(the normal `Build CI` workflow on `zephyr-pico2w-ble` @ `f4d3e598`).
-Provides only the `mpy-cross` artifacts: `mpy-cross`, `mpy-cross.static`,
-`mpy-cross.static-aarch64`, `mpy-cross.static-raspbian`,
-`mpy-cross.static.exe`, `mpy-cross-macos-arm64`. It does **not** build
-board firmware. The run's overall conclusion is **failure** (its
-`tests / zephyr` job fails), so these binaries come from an otherwise-red
-run. This is what `tools/build_bundle.sh` downloads by default.
+**1. mpy-cross -- run [34494018766](https://github.com/tyeth/circuitpython/actions/runs/34494018766)**
+(`Build board (custom)` on `ci/pico2w-ble-assets` @ `7ba84d8`, dispatched
+for `raspberrypi_rpi_pico_w_zephyr`). **Success**; the `mpy-cross`
+artifact is 178 KB and expires 2026-12-09. This is what
+`tools/build_bundle.sh` downloads by default.
 
-**2. Pico 2 W firmware -- run [34258666665](https://github.com/tyeth/circuitpython/actions/runs/34258666665)**
-(the `Build board (custom)` workflow, `.github/workflows/build-board-custom.yml`,
-dispatched for board `raspberrypi_rpi_pico2_w_zephyr`, language `en_US`,
-version `latest`, on branch `ci/pico2w-ble-assets` @ `f9626482`).
+An earlier revision took mpy-cross from run
+[34253440312](https://github.com/tyeth/circuitpython/actions/runs/34253440312)
+(`Build CI` on `zephyr-pico2w-ble` @ `f4d3e59`), whose overall conclusion
+was **failure** because its `tests / zephyr` job failed. That job is green
+again (tyeth/circuitpython#11, closed -- fixed upstream), so the old caveat
+about "binaries from an otherwise-red run" no longer applies to it either.
+The newer run is preferred regardless: it is green, it expires two days
+later, and it is the same build that produces the Pico W firmware. Both
+compilers emit the same format -- `MPY_VERSION 6` / `MPY_SUB_VERSION 3`,
+i.e. mpy v6.3, which is the `10.x-mpy` bundle platform -- so switching the
+default changes no compiled output.
 
-**Outcome: failure, no artifact.** (An earlier revision of this file
-recorded the run as `queued`; it was picked up at ~18:11Z and failed.)
-The job died after 5m49s in the `Set up port` step (`west update`),
-before the build step ran, so the expected artifact
-`raspberrypi_rpi_pico2_w_zephyr-en_US-latest` (`firmware.uf2` +
-`firmware.elf`) was **not produced** and there is still no CI-built
-Pico 2 W firmware anywhere. The `.uf2` still has to be built locally
-with `make BOARD=raspberrypi_rpi_pico2_w_zephyr` in `ports/zephyr-cp`.
-The error:
+**2. Pico 2 W firmware -- run [34467425010](https://github.com/tyeth/circuitpython/actions/runs/34467425010)**
+(`Build board (custom)`, board `raspberrypi_rpi_pico2_w_zephyr`, language
+`en_US`, version `latest`, on `ci/pico2w-ble-assets` @ `1d80163`).
+**Success** in 15m20s. Artifact
+`raspberrypi_rpi_pico2_w_zephyr-en_US-latest`, 9.13 MB (`firmware.uf2` --
+drag onto the BOOTSEL drive -- plus `firmware.elf` for SWD/gdb), expires
+2026-12-09. There is now CI-built Pico 2 W firmware; building the `.uf2`
+locally with `make BOARD=raspberrypi_rpi_pico2_w_zephyr` is no longer the
+only route.
+
+**3. Pico W firmware -- run 34494018766** (the same run as the mpy-cross
+above). Artifact `raspberrypi_rpi_pico_w_zephyr-en_US-latest`, 9.26 MB.
+
+**What changed since the failure recorded here earlier.** Run
+[34258666665](https://github.com/tyeth/circuitpython/actions/runs/34258666665)
+died after 5m49s in `Set up port` (`west update`) with
 
 ```
 --- hal_rpi_pico: fetching, need revision integration-pico2w-ble
@@ -140,23 +202,14 @@ fatal: couldn't find remote ref integration-pico2w-ble
 ERROR: update failed for project hal_rpi_pico
 ```
 
-The CI-only west manifest (below) points `hal_rpi_pico` at
-`tyeth/hal_rpi_pico @ integration-pico2w-ble`, a branch that **does not
-exist** -- the fork only has the two PR head branches,
-`cyw43-shared-bus-ble` (#1) and `flash-ram-helpers-force-inline` (#2).
-This is the "both hal_rpi_pico commits must be cherry-picked onto one
-branch" prerequisite surfacing in CI: the integration branch was assumed
-but never pushed. The other two fork refs (`tyeth/zephyr` and
-`tyeth/hal_infineon` @ `cyw43-shared-bus-ble`) fetched fine, and the two
-workflow fixes on the branch were never reached, so they remain
-unexercised. To get the asset: push a branch to `tyeth/hal_rpi_pico`
-carrying both PR commits under the name the manifest expects (or change
-the manifest to a real branch name), then re-dispatch
-`Build board (custom)` on `ci/pico2w-ble-assets`.
-
-Had it succeeded, the artifact would have been
-`raspberrypi_rpi_pico2_w_zephyr-en_US-latest`, containing `firmware.uf2`
-(drag onto the BOOTSEL drive) and `firmware.elf` (for SWD/gdb).
+because the CI-only west manifest points `hal_rpi_pico` at
+`tyeth/hal_rpi_pico @ integration-pico2w-ble` and that branch had never
+been pushed -- the "both hal_rpi_pico commits must be cherry-picked onto
+one branch" prerequisite surfacing in CI. **That branch now exists** on
+`tyeth/hal_rpi_pico`, alongside the PR heads `cyw43-shared-bus-ble` (#1)
+and `flash-ram-helpers-force-inline` (#2), and the builds above are the
+result. The workflow fixes carried on `ci/pico2w-ble-assets`, previously
+never reached, are now exercised.
 
 `ci/pico2w-ble-assets` is a **CI-only branch**: it is `zephyr-pico2w-ble`
 (the PR #4 branch) plus one commit that does three things --
