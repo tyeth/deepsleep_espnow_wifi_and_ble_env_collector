@@ -1,0 +1,125 @@
+# SPDX-License-Identifier: MIT
+#
+# Build node/ and collector/ the way tools/build_bundle.sh does locally:
+# byte-compile every device source with a fork-built mpy-cross, stage each
+# tree's libraries with circup, and compile any library that only ships as
+# .py. No hardware is involved; a green run means CircuitPython will accept
+# the code and every requested library exists, nothing more.
+#
+# The mpy-cross binary is a build artifact of the tyeth/circuitpython repo,
+# so fetching it needs a token with `actions: read` on THAT repo. The
+# job-scoped GITHUB_TOKEN cannot do this (it is limited to this repo), so
+# the workflow reads the CP_CI_TOKEN secret instead -- see the section
+# "Continuous integration (this repo)" in build_results.md for how to create it.
+# Pull requests from forks do not receive secrets, so this job can only pass
+# for branches in this repository.
+name: Build bundle
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'webapp/**']
+  pull_request:
+    paths-ignore: ['**.md', 'webapp/**']
+  workflow_dispatch:
+    inputs:
+      mpy_cross_run:
+        description: 'tyeth/circuitpython Actions run id that has an `mpy-cross` artifact'
+        required: false
+        default: '34494018766'
+        type: string
+      firmware_run:
+        description: >-
+          Optional: tyeth/circuitpython "Build board (custom)" run id whose
+          Pico 2 W firmware artifact should be re-hosted on this run
+          (informational only; the bundle build does not use it).
+        required: false
+        default: ''
+        type: string
+
+# Least privilege: the job only reads this repo's contents. Cross-repo
+# artifact downloads use CP_CI_TOKEN, not GITHUB_TOKEN.
+permissions:
+  contents: read
+
+env:
+  MPY_CROSS_RUN: ${{ inputs.mpy_cross_run || '34494018766' }}
+  # Consumed by `gh` inside tools/build_bundle.sh and by the steps below.
+  GH_TOKEN: ${{ secrets.CP_CI_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Check CP_CI_TOKEN is configured
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Secret CP_CI_TOKEN is not set. Create a fine-grained PAT with" \
+                 "'Actions: Read-only' on tyeth/circuitpython and add it as a repository" \
+                 "secret named CP_CI_TOKEN. Fork PRs do not receive secrets."
+            exit 1
+          fi
+          gh auth status 2>&1 || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Fetch mpy-cross from tyeth/circuitpython run ${{ env.MPY_CROSS_RUN }}
+        run: |
+          mkdir -p build/mpy-cross
+          gh run download --repo tyeth/circuitpython "$MPY_CROSS_RUN" \
+            --name mpy-cross --dir build/mpy-cross
+          chmod +x build/mpy-cross/mpy-cross
+          build/mpy-cross/mpy-cross --version
+
+      - name: Build bundle (mpy-cross + circup)
+        run: MPY_CROSS=build/mpy-cross/mpy-cross tools/build_bundle.sh
+
+      # build_bundle.sh pipes circup through grep, so a circup failure would
+      # not fail the script by itself. Make sure something was actually staged.
+      - name: Check libraries were staged
+        run: |
+          for d in node collector; do
+            n=$(find "$d/lib" -type f 2>/dev/null | wc -l)
+            echo "$d/lib: $n files"
+            [ "$n" -gt 0 ] || { echo "::error::$d/lib is empty -- circup did not install anything"; exit 1; }
+          done
+          # The SEN5x driver comes from a custom bundle with no .mpy platform;
+          # it must still be present (as .py) -- see build_results.md.
+          test -e node/lib/sensirion_i2c_sen5x || { echo "::error::sensirion_i2c_sen5x missing from node/lib"; exit 1; }
+
+      - name: Upload compiled sources and staged libraries
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            build/node/
+            build/collector/
+            node/lib/
+            collector/lib/
+
+      # Optional, workflow_dispatch only: mirror the Pico 2 W firmware built by
+      # tyeth/circuitpython's "Build board (custom)" workflow so it is reachable
+      # from this repo. It is NOT used by the bundle build (the examples target
+      # ESP32 boards); it exists so the BLE UART path can be tried on a Pico 2 W.
+      - name: Fetch Pico 2 W firmware from tyeth/circuitpython run ${{ inputs.firmware_run }}
+        if: github.event_name == 'workflow_dispatch' && inputs.firmware_run != ''
+        continue-on-error: true
+        run: |
+          mkdir -p build/firmware
+          gh run download --repo tyeth/circuitpython "${{ inputs.firmware_run }}" \
+            --name raspberrypi_rpi_pico2_w_zephyr-en_US-latest --dir build/firmware
+          ls -l build/firmware
+
+      - name: Upload Pico 2 W firmware
+        if: github.event_name == 'workflow_dispatch' && inputs.firmware_run != '' && hashFiles('build/firmware/*') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: raspberrypi_rpi_pico2_w_zephyr-en_US-latest
+          path: build/firmware/
