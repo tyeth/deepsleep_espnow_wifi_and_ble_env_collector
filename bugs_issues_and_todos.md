@@ -488,17 +488,26 @@ the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
 ### Open items
 * [x] **Cert sync CORS fallback** (web app `certSync()`) - done. The direct
       `fetch` of `ssl.combined` / `ssl.key` is tried first; a CORS refusal
-      arrives as a `TypeError` with no status and only that falls back to
-      allorigins (`GET https://api.allorigins.win/get?url=<enc>` -> JSON
-      `{contents}`). A real answer (404, timeout, abort) is reported as-is
-      rather than retried through the proxy. Whatever comes back is checked
-      by `validateCertPair()` -- leaf + intermediate and a PRIVATE KEY block --
-      before it is pushed, so a proxy or captive-portal HTML error page with
-      status 200 cannot overwrite the hub's working certificate. The proxy
-      still sees the private key in transit; that is acceptable only because
-      the key is already published at `CERT_SRC`, and serving CORS headers
-      from that host remains the better fix. File upload stays the last
-      resort, and now accepts the two halves one at a time.
+      arrives as a `TypeError` with no status and only that falls back
+      through a chain of public CORS proxies (allorigins, then corsproxy.io,
+      then thingproxy.freeboard.io), tried in order until one answers. A
+      real answer (404, timeout, abort) is reported as-is rather than
+      retried through a proxy. allorigins alone was found to be
+      intermittently down (5xx/timeouts from Cloudflare in front of it),
+      which made "sync cert" flaky even though the code was correct -- the
+      chain means one flaky proxy no longer takes the feature down.
+      Whatever comes back is checked by `validateCertPair()` -- leaf +
+      intermediate and a PRIVATE KEY block -- before it is pushed, so a
+      proxy or captive-portal HTML error page with status 200 cannot
+      overwrite the hub's working certificate. Each proxy still sees the
+      private key in transit; that is acceptable only because the key is
+      already published at `CERT_SRC`, and serving CORS headers from that
+      host remains the better fix. File upload stays the last resort, and
+      now accepts the two halves one at a time.
+      Also bumped the service worker's `CACHE` version (sw.js) - it wasn't
+      bumped when this feature first landed, so browsers with an
+      already-installed service worker could keep being served the
+      pre-fallback cached shell instead of picking up the fix.
       Tests: `node webapp/tests/cert_sync.test.mjs`.
 * HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
 * `node packet error: OverflowError overflow converting long int to machine

@@ -97,14 +97,49 @@ await (async () => {
   assert.equal(calls.length, 1, "404 must not be retried through the proxy");
   console.log("ok - a 404 is reported, not proxied"); groups++;
 
-  // proxy failures are reported honestly
-  h = load(async (u) => u.startsWith("https://api.allorigins.win/")
-    ? res("", false, 502) : (() => { throw new TypeError("Failed to fetch"); })());
-  await rejects(h.fetchCertFile("ssl.key"), /proxy 502/);
-  h = load(async (u) => u.startsWith("https://api.allorigins.win/")
-    ? res(JSON.stringify({ nope: 1 })) : (() => { throw new TypeError("Failed to fetch"); })());
-  await rejects(h.fetchCertFile("ssl.key"), /proxy returned no contents/);
-  console.log("ok - proxy errors and empty replies are surfaced"); groups++;
+  // a mock fetch that answers direct requests (CORS-refused) and each of the
+  // three proxies independently, by URL shape
+  const isDirect = (u) => u.startsWith(H.CERT_SRC);
+  const isAllorigins = (u) => u.startsWith("https://api.allorigins.win/");
+  const isCorsproxy = (u) => u.startsWith("https://corsproxy.io/");
+  const isThingproxy = (u) => u.startsWith("https://thingproxy.freeboard.io/");
+  const chained = (allorigins, corsproxy, thingproxy) => async (u) => {
+    if (isDirect(u)) throw new TypeError("Failed to fetch");
+    if (isAllorigins(u)) return allorigins(u);
+    if (isCorsproxy(u)) return corsproxy(u);
+    if (isThingproxy(u)) return thingproxy(u);
+    throw new Error("unexpected url: " + u);
+  };
+
+  // the first proxy fails (a real error, not just CORS) but the second answers --
+  // this is the whole point: one flaky proxy doesn't take the feature down
+  calls = [];
+  h = load((u) => { calls.push(u); return chained(
+    () => res("", false, 502),
+    () => res(KEY),
+    () => { throw new Error("unreachable: thingproxy must not be tried"); },
+  )(u); });
+  assert.equal(await h.fetchCertFile("ssl.key"), KEY);
+  assert.equal(calls.length, 3, "direct, then allorigins, then corsproxy.io");
+  console.log("ok - a failed proxy is skipped in favour of the next one"); groups++;
+
+  // every proxy fails: the error from the last one attempted is what surfaces
+  h = load(chained(
+    () => res("", false, 502),
+    () => { throw new TypeError("Failed to fetch"); },
+    () => res("", false, 504),
+  ));
+  await rejects(h.fetchCertFile("ssl.key"), /proxy 504/);
+  console.log("ok - when every proxy fails, the last one's error is reported"); groups++;
+
+  // an empty/invalid reply from a proxy is treated as a failure, same as an error status
+  h = load(chained(
+    () => res(JSON.stringify({ nope: 1 })),
+    () => res("   "),
+    () => res(KEY),
+  ));
+  assert.equal(await h.fetchCertFile("ssl.key"), KEY);
+  console.log("ok - an empty or malformed proxy reply falls through to the next proxy"); groups++;
 
   // the whole point: a proxied HTML error page must never reach the hub
   h = load(async (u) => u.startsWith("https://api.allorigins.win/")

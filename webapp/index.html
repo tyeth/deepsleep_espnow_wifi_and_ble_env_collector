@@ -1426,17 +1426,32 @@ $("btn-handoff").onclick=handoff;
 /* --- cert helpers: pure + fetch only, no DOM (webapp/tests/cert_sync.test.mjs) --- */
 const CERT_SRC="https://www.gundryconsultancy.com/";
 const CERT_COMBINED="ssl.combined", CERT_KEY="ssl.key";
-// allorigins wraps the body in JSON. Used only when the direct fetch is refused by
-// CORS: the proxy sees the private key in transit, which is acceptable only because
-// that key is already published at CERT_SRC. Serving CORS headers from that host is
-// the better answer; this keeps "sync cert" working until then.
-const CERT_PROXY="https://api.allorigins.win/get?url=";
+// Used only when the direct fetch is refused by CORS: each proxy sees the private
+// key in transit, which is acceptable only because that key is already published
+// at CERT_SRC. Serving CORS headers from that host is the better answer; this
+// keeps "sync cert" working until then. allorigins alone is intermittently down
+// (5xx / timeouts) -- tried first since it has always worked when up, then two
+// independent fallbacks so one flaky proxy doesn't take the feature down.
+const CERT_PROXIES=[
+ u=>({url:"https://api.allorigins.win/get?url="+encodeURIComponent(u),
+      parse:async r=>{const j=await r.json().catch(()=>null);
+       if(!j||typeof j.contents!=="string")throw new Error("proxy returned no contents");
+       return j.contents;}}),
+ u=>({url:"https://corsproxy.io/?url="+encodeURIComponent(u),parse:r=>r.text()}),
+ u=>({url:"https://thingproxy.freeboard.io/fetch/"+u,parse:r=>r.text()}),
+];
 async function fetchViaCors(url){
- const r=await fetch(CERT_PROXY+encodeURIComponent(url),{signal:AbortSignal.timeout(20000)});
- if(!r.ok)throw new Error("proxy "+r.status);
- const j=await r.json().catch(()=>null);
- if(!j||typeof j.contents!=="string")throw new Error("proxy returned no contents");
- return j.contents;}
+ let lastErr;
+ for(const build of CERT_PROXIES){
+  const {url:proxied,parse}=build(url);
+  try{
+   const r=await fetch(proxied,{signal:AbortSignal.timeout(20000)});
+   if(!r.ok){lastErr=new Error("proxy "+r.status);continue;}
+   const text=await parse(r);
+   if(text&&text.trim())return text;
+   lastErr=new Error("proxy returned no contents");
+  }catch(e){lastErr=e;}}
+ throw lastErr||new Error("all proxies failed");}
 async function fetchCertFile(name){
  const url=CERT_SRC+name;
  try{
