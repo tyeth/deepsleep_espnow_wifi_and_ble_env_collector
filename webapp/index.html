@@ -113,6 +113,9 @@ a{color:var(--acc)}
  </div>
  <div class="row">
   <button id="btn-sync" disabled>Sync days from device</button>
+  <!-- a BLE day can take a minute at ~20 bytes a notification, so the bar
+       carries the transfer itself and the text says which day of how many -->
+  <progress id="sync-prog" max="1" hidden></progress>
   <span class="mut" id="sync-status"></span>
  </div>
 </section>
@@ -679,19 +682,58 @@ function daysToFetch(days,have,nowS,back){
  const cutoff=dayOf(nowS-back*86400);
  return days.filter(d=>!(have.has(d)&&d<cutoff&&d!==today&&d!==newest));
 }
+/* Progress text for one day of a sync. `total` is what the hub said it
+   would send (the BLE #BEGIN line, or Content-Length); null when it did
+   not say, in which case the bytes so far are still worth showing --
+   "17.2 KB so far" is the difference between a slow transfer and a hung
+   one, which over BLE is the question the user is actually asking. */
+function fmtBytes(n){
+ if(n<1024)return n+" B";
+ if(n<1024*1024)return (n/1024).toFixed(1)+" KB";
+ return (n/1048576).toFixed(1)+" MB";
+}
+function fmtProgress(p){
+ const where=`day ${p.index+1}/${p.count} · ${p.day}`;
+ const via=p.ble?" · BLE":"";
+ if(!p.total)return `${where}${via} · ${fmtBytes(p.received||0)} so far`;
+ const pct=Math.min(100,Math.round((p.received||0)/p.total*100));
+ return `${where}${via} · ${fmtBytes(p.received||0)} of ${fmtBytes(p.total)}`+
+        ` (${pct}%)`;
+}
+/* 0..1 for the <progress> bar: the days already done plus how far through
+   this one we are, so the bar crosses the whole sync once, not once a day. */
+function syncFraction(p){
+ const per=1/Math.max(1,p.count);
+ const within=p.total?Math.min(1,(p.received||0)/p.total):0;
+ return Math.min(1,per*(p.index+within));
+}
+/* "#BEGIN 2026-09-11 27140" -> {day, total}; total null on an older hub
+   that sends the day alone. */
+function parseBegin(line){
+ const parts=String(line).trim().split(/\s+/);
+ if(parts[0]!=="#BEGIN")return null;
+ const total=parts.length>2?parseInt(parts[2],10):NaN;
+ return {day:parts[1]||"",total:Number.isFinite(total)?total:null};
+}
 /* --- end history sync helpers --- */
 let resyncDays=0;  // how far back the next sync re-reads days it holds
 
 /* --- hub time service: push this browser's clock to the device --- */
 async function syncClock(auto){
  const epoch=Math.round(Date.now()/1000);
+ // not instant when it matters: a hub that logged for a while with no
+ // clock rewrites those records into day files before it answers
+ setStatus("conn-note","setting the hub clock...",true);
  try{
   let r;
   if(httpBase)
    r=await(await fetch(httpBase+"/api/time",{method:"POST",
     body:JSON.stringify({epoch})})).json();
   else if(bleIO)r=await bleJSON("time "+epoch);
-  else{if(!auto)setStatus("conn-note","connect first to sync the clock",false,true);
+  // clear the busy line either way: an auto sync that cannot run must not
+  // leave the page claiming it is still setting the clock
+  else{setStatus("conn-note",auto?"":"connect first to sync the clock",
+   false,!auto);
    return;}
   if(r.ok){
    // the days this correction could have changed get re-read on the next sync
@@ -702,8 +744,9 @@ async function syncClock(auto){
     (r.adjusted?`, ${r.adjusted} buffered records fixed`:"")+
     (r.relabelled?`, ${r.relabelled} stored records relabelled`:"")+")");
   }
-  else if(!auto)setStatus("conn-note","clock sync: "+(r.err||"failed"),false,true);
- }catch(e){if(!auto)setStatus("conn-note","clock sync failed: "+e,false,true);}
+  else setStatus("conn-note",auto?"":"clock sync: "+(r.err||"failed"),
+   false,!auto);
+ }catch(e){setStatus("conn-note",auto?"":"clock sync failed: "+e,false,!auto);}
 }
 
 /* --- BLE (Nordic UART) --- */
@@ -746,15 +789,44 @@ async function bleConnect(){
 async function bleJSON(cmd){
  await bleIO.cmd(cmd);return JSON.parse(await bleIO.line());
 }
-async function bleDay(day){
+async function bleDay(day,onProgress){
  await bleIO.cmd("hist "+day);
  let first=await bleIO.line(15000);
- if(!first.startsWith("#BEGIN")){ // error JSON
-  throw new Error("no data for "+day);}
- let csv="";
+ const begin=parseBegin(first);
+ if(!begin)throw new Error("no data for "+day); // error JSON
+ let csv="",received=0;
+ if(onProgress)onProgress(0,begin.total);
  for(;;){const l=await bleIO.line(15000);
-  if(l.startsWith("#END"))break;csv+=l+"\n";}
+  if(l.startsWith("#END"))break;
+  csv+=l+"\n";
+  // the hub counts the bytes it sends, newline included
+  received+=l.length+1;
+  if(onProgress)onProgress(received,begin.total);}
  return csv;
+}
+/* Same, over HTTP: read the body as it arrives so a big day (or a slow AP)
+   reports progress too. A browser without a readable stream, or a response
+   with no Content-Length, still gets the file -- just in one step. */
+async function httpDay(day,onProgress){
+ const res=await fetch(httpBase+"/api/history?day="+day);
+ const len=parseInt(res.headers.get("content-length")||"",10);
+ const total=Number.isFinite(len)?len:null;
+ if(!res.body||!res.body.getReader){
+  const text=await res.text();
+  if(onProgress)onProgress(text.length,total);
+  return text;
+ }
+ const reader=res.body.getReader(),dec=new TextDecoder();
+ let out="",received=0;
+ if(onProgress)onProgress(0,total);
+ for(;;){
+  const {done,value}=await reader.read();
+  if(done)break;
+  received+=value.length;
+  out+=dec.decode(value,{stream:true});
+  if(onProgress)onProgress(received,total);
+ }
+ return out+dec.decode();
 }
 /* --- who owns the filesystem: the hub (logging) or a PC (drag-and-drop) --- */
 async function storageStatus(){
@@ -881,7 +953,10 @@ function calFillSources(latest){
 }
 /* --- sync --- */
 async function sync(){
+ const bar=$("sync-prog");
+ const showBar=f=>{bar.hidden=false;bar.value=f;};
  setStatus("sync-status","listing days...",true);
+ bar.hidden=false;bar.removeAttribute("value");  // indeterminate while listing
  try{
   let days;
   if(httpBase)days=(await(await fetch(httpBase+"/api/history")).json()).days;
@@ -889,18 +964,28 @@ async function sync(){
   else throw new Error("not connected");
   const have=new Set((await idb.all()).map(f=>f.day));
   const want=daysToFetch(days,have,Date.now()/1000,resyncDays);
+  const ble=!httpBase&&!!bleIO;
   let n=0;
-  for(const d of want){
-   setStatus("sync-status","fetching "+d+(bleIO&&!httpBase?" over BLE (slow)":"")+"...",true);
-   const csv=httpBase?
-    await(await fetch(httpBase+"/api/history?day="+d)).text():
-    await bleDay(d);
+  if(!want.length)showBar(1);
+  for(let i=0;i<want.length;i++){
+   const d=want[i];
+   // one report per chunk: over BLE that is every notification, which is
+   // the whole point -- the user sees bytes moving, not a frozen button
+   const report=(received,total)=>{
+    const p={index:i,count:want.length,day:d,received,total,ble};
+    setStatus("sync-status",fmtProgress(p),true);
+    showBar(syncFraction(p));
+   };
+   report(0,null);
+   const csv=httpBase?await httpDay(d,report):await bleDay(d,report);
    await idb.put(d,csv);n++;
+   showBar((i+1)/want.length);
   }
   resyncDays=0;   // that window has now been re-read; back to "today only"
   setStatus("sync-status",`synced ${n} file(s) of ${days.length}`);
+  setTimeout(()=>{bar.hidden=true;},1500);
   refreshFiles();
- }catch(e){setStatus("sync-status","sync failed: "+e,false,true);}
+ }catch(e){bar.hidden=true;setStatus("sync-status","sync failed: "+e,false,true);}
 }
 
 /* ====================== built-in AI assistant ====================== */

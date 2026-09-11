@@ -1015,11 +1015,14 @@ def h_time_set(epoch):
 
 
 def h_history_lines(day):
-    """Generator of a day's CSV for BLE streaming, or None if we have none.
+    """(total_bytes, generator) for a day's CSV, or None if we have none.
 
-    Yields the file on storage (when there is one) and then the rows for
-    that day still queued in RAM -- a hub whose filesystem is read-only has
-    all of its recent history in the queue and none of it in a file.
+    The generator yields the file on storage (when there is one) and then
+    the rows for that day still queued in RAM -- a hub whose filesystem is
+    read-only has all of its recent history in the queue and none of it in
+    a file. The byte count is measured up front and is exactly what the
+    generator will yield, so a client watching a slow BLE transfer can say
+    how far through it is rather than only that it is still going.
 
     Only a day the hub actually lists, which the HTTP route checks for
     itself but BLE did not: it kept the caller's string, so `hist ../x`
@@ -1056,7 +1059,7 @@ def h_history_lines(day):
         if tail:
             yield tail
 
-    return _gen()
+    return size + len(tail), _gen()
 
 
 handlers = {

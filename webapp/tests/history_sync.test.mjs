@@ -17,7 +17,8 @@ assert.ok(m, "history sync helper block not found in index.html (markers moved?)
 const dayOf = html.match(/^function dayOf\(.*$/m);
 assert.ok(dayOf, "dayOf not found in index.html");
 
-const H = new Function(`${dayOf[0]}\n${m[1]}\nreturn {resyncWindow,daysToFetch};`)();
+const H = new Function(`${dayOf[0]}\n${m[1]}\nreturn {resyncWindow,daysToFetch,` +
+  `fmtBytes,fmtProgress,syncFraction,parseBegin};`)();
 
 const DAY = 86400;
 const NOW = Date.parse("2026-09-11T12:00:00Z") / 1000;
@@ -95,6 +96,52 @@ group("the hub's newest day is re-read even when it is not our today", () => {
 
 group("an empty history asks for nothing", () => {
   assert.deepEqual(H.daysToFetch([], new Set(), NOW, 5), []);
+});
+
+/* --- progress reporting, which is what makes a BLE sync bearable --- */
+
+group("the hub's #BEGIN line carries the byte count", () => {
+  assert.deepEqual(H.parseBegin("#BEGIN 2026-09-11 27140"),
+    { day: "2026-09-11", total: 27140 });
+  // an older hub sends the day alone: still a valid start, unknown size
+  assert.deepEqual(H.parseBegin("#BEGIN 2026-09-11"),
+    { day: "2026-09-11", total: null });
+  assert.deepEqual(H.parseBegin("#BEGIN 2026-09-11 nonsense"),
+    { day: "2026-09-11", total: null });
+  // the error JSON the hub sends instead when the day is unknown
+  assert.equal(H.parseBegin('{"err": "no such day"}'), null);
+  assert.equal(H.parseBegin("#END"), null);
+});
+
+group("bytes are readable at every scale", () => {
+  assert.equal(H.fmtBytes(0), "0 B");
+  assert.equal(H.fmtBytes(512), "512 B");
+  assert.equal(H.fmtBytes(2048), "2.0 KB");
+  assert.equal(H.fmtBytes(3 * 1048576), "3.0 MB");
+});
+
+group("a transfer with a known size reports a percentage", () => {
+  const p = { index: 1, count: 4, day: "2026-09-10", received: 5120, total: 10240 };
+  assert.equal(H.fmtProgress(p), "day 2/4 · 2026-09-10 · 5.0 KB of 10.0 KB (50%)");
+  assert.match(H.fmtProgress({ ...p, ble: true }), /· BLE ·/);
+});
+
+group("...and one without still shows movement", () => {
+  const p = { index: 0, count: 1, day: "2026-09-11", received: 17612, total: null };
+  assert.equal(H.fmtProgress(p), "day 1/1 · 2026-09-11 · 17.2 KB so far");
+  assert.equal(H.fmtProgress({ index: 0, count: 1, day: "d", received: 0, total: null }),
+    "day 1/1 · d · 0 B so far");
+});
+
+group("the bar crosses the whole sync once, not once per day", () => {
+  const p = (index, received, total, count = 4) =>
+    H.syncFraction({ index, count, received, total });
+  assert.equal(p(0, 0, 1000), 0);
+  assert.equal(p(0, 500, 1000), 0.125);   // half of the first of four
+  assert.equal(p(1, 0, 1000), 0.25);
+  assert.equal(p(3, 1000, 1000), 1);
+  assert.equal(p(2, 999, null), 0.5);     // unknown size: hold at the day mark
+  assert.ok(p(9, 5000, 1000, 4) <= 1);    // never past the end
 });
 
 console.log(`\n${groups} test groups passed`);

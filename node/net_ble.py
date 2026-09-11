@@ -200,13 +200,19 @@ class BleUartPortal:
             elif cmd == "days":
                 self._send({"days": h["list_days"]()})
             elif cmd == "hist" and len(parts) > 1:
-                # stream a day's CSV: "#BEGIN <day>" ... raw CSV ... "#END"
+                # stream a day's CSV:
+                #   "#BEGIN <day> <bytes>" ... raw CSV ... "#END"
+                # The byte count is what makes a BLE transfer watchable: at
+                # ~20 bytes per notification with a pacing delay, a day can
+                # take a minute, and without it the page can only say
+                # "fetching" while a phone user decides it has hung.
                 day = parts[1]
-                chunks = h["history_lines"](day)
-                if chunks is None:
+                stream = h["history_lines"](day)
+                if stream is None:
                     self._send({"err": "no such day", "days": h["list_days"]()})
                 else:
-                    self._write_paced(("#BEGIN %s\n" % day).encode())
+                    total, chunks = stream
+                    self._write_paced(("#BEGIN %s %d\n" % (day, total)).encode())
                     for chunk in chunks:
                         self._write_paced(chunk)
                     self._write_paced(b"#END\n")

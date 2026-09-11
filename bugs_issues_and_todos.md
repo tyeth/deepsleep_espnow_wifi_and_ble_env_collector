@@ -438,6 +438,11 @@ breaker would be the code answer if that ever has to change.
       verified over BLE (2 min window, ref 568/spread 8, no FRC written).
       Node-side window still needs an end-to-end run (needs espnow TX +
       a trigger path: STA-WiFi HTTP, or a PSRAM hub) -- see README.
+* [ ] AI model download progress (the other half of issue 9's "download
+      progress" box). Data transfers now report bytes against the total --
+      `#BEGIN <day> <bytes>` over BLE, `Content-Length` over HTTP -- but
+      the Prompt API model download still only says "loading"; it exposes
+      a `downloadprogress` event that should drive the same bar.
 * [ ] QT Py S3 + 2.9" tri-color HIL rig bring-up (profile `tri_2in9`).
 * [ ] GitHub Pages deploy of `webapp/` + web-BLE against the S3 node/hub.
 * [ ] Adafruit IO upload of averaged subsets (future).

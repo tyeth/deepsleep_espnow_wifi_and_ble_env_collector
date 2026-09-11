@@ -331,7 +331,9 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   `settings.toml` or `ble_name` in config.json) with the Nordic UART
   service. Text commands:
   `latest`, `battery`, `events`, `config`, `days`, `hist <day>` (streams a
-  day's CSV between `#BEGIN`/`#END`), `set <json>`, `cal <src> <1|2>`,
+  day's CSV between `#BEGIN <day> <bytes>` and `#END` — the byte count is
+  what lets the page show a progress bar on a transfer that can take a
+  minute), `set <json>`, `cal <src> <1|2>`,
   `time <epoch>`. Works with Adafruit's web bluetooth terminal and the
   Analyzer app. (C6 caveat: BLE + softAP coexistence is under test — see
   `bugs_issues_and_todos.md`.)
