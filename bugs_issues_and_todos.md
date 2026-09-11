@@ -486,24 +486,20 @@ https hostname; CO2 calibration collapsed at the end. Pages (HTTPS) can call
 the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
 
 ### Open items
-* [ ] **Cert sync CORS fallback** (web app `certSync()`): the direct
-      `fetch("https://www.gundryconsultancy.com/ssl.combined")` only works if
-      that server sends CORS headers. Supplement with a CORS-fixer proxy
-      fallback, e.g. allorigins (`GET https://api.allorigins.win/get?url=<enc>`
-      -> JSON `{contents}`), used only when the direct fetch throws; verify the
-      PEM parses (`-----BEGIN CERTIFICATE-----` x2 + PRIVATE KEY) before
-      pushing to the hub, and keep the file-upload path as the last resort.
-      Note the proxy sees the private key in transit -- acceptable only because
-      the key is already published on that site; prefer fixing CORS on the
-      server. Suggested shape:
-      ```js
-      async function fetchViaCors(url){
-        const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-        if(!r.ok)throw new Error("proxy "+r.status);
-        return (await r.json()).contents;
-      }
-      // in certSync(): try direct fetch; on TypeError (CORS) -> fetchViaCors(url)
-      ```
+* [x] **Cert sync CORS fallback** (web app `certSync()`) - done. The direct
+      `fetch` of `ssl.combined` / `ssl.key` is tried first; a CORS refusal
+      arrives as a `TypeError` with no status and only that falls back to
+      allorigins (`GET https://api.allorigins.win/get?url=<enc>` -> JSON
+      `{contents}`). A real answer (404, timeout, abort) is reported as-is
+      rather than retried through the proxy. Whatever comes back is checked
+      by `validateCertPair()` -- leaf + intermediate and a PRIVATE KEY block --
+      before it is pushed, so a proxy or captive-portal HTML error page with
+      status 200 cannot overwrite the hub's working certificate. The proxy
+      still sees the private key in transit; that is acceptable only because
+      the key is already published at `CERT_SRC`, and serving CORS headers
+      from that host remains the better fix. File upload stays the last
+      resort, and now accepts the two halves one at a time.
+      Tests: `node webapp/tests/cert_sync.test.mjs`.
 * HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
 * `node packet error: OverflowError overflow converting long int to machine
   word` in the collector's node packet parsing.

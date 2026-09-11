@@ -100,7 +100,7 @@ a{color:var(--acc)}
   <button id="btn-ble" class="sec">Connect BLE</button>
   <span class="mut" style="margin-left:1em">HTTPS cert:</span>
   <button id="btn-cert" class="sec" title="fetch the latest 192dot168dot4dot1 certificate (needs internet) and install it on the hub">sync cert</button>
-  <label class="sec" style="cursor:pointer" title="fallback: pick ssl.combined + ssl.key downloaded by hand">upload <input type="file" id="certfiles" multiple hidden></label>
+  <label class="sec" style="cursor:pointer" title="fallback: pick ssl.combined + ssl.key downloaded by hand - one at a time is fine">upload <input type="file" id="certfiles" multiple hidden></label>
   <span class="mut" id="cert-note"></span>
   <button id="btn-time" class="sec" title="set the hub clock from this browser">Sync clock</button>
   <span class="mut" id="conn-note"></span>
@@ -1423,10 +1423,63 @@ $("btn-handoff").onclick=handoff;
    days at gundryconsultancy.com. Like the clock sync, the browser can fetch the
    latest files while it has internet and push them to the hub (HTTPS->HTTPS or
    BLE). Fallback: pick ssl.combined + ssl.key downloaded by hand. */
+/* --- cert helpers: pure + fetch only, no DOM (webapp/tests/cert_sync.test.mjs) --- */
 const CERT_SRC="https://www.gundryconsultancy.com/";
+const CERT_COMBINED="ssl.combined", CERT_KEY="ssl.key";
+// allorigins wraps the body in JSON. Used only when the direct fetch is refused by
+// CORS: the proxy sees the private key in transit, which is acceptable only because
+// that key is already published at CERT_SRC. Serving CORS headers from that host is
+// the better answer; this keeps "sync cert" working until then.
+const CERT_PROXY="https://api.allorigins.win/get?url=";
+async function fetchViaCors(url){
+ const r=await fetch(CERT_PROXY+encodeURIComponent(url),{signal:AbortSignal.timeout(20000)});
+ if(!r.ok)throw new Error("proxy "+r.status);
+ const j=await r.json().catch(()=>null);
+ if(!j||typeof j.contents!=="string")throw new Error("proxy returned no contents");
+ return j.contents;}
+async function fetchCertFile(name){
+ const url=CERT_SRC+name;
+ try{
+  const r=await fetch(url,{signal:AbortSignal.timeout(15000)});
+  if(!r.ok)throw new Error(name+" "+r.status);
+  return await r.text();
+ }catch(e){
+  // A CORS refusal arrives as a TypeError carrying no status. Anything else -- 404,
+  // timeout, abort -- is a real answer from the server and not worth proxying.
+  if(!(e instanceof TypeError))throw e;
+  return await fetchViaCors(url);}}
 function pemChain(text,n=2){ // keep leaf + intermediate (the root is in every browser)
- const certs=text.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)||[];
+ const certs=(text||"").match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)||[];
  return certs.slice(0,n).join("\n")+"\n";}
+// Check what came back before pushing it. A CORS proxy or a captive portal will
+// happily return an HTML error page with status 200, and the hub would write that
+// over its working certificate.
+function validateCertPair(certText,keyText){
+ const chain=pemChain(certText);
+ const n=(chain.match(/-----BEGIN CERTIFICATE-----/g)||[]).length;
+ if(n<2)throw new Error(CERT_COMBINED+": expected leaf + intermediate, found "+n);
+ if(!/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(keyText||""))
+  throw new Error(CERT_KEY+": no PRIVATE KEY block");
+ return {chain,key:keyText};}
+function certFileKind(text){
+ if(/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(text))return "key";
+ if(/-----BEGIN CERTIFICATE-----/.test(text))return "cert";
+ return null;}
+/* --- end cert helpers --- */
+
+// Status line for the cert row. setStatus() is textContent-only; the failure path
+// needs real links so both files can be fetched by hand.
+function certNote(parts,err=true){
+ const el=$("cert-note");el.textContent="";
+ el.classList.remove("spin");el.classList.toggle("err",!!err);
+ for(const p of parts){
+  if(typeof p==="string"){el.append(p);continue;}
+  const a=document.createElement("a");
+  a.href=p.href;a.textContent=p.text;a.target="_blank";a.rel="noopener";
+  el.append(a);}}
+function certInstalled(res){
+ setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,
+           false,!!res.err);}
 async function pushCert(cert,key){
  if(!/BEGIN CERTIFICATE/.test(cert)||!/PRIVATE KEY/.test(key))throw new Error("files don't look like a cert + key");
  const body=JSON.stringify({cert,key});
@@ -1438,17 +1491,37 @@ async function pushCert(cert,key){
 async function certSync(){
  setStatus("cert-note","fetching latest certificate...",true);
  try{
-  const [c,k]=await Promise.all([fetch(CERT_SRC+"ssl.combined").then(r=>r.text()),
-                                 fetch(CERT_SRC+"ssl.key").then(r=>r.text())]);
-  const res=await pushCert(pemChain(c),k);
-  setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,false,!!res.err);
- }catch(e){setStatus("cert-note","cert sync failed ("+e+") - try 'upload' with files from "+CERT_SRC,false,true);}}
+  const [c,k]=await Promise.all([fetchCertFile(CERT_COMBINED),fetchCertFile(CERT_KEY)]);
+  const {chain,key}=validateCertPair(c,k);
+  certInstalled(await pushCert(chain,key));
+ }catch(e){
+  certNote(["cert sync failed (",String((e&&e.message)||e),") - download ",
+            {href:CERT_SRC+CERT_COMBINED,text:CERT_COMBINED}," and ",
+            {href:CERT_SRC+CERT_KEY,text:CERT_KEY},
+            ", then use 'upload'. You can pick them one at a time."]);}}
 $("btn-cert").onclick=certSync;
+// Both halves are remembered between picks, so "upload" works one file at a time --
+// which is what you get after downloading them separately from the links above.
+const certPending={cert:"",key:""};
 $("certfiles").onchange=async e=>{
- const files=[...e.target.files];let cert="",key="";
- for(const f of files){const t=await f.text();if(/PRIVATE KEY/.test(t))key=t;else cert+=t;}
- try{const res=await pushCert(pemChain(cert),key);
-  setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,false,!!res.err);
+ for(const f of [...e.target.files]){
+  const t=await f.text(), kind=certFileKind(t);
+  if(kind==="key")certPending.key=t;
+  else if(kind==="cert")certPending.cert+=(certPending.cert.endsWith("\n")||!certPending.cert?"":"\n")+t;}
+ e.target.value="";   // let the same file be picked again
+ if(!certPending.cert||!certPending.key){
+  const want=certPending.cert?CERT_KEY:CERT_COMBINED;
+  if(!certPending.cert&&!certPending.key)
+   return certNote(["that file is neither a certificate nor a private key - expected ",
+                    {href:CERT_SRC+CERT_COMBINED,text:CERT_COMBINED}," or ",
+                    {href:CERT_SRC+CERT_KEY,text:CERT_KEY}]);
+  return certNote(["got ",certPending.cert?CERT_COMBINED:CERT_KEY,", now pick ",
+                   {href:CERT_SRC+want,text:want}," (on its own is fine)"],false);}
+ try{
+  const {chain,key}=validateCertPair(certPending.cert,certPending.key);
+  const res=await pushCert(chain,key);
+  certPending.cert=certPending.key="";
+  certInstalled(res);
  }catch(err){setStatus("cert-note","upload failed: "+err,false,true);}};
 if(!self.isSecureContext){ // hub-served http copy: no AI here
  $("btn-ai").hidden=true;$("hdr-mic").hidden=true;$("hdr-ask").hidden=true;
