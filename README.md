@@ -345,8 +345,18 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   day's CSV between `#BEGIN <day> <bytes>` and `#END` — the byte count is
   what lets the page show a progress bar on a transfer that can take a
   minute), `set <json>`, `cal <src> <1|2>`,
-  `time <epoch>`. Works with Adafruit's web bluetooth terminal and the
-  Analyzer app. (C6 caveat: BLE + softAP coexistence is under test — see
+  `time <epoch>`, `storage`, and `cert` — which is a short conversation
+  rather than one command, because a certificate is ~5.5 KB and nothing on
+  this path will take that in one piece (Web Bluetooth refuses a
+  `writeValue` over 512 bytes, the hub's receive buffer is 512, and the hub
+  has ~40 KB of heap): `cert begin`, then `cert c <chunk>` / `cert k
+  <chunk>` for pieces of the chain and the key with the newlines written as
+  `|`, then `cert end` to validate and install. Each piece is acknowledged
+  with the running byte count before the next is sent, which is also what
+  keeps the receive buffer from overflowing; the hub writes them straight to
+  `/certs/*.new` and only renames once the chain parses and has not expired.
+  Bare `cert` reports what is installed. Works with Adafruit's web bluetooth
+  terminal and the Analyzer app. (C6 caveat: BLE + softAP coexistence is under test — see
   `bugs_issues_and_todos.md`.)
 * Last resort: unscrew and read the SD card — plain CSV; drag-drop the
   files straight into the Analyzer (or ask its built-in AI about them).

@@ -234,6 +234,104 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## 2026-09-11 bench: cert sync over BLE (issue #25), and three things in the way
+
+The devkits moved onto the **Windows box's** hub for this session: the two
+USB-UART bridges are here (C6 hub `COM13`, CH343; S3 node `COM14`, CP210x),
+while the native-USB/OTG ports stay on the Pi. Opening either port resets
+that board — the console is the reset line — so every run starts from boot.
+
+### Issue #25 was three failures stacked, not one
+
+The reported error (`writeValue` "Value can't exceed 512 bytes") is only
+the first one a browser can reach:
+
+1. the page sent the whole `cert {json}` — ~5.5 KB — as one command, and
+   Web Bluetooth caps a `writeValue` at 512 bytes;
+2. had it got out, `net_ble.poll()`'s garbage guard drops the receive
+   buffer once it passes 512 bytes with no newline in it, **in silence**;
+3. and had the line arrived whole, `_dispatch` had no `cert` command at
+   all — `/api/cert` only ever existed on the HTTP portal. The reply would
+   have been `unknown cmd`.
+
+So "cert sync over BLE" had never worked; the comment in the page saying it
+was "paced by net_ble" was aspirational. Fixed by a chunked, acknowledged
+upload (`cert begin` / `cert c|k <chunk>` / `cert end`) that the hub writes
+straight to `/certs/*.new`, so the certificate is never held in RAM whole.
+
+Bench-verified on the C6 devkit (`HUB-D754`, CP 10.3.0-alpha.4), against the
+real `gundryconsultancy.com` pair:
+
+* the old behaviour, on hardware: the 5,473-byte `cert {json}` command now
+  gets `{"err": "line too long (max 512 bytes)", "cmds": [...]}` rather than
+  the silence it used to get;
+* the new one: `cert begin` → `{"max": 392, "ok": true}`, 15 acknowledged
+  chunks, `cert end` → installed. **5,363 bytes in 19.4 s**, and the hub
+  logged `certstore: installed new certificate (5363 bytes)`;
+* read back off the board: `fullchain.pem` 3,655 bytes / adler32
+  `0xfca29728` and `key.pem` 1,708 bytes / `0xec072b03` — byte-for-byte
+  what the browser sent;
+* and after a restart: `HTTPS portal on port 443 as
+  192dot168dot4dot1.gundryconsultancy.com (cert from /certs/fullchain.pem)`,
+  so mbedTLS accepts what arrived. 22 KB of heap still free with AP, HTTP,
+  HTTPS and BLE all up.
+
+`days_left` reads `null` throughout because the bench hub's clock is
+unsynced — `days_left()` is documented to return None below the 2023 epoch
+guard, so that is correct, not a fault.
+
+### Windows caches an empty GATT table, per BLE address, and will not let go
+
+Every connection to the hub came back with **only GAP (0x1800) and GATT
+(0x1801)** — no Nordic UART service — while the advertisement plainly
+carried its UUID. Not the softAP and not our code: a bare `BLERadio()` +
+`UARTService()` typed into the REPL, with no AP and no ESP-NOW, behaved the
+same. What settles it is the address: set `_bleio.adapter.address` to one
+Windows has never seen and the UART service appears immediately.
+
+`use_cached_services=False` does not bypass it, nor does cycling the
+Bluetooth radio, nor removing
+`HKLM\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\<addr>`
+(which comes straight back). **Work round it on the bench by giving the
+board a fresh BLE address**, not by fighting the cache. Worth knowing before
+reading any "the hub isn't advertising its service" report from a Windows
+client as a firmware bug.
+
+### The hub does not boot from current `main` on the C6 devkit
+
+`import wifi` (code.py line 37) fails with `MemoryError: Failed to allocate
+Wifi memory`, preceded by `wifi:esf_buf_setup_static: alloc eb fail(10)` --
+issue 12's signature -- with `CIRCUITPY_BLE_WORKFLOW = false` already in
+`settings.toml`. The board had been running an older 62 KB `code.py`; both
+`main`'s 66.7 KB one and this branch's fail. What the bench measured:
+
+* it is **not import order**: hoisting `import wifi` to the first statement
+  of `code.py`, above `board`/`displayio`/`sdcardio`, fails identically;
+* it is **not exhaustion**: `gc.mem_free()` reads **242,576** bytes at the
+  moment it fails. `esp_wifi_init()` needs its `esf_buf` pool *contiguous*,
+  and the Python heap has already taken the room;
+* the Python heap is what grew: a `code.py` that does nothing but
+  `import wifi` leaves **277,632** free and succeeds (wifi costs ~64 KB);
+* and it is **not a simple size cliff** — a comment-stripped 48.7 KB
+  `code.py` still fails, though a 62 KB one used to boot. That is
+  placement, not arithmetic.
+* **What fixes it**: make `code.py` a one-line shim over a cross-compiled
+  main module (`import hubmain`, with `hubmain.mpy` built by `mpy-cross`).
+  The hub then boots with 39.6 KB free after BLE — AP up, HTTP up, BLE
+  portal advertising. `.mpy` skips the compiler's peak and stores bytecode
+  far more compactly (67 KB of source → 23 KB of `.mpy`).
+
+That last point is a change to how the collector ships, not to this
+feature, so it is a TODO below rather than part of the cert fix.
+
+### Do not hard reset a C6 straight after writing files over the raw REPL
+
+Doing that repeatedly left the flash filesystem with `'?'` directory
+entries and most modules simply gone (`ImportError: no module named
+'envproto'`), needing `storage.erase_filesystem()` and a full redeploy.
+`f.close()` is not enough and `storage.sync()` does not exist; a **soft
+reload (Ctrl-D)** commits, and only then is pulling EN safe.
+
 ## 2026-09-02 devkit bench: channel agility verified (and what got in the way)
 
 Same two devkits. The Pi moved to 192.168.1.191 (hostname `rpi-hil003b`),
@@ -394,6 +492,13 @@ loop), times 4 attempts — a confirmation attempt can stall the main loop for
 breaker would be the code answer if that ever has to change.
 
 ## TODOs
+* [ ] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`.** The
+      hub does not boot from `main` on the C6 devkit any more (see the
+      2026-09-11 bench notes): the compiled body of a 67 KB `code.py` takes
+      the contiguous internal RAM `esp_wifi_init()` wants, with 242 KB still
+      free. `import hubmain` + `mpy-cross -o hubmain.mpy code.py` boots it
+      with 39.6 KB free after BLE. Needs a build step and a CI job, so it is
+      its own change.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,

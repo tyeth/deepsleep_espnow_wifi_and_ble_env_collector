@@ -176,27 +176,167 @@ def renew(pool, root="/certs"):
         return False
 
 
+class Installer:
+    """Receive a chain + key in pieces, writing each piece straight to the
+    `.new` files rather than joining it in RAM.
+
+    HTTP can hand `install()` both strings at once -- the request body is
+    already buffered by then. BLE cannot: a Nordic-UART line is at most a few
+    hundred bytes, so a ~5.5 KB certificate arrives as ~15 of them, and the
+    hub has ~40 KB of heap free. Holding the chain, the key, the JSON they
+    came in and the copies made along the way is what the C6 has least of.
+
+    Pieces are written in the order they arrive; `finish()` applies the same
+    validation and atomic rename as `install()`.
+    """
+
+    def __init__(self, root="/certs"):
+        self.root = root
+        self.n = 0                  # bytes written, for the client's progress
+        self._files = {}
+        self._got = []              # halves this upload actually wrote
+
+    def _open(self, which):
+        f = self._files.get(which)
+        if f is None:
+            try:
+                os.mkdir(self.root)
+            except OSError:
+                pass
+            f = open("%s/%s.new" % (self.root,
+                                    CERT if which == "cert" else KEY), "w")
+            self._files[which] = f
+        return f
+
+    def write(self, which, text):
+        """Append to the chain ('cert') or the key ('key'). Returns bytes so far."""
+        if which not in ("cert", "key"):
+            raise ValueError("expected cert or key, got %r" % (which,))
+        self._open(which).write(text)
+        if which not in self._got:
+            self._got.append(which)
+        self.n += len(text)
+        return self.n
+
+    def _close(self):
+        for f in self._files.values():
+            try:
+                f.close()
+            except OSError:
+                pass
+        self._files = {}
+
+    def finish(self):
+        """Validate what arrived and put it in place. True when installed."""
+        self._close()
+        # Both halves must have come from THIS upload. Renaming whatever
+        # .new files happen to be on disk would let a `begin` + `end` with
+        # nothing in between install the leftovers of someone else's
+        # abandoned upload over a working certificate -- and report success.
+        if sorted(self._got) != ["cert", "key"]:
+            print("certstore: incomplete upload (%s); not installing"
+                  % (",".join(self._got) or "nothing"))
+            return False
+        try:
+            exp = not_after(self.root + "/" + CERT + ".new")
+            if exp is None or (time.time() > 1700000000 and exp < time.time()):
+                return False
+            with open(self.root + "/" + KEY + ".new") as f:
+                if "PRIVATE KEY" not in f.read():
+                    return False
+            os.rename(self.root + "/" + CERT + ".new", self.root + "/" + CERT)
+            os.rename(self.root + "/" + KEY + ".new", self.root + "/" + KEY)
+            print("certstore: installed new certificate (%d bytes)" % self.n)
+            return True
+        except Exception as exc:
+            print("certstore: install failed:", type(exc).__name__, exc)
+            return False
+
+    def abort(self):
+        """Give up on a part-received certificate, and take the `.new` files
+        with it -- half a chain left on disk is exactly what a later upload
+        must not be able to finish on behalf of."""
+        self._close()
+        self._got = []
+        for name in (CERT, KEY):
+            try:
+                os.remove("%s/%s.new" % (self.root, name))
+            except OSError:
+                pass
+
+
+_rx = [None]
+
+
+def status():
+    """What certificate the hub has, in the shape the web app's cert row reads."""
+    found = resolve()
+    return {"host": HOST,
+            "source": found[0] if found else None,
+            "days_left": days_left(found[0]) if found else None}
+
+
+def receive(op, payload=""):
+    """One step of a certificate upload arriving over BLE.
+
+    net_ble's `cert` command splits a ~5.5 KB certificate into short lines and
+    calls this for each: 'begin', then 'c'/'k' pieces of the chain and the key,
+    then 'end'. `payload` is PEM text whose newlines travel as '|' -- the
+    command stream is newline-delimited, and '|' appears in neither base64 nor
+    a PEM header, so nothing has to be escaped or re-encoded.
+
+    Returns the JSON the portal sends back, errors included: a half-delivered
+    certificate is a normal outcome here (the phone walked away), not an
+    exception worth unwinding the main loop for.
+    """
+    rx = _rx[0]
+    if op == "status":
+        return status()
+    if op == "begin":
+        if rx is not None:
+            rx.abort()
+        _rx[0] = Installer()
+        return {"ok": True}
+    if op == "abort":
+        if rx is not None:
+            rx.abort()
+            _rx[0] = None
+        return {"ok": True}
+    if rx is None:
+        return {"err": "send `cert begin` first"}
+    if op in ("c", "k"):
+        try:
+            return {"n": rx.write("cert" if op == "c" else "key",
+                                  payload.replace("|", "\n"))}
+        except OSError as exc:
+            rx.abort()
+            _rx[0] = None
+            # much the most likely cause: a PC holds the CIRCUITPY drive, so
+            # the filesystem is read-only to us (see code.py's h_storage)
+            return {"err": "cannot write /certs (%s); take the filesystem "
+                           "back from the PC first" % exc}
+    if op == "end":
+        ok = rx.finish()
+        _rx[0] = None
+        if not ok:
+            return {"err": "certificate rejected (not a valid, unexpired "
+                           "PEM chain + key)"}
+        st = status()
+        st["note"] = "installed to /certs; restart the hub to use it"
+        return st
+    return {"err": "unknown cert step %r" % (op,)}
+
+
 def install(chain, key, root="/certs"):
     """Install a PEM chain (leaf+intermediate) + key delivered by the web app / BLE.
     Validated (parseable, not expired when the clock is synced), written atomically."""
     try:
         if "BEGIN CERTIFICATE" not in chain or "PRIVATE KEY" not in key:
             return False
-        try:
-            os.mkdir(root)
-        except OSError:
-            pass
-        with open(root + "/" + CERT + ".new", "w") as f:
-            f.write(chain)
-        with open(root + "/" + KEY + ".new", "w") as f:
-            f.write(key)
-        exp = not_after(root + "/" + CERT + ".new")
-        if exp is None or (time.time() > 1700000000 and exp < time.time()):
-            return False
-        os.rename(root + "/" + CERT + ".new", root + "/" + CERT)
-        os.rename(root + "/" + KEY + ".new", root + "/" + KEY)
-        print("certstore: installed new certificate")
-        return True
+        rx = Installer(root)
+        rx.write("cert", chain)
+        rx.write("key", key)
+        return rx.finish()
     except Exception as exc:
         print("certstore: install failed:", type(exc).__name__, exc)
         return False

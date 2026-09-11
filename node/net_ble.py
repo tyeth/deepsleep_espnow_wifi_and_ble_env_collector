@@ -20,6 +20,10 @@ lines out. Commands map to the same shared handlers as the HTTP API:
   days              -> list of stored days on SD
   storage           -> who owns the filesystem, what is buffered, and the
                        clock-relabel job's progress (same as GET /api/storage)
+  cert              -> what certificate is installed
+  cert begin        -> start a certificate upload
+  cert c|k <chunk>  -> a piece of the chain (c) or the key (k)
+  cert end          -> validate and install what arrived
 
 This exact file is deployed to BOTH the collector and the nodes (a copy
 lives in collector/ and node/ -- keep them identical). A node passes a much
@@ -45,6 +49,16 @@ import time
 _TX_CHUNK = 20
 _TX_DELAY = 0.05   # 20ms still lost the odd packet on long replies
 
+# Longest command line the portal will assemble. The incoming
+# CharacteristicBuffer behind UARTService is 512 bytes, so a longer line
+# could not arrive intact however patiently it were written.
+_RX_LINE_MAX = 512
+# ...and how much of that a client may spend on payload. Anything that does
+# not fit -- a certificate is ~5.5 KB -- goes up in pieces (see `cert`
+# below): Web Bluetooth also refuses a writeValue over 512 bytes, and the
+# hub has ~40 KB of heap, so no layer here can take one in a single write.
+CERT_CHUNK_MAX = 392   # + len("cert c ") + the newline = one 400-byte write
+
 try:
     from adafruit_ble import BLERadio
     from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
@@ -65,6 +79,7 @@ class BleUartPortal:
         self.ok = False
         self.connected = False
         self._rxbuf = b""
+        self._rxdrop = False   # swallowing the tail of an over-long line
         self._pb = None
         self._name = name   # re-applied at every re-advertise (see poll)
         if not enabled:
@@ -176,7 +191,7 @@ class BleUartPortal:
                     "events": "events", "config": "config_get",
                     "set": "config_set", "days": "list_days",
                     "hist": "history_lines", "time": "time_set",
-                    "storage": "storage"}
+                    "storage": "storage", "cert": "cert"}
 
     def _dispatch(self, line):
         h = self.handlers
@@ -244,6 +259,27 @@ class BleUartPortal:
                     self._send(h["calibrate"](src, step, opts))
             elif cmd == "time" and len(parts) > 1:
                 self._send(h["time_set"](parts[1]))
+            elif cmd == "cert":
+                # A certificate is ~5.5 KB: too big for a writeValue (512),
+                # for the RX buffer (512) and for the hub's heap. So it goes
+                # up in pieces, each one acknowledged before the next is
+                # sent -- which is also what keeps the 512-byte RX ring from
+                # overflowing, since only one line is ever in flight.
+                #
+                #   cert              what is installed now
+                #   cert begin        start an upload
+                #   cert c <chunk>    a piece of the chain
+                #   cert k <chunk>    a piece of the key
+                #   cert end          validate and install
+                #
+                # A chunk is PEM text with its newlines written as '|': the
+                # command stream is newline-delimited, and '|' is outside
+                # both base64 and the PEM delimiters, so nothing is escaped.
+                op = parts[1].lower() if len(parts) > 1 else "status"
+                res = h["cert"](op, parts[2] if len(parts) > 2 else "")
+                if op == "begin" and "err" not in res:
+                    res["max"] = CERT_CHUNK_MAX
+                self._send(res)
             elif cmd == "storage":
                 # read-only over BLE: the page polls this for the relabel
                 # a `time` command queued, and the filesystem handover is
@@ -265,6 +301,7 @@ class BleUartPortal:
         "cal_status": "cal", "calibrate": "cal <src> 1 | cal <src> 2 "
         "[4am|now] [dur_s] [dry|asc]", "time_set": "time <epoch>",
         "storage": "storage",
+        "cert": "cert | cert begin | cert c|k <chunk> | cert end",
     }
 
     def _commands(self):
@@ -304,6 +341,14 @@ class BleUartPortal:
                 if self.connected:
                     self.connected = False
                     self._rxbuf = b""
+                    self._rxdrop = False
+                    # a certificate upload that was in flight is now half a
+                    # file with its handle still open: let it go
+                    if "cert" in self.handlers:
+                        try:
+                            self.handlers["cert"]("abort", "")
+                        except Exception as exc:
+                            print("cert abort:", exc)
                     print("BLE client disconnected")
                 # re-advertise whenever idle: C6 _bleio drops advertising on
                 # disconnect and a one-shot restart can be missed/fail
@@ -333,8 +378,28 @@ class BleUartPortal:
                 self._rxbuf += self.uart.read(n) or b""
                 while b"\n" in self._rxbuf:
                     line, self._rxbuf = self._rxbuf.split(b"\n", 1)
+                    if self._rxdrop:
+                        # The tail of a line already answered and abandoned.
+                        # A client that gives up mid-line without sending a
+                        # newline loses its next command to this too -- there
+                        # is no way to tell the two apart from here, and a
+                        # retry works.
+                        self._rxdrop = False
+                        continue
                     self._dispatch(line.decode())
-                if len(self._rxbuf) > 512:
-                    self._rxbuf = b""  # garbage guard
+                if len(self._rxbuf) > _RX_LINE_MAX:
+                    # Garbage guard. It used to drop the line in silence,
+                    # which is what a client pushing a whole certificate in
+                    # one command saw: no reply, no clue. Answer once, then
+                    # swallow the rest of that line -- a 5 KB command
+                    # overflows this buffer many times over, and a reply per
+                    # overflow would leave the client reading a stale error
+                    # as the answer to its next command.
+                    self._rxbuf = b""
+                    if not self._rxdrop:
+                        self._rxdrop = True
+                        self._send({"err": "line too long (max %d bytes)"
+                                           % _RX_LINE_MAX,
+                                    "cmds": self._commands()})
         except Exception as exc:
             print("BLE poll error:", exc)

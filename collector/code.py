@@ -830,6 +830,15 @@ _FS_TAKE_WINDOW_S = 120
 _fs_take_until = [0.0]
 
 
+def h_cert(op, payload=""):
+    """A certificate arriving over BLE, one piece at a time (net_ble's `cert`
+    command). certstore holds the state and does the work -- it ships as
+    .mpy, and every line here is compiled bytecode resident before `import
+    wifi` gets its turn at the internal RAM."""
+    import certstore
+    return certstore.receive(op, payload)
+
+
 def h_reset():
     """Restart the hub (deploy without a console or a reachable button).
 
@@ -1094,6 +1103,7 @@ handlers = {
     "time_set": h_time_set,
     "reset": h_reset,
     "storage": h_storage,
+    "cert": h_cert,
 }
 
 # ---------------------------------------------------------------------------
