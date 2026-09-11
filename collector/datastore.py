@@ -19,9 +19,12 @@ SD layout:
       ts,src,tc,rh,co2,pm1,pm25,pm4,pm10,voc,nox,vb,flags
   /sd/data/unsynced.csv     records logged before the clock was ever set,
       boot,ts,src,...,flags each tagged with the id of the boot that logged
-                            it; relabel_unsynced() moves them into their
-                            real day files the moment a clock arrives
-                            (.moving/.plan beside it: a rewrite in flight)
+                            it; relabel_unsynced() queues their move into
+                            their real day files the moment a clock
+                            arrives, and relabel_step() -- called by the
+                            main loop -- does it a slice at a time
+                            (.moving/.plan beside it: a rewrite in flight,
+                            the .plan also carrying its progress)
   /sd/events.csv            ts,src,metric,state,prev,value,held_s
   /sd/config.json           runtime config overrides (written by the API)
 
@@ -60,8 +63,9 @@ EVENTS_HEADER = "ts,src,metric,state,prev,value,held_s\n"
 PLAUSIBLE_EPOCH = 1700000000   # 2023-11; same line as envproto's
 BOOT_EPOCH = 946684800         # 2000-01-01: where an unsynced clock starts
 UNSYNCED_DAY = "unsynced"
-_MOVING_SUFFIX = ".moving"     # a relabel in progress (see _rewrite_unsynced)
+_MOVING_SUFFIX = ".moving"     # a relabel in progress (see _start_relabel)
 _PLAN_SUFFIX = ".plan"         # the offsets that relabel committed to
+_TMP_SUFFIX = "~"              # a .plan being written (renamed when whole)
 
 # Every unsynced boot starts at 2000-01-01 again, so the rows of boot 1, boot
 # 2 and boot 3 all sit in the same timestamp range of one unsynced.csv. A
@@ -88,6 +92,86 @@ _TAIL_COMMAS = CSV_HEADER.count(",") - 1    # commas after ts in a whole row
 # length, so this is the LATEST those readings can have been taken; a real
 # gap shorter than this would need two boots within a minute.
 _BOOT_GAP_S = 60
+# The relabel is a job the main loop steps through (DataStore.relabel_step)
+# rather than one blocking pass: first a read of the file to plan every
+# boot's offset, then the move itself, each resumed from a byte offset.
+_PHASE_PLAN = 0
+_PHASE_MOVE = 1
+# How often a moving job records its offset in the .plan. Every step would
+# double the flash writes a step costs; never would make a power cut redo
+# the whole file (harmless -- the rows come out identical and the analyzer
+# folds them -- but a day of rows twice is a lot of flash). 16 KB is ~300
+# rows redone at worst.
+_CHECKPOINT_BYTES = 16 * 1024
+# A job whose storage went read-only under it (a host took the drive) asks
+# again this often. The probe is a file write, so not every loop pass.
+_REPROBE_MS = 10000
+
+
+def _now_ms():
+    """Milliseconds of monotonic time as an int. time.monotonic() is a
+    float that loses its milliseconds after a few hours of uptime on the
+    32-bit ports, and a step budget of a few tens of ms would be measured
+    against noise; monotonic_ns() is exact where the port has it."""
+    try:
+        return time.monotonic_ns() // 1000000
+    except AttributeError:
+        return int(time.monotonic() * 1000)
+
+
+def _decode_row(line):
+    """_parse_unsynced for a raw line read back from storage as bytes.
+    Bytes that do not decode are a torn row too: a power cut mid-write
+    leaves flash reading 0xFF, which is not UTF-8."""
+    try:
+        return _parse_unsynced(line.decode().strip())
+    except UnicodeError:
+        return None
+
+
+def _note_boot(rec, first, last):
+    """Widen a boot's first/last timestamps by one parsed row; 1 if it
+    was a row, 0 for a header or a torn line -- so a caller can count."""
+    if rec is None:
+        return 0
+    boot, ts = rec[0], rec[1]
+    if boot not in first or ts < first[boot]:
+        first[boot] = ts
+    if boot not in last or ts > last[boot]:
+        last[boot] = ts
+    return 1
+
+
+class _RelabelJob:
+    """One rewrite of unsynced.csv, in progress. Nothing here is an open
+    file: a step opens what it needs and closes it before it returns
+    (DataStore.relabel_step), so the job can wait out a host holding the
+    drive without ever being what holds the block device."""
+
+    def __init__(self, moving, plan_path, size, offset_s=0, boot_real=None):
+        self.moving = moving
+        self.plan_path = plan_path
+        self.size = size            # bytes in .moving: the total of each phase
+        self.offset_s = offset_s
+        self.boot_real = boot_real
+        self.phase = _PHASE_PLAN
+        self.pos = 0                # the next unread byte of .moving
+        self.first = {}             # plan pass: boot -> earliest ts seen
+        self.last = {}              #            boot -> latest ts seen
+        self.rows = 0               # rows the plan pass counted: the total
+        self.plan = None
+        self.moved = self.kept = self.torn = 0
+        self.earliest = None        # earliest real ts placed so far
+        self.checkpoint = 0         # pos the .plan last recorded
+        self.started_ms = _now_ms()
+        self.work_ms = 0            # time spent inside steps
+        self.steps = 0
+        self.waiting = False        # storage went read-only under us
+        self.probed_ms = 0          # when it was last asked again
+        self.retry_ms = 0           # a step failed: not before this
+        # the earliest ts a job this one was chained behind placed, so the
+        # completion report spans both (a browser re-reads that far back)
+        self.earliest_floor = None
 
 
 def _nvm():
@@ -291,6 +375,14 @@ class DataStore:
     lengthen the record interval on flash (see `on_flash`).
     """
 
+    # How much of a relabel one relabel_step() does: whichever of these
+    # runs out first. The main loop also drives the display, ESP-NOW and
+    # the HTTP/BLE portals between steps, and a poll of those is a few ms,
+    # so a step is kept to a few tens of ms; the row cap is the backstop
+    # for a clock too coarse to see the budget.
+    step_ms = 25
+    step_rows = 200
+
     def __init__(self, roots=("/sd", "/saves", "/"), flush_interval_s=600,
                  flush_max_pending=24, min_free_bytes=50 * 1024,
                  allow_usb_release=False, ram_lines=200, ram_events=100):
@@ -328,11 +420,18 @@ class DataStore:
         # (rows moved, earliest real ts placed) by the last relabel, so a
         # client can be told how far back its copy of the history changed
         self.last_relabel = (0, None)
+        # the relabel in progress (a _RelabelJob the main loop steps), the
+        # summary of the last one to finish, and rows moved since boot
+        self._job = None
+        self._last_job = None
+        self.relabel_moved_total = 0
         self._recover_unsynced()
         if time.time() >= PLAUSIBLE_EPOCH:
             # the clock was set before we existed (NTP at bring-up, an RTC
             # battery), so whatever earlier boots logged without one can be
-            # placed now; none of it is this boot's, hence no offset
+            # placed now; none of it is this boot's, hence no offset. Queued,
+            # not done: boot is also when the display and the radios are
+            # being brought up, and the job steps alongside them.
             self.relabel_unsynced(0)
 
     @property
@@ -385,13 +484,17 @@ class DataStore:
         except OSError:
             return False
 
-    def _pick_root(self):
+    def _pick_root(self, may_release=True):
         """The first writable root, else one that at least holds data.
 
         A hub whose storage has gone read-only -- USB mass storage mounted
         on a computer, a write-protected or full card -- can still SERVE the
         history it already has. Buffering new readings in RAM and refusing
         to list the days on the card at the same time is the worst of both.
+
+        `may_release=False` for a probe that must only look: a relabel job
+        re-probing every few seconds must never be what takes the drive
+        back from a computer the user has just handed it to.
         """
         readable = None
         for root in self.roots:
@@ -409,7 +512,7 @@ class DataStore:
                 except OSError:
                     pass
         if readable is not None and self.allow_usb_release \
-                and not self._usb_released:
+                and may_release and not self._usb_released:
             # Nothing writable because a computer has CIRCUITPY mounted:
             # take the drive back and try again. disable_usb_drive() is
             # boot.py-only, so this is the "unsafe" runtime variant -- named
@@ -608,55 +711,103 @@ class DataStore:
         return self.boot_id
 
     def relabel_unsynced(self, offset_s, boot_real=None):
-        """Move already-stored pre-clock records onto the real timeline.
+        """Queue the move of already-stored pre-clock records onto the real
+        timeline. Returns the bytes queued (0: nothing to do, or deferred).
 
         The companion to adjust_pending(): that fixes what is still in RAM,
         this rewrites what reached /data/unsynced.csv into the day files
         those readings actually belong in. `offset_s` is the correction the
         clock just received -- exact for the rows THIS boot wrote. Rows
-        from earlier boots are placed by inference (_plan_relabel), which
-        is why a hub that came up with a clock passes 0 and still empties
-        the file. Storage that cannot be written right now defers the
-        rewrite to the next flush that can. Returns the records moved.
+        from earlier boots are placed by inference (_plan_boots), which is
+        why a hub that came up with a clock passes 0 and still empties the
+        file.
+
+        Nothing is moved here. The file is claimed (renamed aside) and the
+        work becomes a job that relabel_step() does a slice of per main-
+        loop pass: a hub that logged for days without a clock has hundreds
+        of KB to move, and one blocking pass was seconds in which it served
+        no HTTP connection, no BLE command and read no ESP-NOW packet -- the
+        request that set the clock got its reply only at the end.
+        relabel_status() is how a client watches it.
+
+        Storage that cannot be written right now defers the whole thing to
+        the next flush that can; so does a job already running (the live
+        file is claimed the moment that one finishes, _finish_relabel). A
+        second correction that lands while a job is still planning is
+        folded into its plan -- nothing is committed yet; one that lands
+        while it is moving cannot be: those rows go where the first
+        correction put them, and the second (a browser disagreeing with
+        another by more than 5 s about the time) is owed to the live file
+        only. The old one-shot had no such window; a nudge is an accuracy
+        loss of that many seconds on that boot's rows, never a lost row.
         """
         if self.root is not None and not self.unsynced_stored():
             return 0          # nothing was ever logged without a clock
-        if self.root is None or self.read_only:
+        job = self._job
+        if job is not None and job.phase == _PHASE_PLAN and not job.waiting:
+            job.offset_s += offset_s
+            print("datastore: relabel still planning; %+ds folded into it"
+                  % offset_s)
+            return job.size
+        if self.root is None or self.read_only or job is not None:
             # (with no root at all we cannot even see whether the card that
             # comes back holds such a file, so the correction is kept)
             self._relabel_offset += offset_s
             self._relabel_due = True
-            print("datastore: relabel deferred (%+ds owed); storage is not "
-                  "writable" % self._relabel_offset)
+            print("datastore: relabel deferred (%+ds owed); %s"
+                  % (self._relabel_offset,
+                     "one is already running" if self._job is not None
+                     else "storage is not writable"))
             return 0
-        return max(0, self._rewrite_unsynced(offset_s, boot_real))
+        return max(0, self._start_relabel(offset_s, boot_real))
+
+    def relabel_pending(self):
+        """True while a relabel job exists -- running, or waiting for the
+        storage a host took mid-way."""
+        return self._job is not None
 
     def _recover_unsynced(self):
-        """Finish, or put back, a relabel that a power cut interrupted.
+        """Adopt, or put back, a relabel that a power cut interrupted.
 
         The rewrite renames the file aside and commits its offsets to a
-        .plan before it writes a row (_rewrite_unsynced). Interrupted after
-        that, it is simply run again with the same plan: the rows it had
-        already moved come out identical -- same ts, same src -- and the
-        analyzer folds them. Interrupted before the plan existed, nothing
-        has moved, and the file goes back to wait for a sync -- appended,
-        when a boot in between has already started a fresh one.
+        .plan before it writes a row. Interrupted after that, the plan is
+        picked up as this boot's job, from the last progress line the plan
+        recorded (or the top, for a plan written before there were any):
+        the rows it had already moved come out identical -- same ts, same
+        src -- and the analyzer folds them. Interrupted before the plan
+        existed, nothing has moved, and the file goes back to wait for a
+        sync -- appended, when a boot in between has already started a
+        fresh one.
         """
-        if self.root is None or self.read_only:
-            return            # retried from the next flush that can write
+        if self.root is None or self.read_only or self._job is not None:
+            # (read-only: looked at again by the next relabel that can
+            # start -- a clock sync, or a flush paying one off -- and
+            # failing those, by the next boot; nothing is at risk meanwhile)
+            return
         path = self.day_path(UNSYNCED_DAY)
         moving = path + _MOVING_SUFFIX
         plan_path = path + _PLAN_SUFFIX
         if not self._exists(moving):
-            try:
-                os.remove(plan_path)   # its file is done; this is litter
-            except OSError:
-                pass
+            for p in (plan_path, plan_path + _TMP_SUFFIX):
+                try:
+                    os.remove(p)       # its file is done; this is litter
+                except OSError:
+                    pass
             return
-        plan = self._read_plan(plan_path)
+        plan, meta = self._read_plan(plan_path)
         if plan:
-            print("datastore: finishing an interrupted clock relabel")
-            self._apply_plan(moving, plan)
+            job = _RelabelJob(moving, plan_path, self._size(moving))
+            job.phase = _PHASE_MOVE
+            job.plan = plan
+            job.rows = meta.get("rows")      # None: a plan from before
+            job.pos = job.checkpoint = meta.get("pos", 0)
+            job.moved = meta.get("moved", 0)
+            job.kept = meta.get("kept", 0)
+            job.torn = meta.get("torn", 0)
+            job.earliest = meta.get("earliest") or None
+            self._job = job
+            print("datastore: resuming an interrupted clock relabel from "
+                  "byte %d of %d" % (job.pos, job.size))
             return
         try:
             if not self._exists(path):
@@ -671,28 +822,67 @@ class DataStore:
                                 line += "\n"  # torn by the same power cut
                             dst.write(line)
                 os.remove(moving)
+            try:
+                os.remove(plan_path)     # a header-only plan: nothing placed
+            except OSError:
+                pass
             print("datastore: recovered an interrupted clock relabel")
         except OSError as exc:
             print("datastore: could not recover %s: %s" % (moving, exc))
 
     def _read_plan(self, plan_path):
-        """{boot: (offset_s, flag bits)} from a .plan, {} if none/unreadable."""
+        """({boot: (offset_s, flag bits)}, progress) from a .plan.
+
+        The plan proper is one `boot,offset,flags` line per boot. Around it
+        the job keeps its own bookkeeping, which _plan_step and _checkpoint
+        write and an interrupted job resumes from: a `#rows,bytes` head
+        (the totals, so a resumed job can still report how far along it
+        is) and `@pos,moved,kept,torn,earliest` progress lines, of which
+        the last complete one wins. Anything torn -- no newline, or too few
+        fields -- is ignored: a torn progress line falls back to the one
+        before it and redoes a little work, never skips any.
+        """
         plan = {}
+        meta = {}
         try:
             with open(plan_path) as f:
                 for line in f:
+                    if not line.endswith("\n"):
+                        continue          # torn: the power went mid-line
                     parts = line.strip().split(",")
                     try:
-                        plan[int(parts[0])] = (int(parts[1]), int(parts[2]))
+                        if line.startswith("#"):
+                            meta["rows"] = int(parts[0][1:])
+                        elif line.startswith("@"):
+                            if len(parts) < 5:
+                                continue
+                            meta["pos"] = int(parts[0][1:])
+                            meta["moved"] = int(parts[1])
+                            meta["kept"] = int(parts[2])
+                            meta["torn"] = int(parts[3])
+                            meta["earliest"] = int(parts[4])
+                        else:
+                            plan[int(parts[0])] = (int(parts[1]), int(parts[2]))
                     except (IndexError, ValueError):
                         continue     # a torn line: the plan never completed
         except OSError:
             pass
-        return plan
+        return plan, meta
 
     def _plan_relabel(self, moving, offset_s, boot_real=None):
-        """Decide what every boot in the file is shifted by:
-        {boot: (offset_s, flag bits)}. A boot left out stays in the file.
+        """The plan for a whole file in one pass: what the hub does a step
+        at a time (_plan_step), for the host tests to pin the arithmetic."""
+        first = {}
+        last = {}
+        with open(moving, "rb") as f:
+            for line in f:
+                _note_boot(_decode_row(line), first, last)
+        return self._plan_boots(first, last, offset_s, boot_real)
+
+    def _plan_boots(self, first, last, offset_s, boot_real=None):
+        """Decide what every boot in the file is shifted by, from each
+        boot's first and last timestamp: {boot: (offset_s, flag bits)}. A
+        boot left out stays in the file.
 
         This boot's rows take `offset_s`, the correction the clock just
         received, and that is exact. Nothing measured the offset of an
@@ -728,18 +918,6 @@ class DataStore:
         there only back-dates the estimates, never collides them. It is a
         parameter so the host tests can pin it.
         """
-        first = {}
-        last = {}
-        with open(moving) as f:
-            for line in f:
-                rec = _parse_unsynced(line)
-                if rec is None:
-                    continue
-                boot, ts = rec[0], rec[1]
-                if boot not in first or ts < first[boot]:
-                    first[boot] = ts
-                if boot not in last or ts > last[boot]:
-                    last[boot] = ts
         anchor = BOOT_EPOCH + offset_s if offset_s else 0
         if anchor < PLAUSIBLE_EPOCH:
             # no correction, or one too small to have come from the boot
@@ -771,104 +949,263 @@ class DataStore:
             prev_off, prev_first = off, first[boot]
         return plan
 
-    def _rewrite_unsynced(self, offset_s, boot_real=None):
-        """Rewrite unsynced.csv into day files. Returns the records moved,
-        or -1 when it could not even start (the caller keeps its offset).
+    def _start_relabel(self, offset_s, boot_real=None):
+        """Claim unsynced.csv as a relabel job. Returns the bytes claimed,
+        0 when there is nothing to move, -1 when it could not even start
+        (the caller keeps its offset).
 
         Renamed aside first, so a crash part-way leaves work to finish
-        rather than a file being appended to while it is read; then the
-        offsets are committed to a .plan before a row moves, so finishing
-        it later reproduces the very same rows (_recover_unsynced).
+        rather than a file being appended to while it is read -- and so
+        the rows this boot logs from here on (all real-time ones, after a
+        sync) can never end up in the file the job is reading.
         """
-        # never plan over an unfinished one -- but finishing it must not
+        # never plan over an unfinished one -- but adopting it must not
         # cost us our own id: this boot's rows may be in the live file, and
         # the counter only resets once nothing is left anywhere
         boot_id = self.boot_id
         self._recover_unsynced()
         self.boot_id = boot_id
+        if self._job is not None:
+            # an interrupted relabel was adopted: it goes first, and the
+            # live file is claimed with this correction when it is done
+            self._relabel_offset += offset_s
+            self._relabel_due = True
+            return self._job.size
         path = self.day_path(UNSYNCED_DAY)
         moving = path + _MOVING_SUFFIX
         if not self._exists(path):
             return 0
+        size = self._size(path)
         try:
             os.rename(path, moving)
         except OSError as exc:
             print("datastore: relabel could not claim the file:", exc)
             return -1
-        try:
-            plan = self._plan_relabel(moving, offset_s, boot_real)
-            with open(path + _PLAN_SUFFIX, "w") as f:
-                for boot in plan:
-                    f.write("%d,%d,%d\n" % (boot, plan[boot][0], plan[boot][1]))
-        except OSError as exc:
-            # nothing has moved; recovery hands the .moving file back
-            print("datastore: relabel could not be planned:", exc)
-            self.write_errors += 1
-            return -1
-        return self._apply_plan(moving, plan)
+        self._job = _RelabelJob(moving, path + _PLAN_SUFFIX, size,
+                                offset_s, boot_real)
+        print("datastore: relabel queued: %d bytes of stored records to "
+              "plan and move" % size)
+        return size
 
-    def _apply_plan(self, moving, plan):
-        """Write each row of `moving` where `plan` puts its boot; rows of a
-        boot the plan leaves out go back to a fresh unsynced.csv, boot id
-        intact, for a later sync. Returns the records moved into day files.
+    def relabel_step(self, budget_ms=None, max_rows=None):
+        """One slice of the relabel job, for the main loop: a no-op with
+        nothing pending (returns None), else True.
 
-        Done, it removes the .moving and .plan and -- if the file is now
-        empty -- hands the boot counter back to 0, so the next boot without
-        a clock is boot 1 again and the ids never grow.
+        A step is bounded twice over: by `budget_ms` of wall time -- the
+        clock is checked after every row -- and by `max_rows`, so a budget
+        the port's clock cannot resolve still ends the step (the defaults
+        are the class's step_ms / step_rows). It opens the files it needs
+        and closes every one before it returns: nothing this class holds
+        between passes can keep CircuitPython from handing the filesystem
+        to a host (h_storage in code.py) or remounting it, and the job
+        simply waits, resuming from its byte offset, if storage has gone
+        read-only under it -- re-probing every _REPROBE_MS, since a drive
+        the host ejected by itself comes back with no call to tell us.
+
+        The plan pass is stepped too: parsing every row of the file in
+        Python is the slower half of the old one-shot on the C6, not the
+        writes, so a synchronous plan would have kept the very stall this
+        replaces.
         """
-        path = self.day_path(UNSYNCED_DAY)
-        moved = kept = torn = 0
-        earliest = None
+        job = self._job
+        if job is None:
+            return None
+        t0 = _now_ms()
+        if job.retry_ms and t0 < job.retry_ms:
+            return True        # a step failed a moment ago: not every pass
+        job.retry_ms = 0
+        if self.root is None or self.read_only:
+            if job.probed_ms and t0 - job.probed_ms < _REPROBE_MS:
+                return True
+            job.probed_ms = t0
+            self.root = self._pick_root(may_release=False)
+            if self.root is None or self.read_only:
+                if not job.waiting:
+                    print("datastore: relabel paused at byte %d of %d; "
+                          "storage is not writable" % (job.pos, job.size))
+                job.waiting = True
+                return True
+        job.waiting = False
+        job.probed_ms = 0
+        budget = self.step_ms if budget_ms is None else budget_ms
+        rows = self.step_rows if max_rows is None else max_rows
+        done = False
+        try:
+            if job.phase == _PHASE_PLAN:
+                self._plan_step(job, t0, budget, rows)
+            else:
+                done = self._move_step(job, t0, budget, rows)
+        except OSError as exc:
+            # whatever was moved is in the day files; the job's offset is
+            # at the last row it knows landed, and the .plan makes the
+            # retry produce the same rows -- so wait for storage to return
+            print("datastore: relabel step failed at byte %d: %s"
+                  % (job.pos, exc))
+            self.write_errors += 1
+            self.root = self._pick_root(may_release=False)
+            job.probed_ms = job.retry_ms = t0 + _REPROBE_MS
+        job.steps += 1
+        job.work_ms += _now_ms() - t0
+        if done:
+            self._finish_relabel(job)
+        return True
+
+    def _plan_step(self, job, t0, budget_ms, max_rows):
+        """Read on from the job's offset, noting each boot's first and last
+        timestamp; at the end of the file, commit the plan and turn the
+        job into a move."""
+        n = 0
+        with open(job.moving, "rb") as f:
+            f.seek(job.pos)
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                job.pos += len(line)
+                job.rows += _note_boot(_decode_row(line), job.first, job.last)
+                n += 1
+                if n >= max_rows or _now_ms() - t0 >= budget_ms:
+                    return
+        # the whole file has been read: the offsets are committed before a
+        # row moves, so finishing after a power cut lands the same rows
+        job.plan = self._plan_boots(job.first, job.last, job.offset_s,
+                                    job.boot_real)
+        # written whole or not at all: a .plan the power cut short would
+        # be adopted at the next boot with the boots it never got to
+        # missing -- kept back rather than placed -- so it is renamed into
+        # place only once every line is on the medium
+        tmp = job.plan_path + _TMP_SUFFIX
+        with open(tmp, "w") as f:
+            f.write("#%d,%d\n" % (job.rows, job.size))
+            for boot in job.plan:
+                f.write("%d,%d,%d\n" % (boot, job.plan[boot][0],
+                                        job.plan[boot][1]))
+        try:
+            os.sync()
+        except (OSError, AttributeError):
+            pass
+        os.rename(tmp, job.plan_path)
+        job.first = job.last = None
+        job.phase = _PHASE_MOVE
+        job.pos = 0
+
+    def _move_step(self, job, t0, budget_ms, max_rows):
+        """Write rows from the job's offset where the plan puts their boot;
+        rows of a boot the plan leaves out go back to a fresh unsynced.csv,
+        boot id intact, for a later sync. True at the end of the file.
+
+        The offset advances only when the step's writes have actually
+        landed -- it is committed after the output file closes, since a
+        write goes to a buffer and it is the close that can still fail on
+        a full card. A step that raises therefore leaves the job where it
+        started and redoes those rows, which come out identical and fold;
+        advancing first would have skipped whatever the failed flush
+        never wrote. A step never has more than one output file open:
+        rows are in time order within a boot, so the day changes rarely
+        and each day file is opened once per step, not once per line.
+
+        A day file is mended before it is appended to, as _append does:
+        the power going mid-row leaves a torn tail with no newline, and
+        the redo of that very row after the checkpoint would otherwise
+        fuse with it into one nonsense line -- the one row the checkpoint
+        promised would come out identical and fold.
+        """
+        plan = job.plan
         out = None
         out_day = None
+        n = 0
+        done = False
+        # this step's work, committed to the job only once the output
+        # file has closed without complaint (see the docstring)
+        pos = job.pos
+        moved = kept = torn = 0
+        earliest = None
         try:
-            with open(moving) as f:
-                for line in f:
-                    line = line.strip()
-                    rec = _parse_unsynced(line)
+            with open(job.moving, "rb") as f:
+                f.seek(job.pos)
+                while True:
+                    line = f.readline()
+                    if not line:
+                        done = True
+                        break
+                    rec = _decode_row(line)
                     if rec is None:
-                        if line and not line.startswith("boot,") \
-                                and not line.startswith("ts,"):
-                            torn += 1     # a power cut's half-written row
-                        continue
-                    boot, ts, tail = rec
-                    p = plan.get(boot)
-                    if p is not None and ts + p[0] >= PLAUSIBLE_EPOCH:
-                        ts += p[0]
-                        if p[1]:
-                            tail = _or_flags(tail, p[1])
-                        day = self._day_of(ts)
-                        row = "%d,%s\n" % (ts, tail)
-                        moved += 1
-                        if earliest is None or ts < earliest:
-                            earliest = ts
+                        s = line.strip()
+                        if s and not s.startswith(b"boot,") \
+                                and not s.startswith(b"ts,"):
+                            torn += 1         # a power cut's half-written row
                     else:
-                        day = UNSYNCED_DAY   # no usable offset: keep, not guess
-                        row = "%d,%d,%s\n" % (boot, ts, tail)
-                        kept += 1
-                    if day != out_day:
-                        # rows are in time order, so this opens each day
-                        # file once, not once per line
-                        if out is not None:
-                            out.close()
-                        fresh = not self._day_size(day)
-                        out = open(self.day_path(day), "a")
-                        if fresh:
-                            out.write(_UNSYNCED_HEADER if day == UNSYNCED_DAY
-                                      else CSV_HEADER)
-                        out_day = day
-                    out.write(row)
-        except OSError as exc:
-            # whatever was moved is in the day files; the rest is still in
-            # the .moving file, and the .plan makes the retry land the same
-            print("datastore: relabel stopped part-way:", exc)
-            self.write_errors += 1
+                        boot, ts, tail = rec
+                        p = plan.get(boot)
+                        if p is not None and ts + p[0] >= PLAUSIBLE_EPOCH:
+                            ts += p[0]
+                            if p[1]:
+                                tail = _or_flags(tail, p[1])
+                            day = self._day_of(ts)
+                            row = "%d,%s\n" % (ts, tail)
+                        else:
+                            day = UNSYNCED_DAY   # no usable offset: keep, not guess
+                            row = "%d,%d,%s\n" % (boot, ts, tail)
+                        if day != out_day:
+                            if out is not None:
+                                out.close()
+                                out = None
+                            size = self._day_size(day)
+                            mend = size and self._torn_tail(self.day_path(day), size)
+                            out = open(self.day_path(day), "a")
+                            if mend:
+                                out.write("\n")
+                            if not size:
+                                out.write(_UNSYNCED_HEADER if day == UNSYNCED_DAY
+                                          else CSV_HEADER)
+                            out_day = day
+                        out.write(row)
+                        if day == UNSYNCED_DAY:
+                            kept += 1
+                        else:
+                            moved += 1
+                            if earliest is None or ts < earliest:
+                                earliest = ts
+                    pos += len(line)
+                    n += 1
+                    if n >= max_rows or _now_ms() - t0 >= budget_ms:
+                        break
+        finally:
             if out is not None:
-                out.close()
-            return moved
-        if out is not None:
-            out.close()
-        for p in (moving, path + _PLAN_SUFFIX):
+                out.close()      # raises here -> nothing below commits
+        job.pos = pos
+        job.moved += moved
+        job.kept += kept
+        job.torn += torn
+        if earliest is not None and (job.earliest is None
+                                     or earliest < job.earliest):
+            job.earliest = earliest
+        if not done and job.pos - job.checkpoint >= _CHECKPOINT_BYTES:
+            self._checkpoint(job)
+        return done
+
+    def _checkpoint(self, job):
+        """Record the job's offset in its .plan, so a power cut costs at
+        most _CHECKPOINT_BYTES of redone (and folded) rows rather than the
+        whole file. The rows it vouches for are synced to the medium first:
+        a checkpoint that outlived its rows would skip them."""
+        try:
+            os.sync()
+        except (OSError, AttributeError):
+            pass
+        with open(job.plan_path, "a") as f:
+            f.write("@%d,%d,%d,%d,%d\n" % (job.pos, job.moved, job.kept,
+                                           job.torn, job.earliest or 0))
+        job.checkpoint = job.pos
+
+    def _finish_relabel(self, job):
+        """Clean up after the last row: remove the .moving and .plan and
+        -- if the file is now empty -- hand the boot counter back to 0, so
+        the next boot without a clock is boot 1 again and the ids never
+        grow. Then start the job that was queued behind this one, if any.
+        """
+        path = self.day_path(UNSYNCED_DAY)
+        for p in (job.moving, job.plan_path):
             try:
                 os.remove(p)
             except OSError:
@@ -877,16 +1214,84 @@ class DataStore:
             os.sync()
         except (OSError, AttributeError):
             pass
-        if not kept and not self._exists(path):
+        if not job.kept and not self._exists(path):
             # nothing left anywhere -- not even a live file this boot has
             # started meanwhile -- so the ids can start over
             self.boot_id = 0
             _nvm_set_boot_id(0)
-        self.last_relabel = (moved, earliest)
-        print("datastore: relabelled %d stored record(s)%s%s"
-              % (moved, (", %d kept for a later sync" % kept) if kept else "",
-                 (", %d torn row(s) dropped" % torn) if torn else ""))
-        return moved
+        elapsed = _now_ms() - job.started_ms
+        handled = job.moved + job.kept + job.torn
+        now = int(time.time())
+        earliest = job.earliest
+        if job.earliest_floor and (earliest is None
+                                   or job.earliest_floor < earliest):
+            earliest = job.earliest_floor   # the job this one followed
+        self.last_relabel = (job.moved, earliest)
+        self.relabel_moved_total += job.moved
+        # what a bench run reads back through the API: wall time from the
+        # sync to the last row, the time actually spent inside steps (the
+        # rest was the loop's other work), and the rate over that
+        self._last_job = {
+            "rows": job.moved, "kept": job.kept, "torn": job.torn,
+            "span_s": (now - earliest) if earliest else 0,
+            "elapsed_ms": elapsed, "work_ms": job.work_ms,
+            "steps": job.steps,
+            "rows_per_s": (handled * 1000 // job.work_ms) if job.work_ms
+            else handled,
+            "at": now,
+        }
+        self._job = None
+        print("datastore: relabelled %d stored record(s) in %d ms (%d ms of "
+              "work over %d steps, %d rows/s)%s%s"
+              % (job.moved, elapsed, job.work_ms, job.steps,
+                 self._last_job["rows_per_s"],
+                 (", %d kept for a later sync" % job.kept) if job.kept else "",
+                 (", %d torn row(s) dropped" % job.torn) if job.torn else ""))
+        if self._relabel_due and self.root is not None and not self.read_only:
+            # a sync arrived while this ran, or this was an adopted job and
+            # the live file waited behind it: claim that now, same offset
+            offset, self._relabel_offset = self._relabel_offset, 0
+            self._relabel_due = False
+            if self._start_relabel(offset) < 0:
+                self._relabel_offset, self._relabel_due = offset, True
+            elif self._job is not None:
+                # one completion report for the pair: a client that only
+                # sees the second finish must still re-read as far back as
+                # the first reached
+                self._job.earliest_floor = earliest
+
+    def relabel_status(self):
+        """The relabel job as a client sees it (GET /api/storage, BLE
+        `storage`, and the reply to a clock sync): what state it is in,
+        how far it has got in bytes and rows, and -- under `last` -- what
+        the most recent completed one moved and how long it took. `pct`
+        is the one number a bar needs: the plan pass is the first quarter
+        (a read of the file), the move the rest.
+        """
+        job = self._job
+        st = {"state": "idle", "pct": 0, "bytes_done": 0, "bytes_total": 0,
+              "rows_done": 0, "rows_total": None, "kept": 0,
+              "elapsed_ms": 0, "last": self._last_job}
+        if job is None:
+            if self._relabel_due:
+                st["state"] = "deferred"
+                st["bytes_total"] = self.unsynced_stored()
+            return st
+        if job.waiting:
+            st["state"] = "waiting"
+        elif job.phase == _PHASE_PLAN:
+            st["state"] = "planning"
+        else:
+            st["state"] = "moving"
+        frac = (job.pos * 100 // job.size) if job.size else 100
+        st["pct"] = frac // 4 if job.phase == _PHASE_PLAN else 25 + frac * 3 // 4
+        st["bytes_done"] = job.pos
+        st["bytes_total"] = job.size
+        st["rows_done"] = job.moved + job.kept
+        st["rows_total"] = job.rows if job.phase == _PHASE_MOVE else None
+        st["kept"] = job.kept
+        st["elapsed_ms"] = _now_ms() - job.started_ms
+        return st
 
     def log_event(self, event):
         """Queue an alert transition; forces a flush so it survives power loss."""
@@ -914,6 +1319,14 @@ class DataStore:
         except OSError:
             pass  # exists
 
+    def _torn_tail(self, path, size):
+        """True if the file's last byte is not a newline: a power cut
+        mid-write left a torn last row, and anything appended as-is would
+        fuse with it into one line with a nonsense timestamp."""
+        with open(path, "rb") as f:
+            f.seek(size - 1)
+            return f.read(1) != b"\n"
+
     def _append(self, path, header, lines):
         need_header = True
         mend = False
@@ -921,12 +1334,7 @@ class DataStore:
             size = os.stat(path)[6]
             need_header = size == 0
             if size:
-                # a power cut mid-write leaves a torn last row with no
-                # newline; appended to as-is it would fuse with our first
-                # row into one line with a nonsense timestamp
-                with open(path, "rb") as f:
-                    f.seek(size - 1)
-                    mend = f.read(1) != b"\n"
+                mend = self._torn_tail(path, size)
         except OSError:
             pass  # missing -> header needed
         with open(path, "a") as f:
@@ -976,13 +1384,15 @@ class DataStore:
                   % self.min_free_bytes)
             self._drop_bounded()
             return False
-        if self._relabel_due:
-            # a clock sync arrived while this was read-only: pay that debt
-            # before appending, so the rewrite cannot race the new rows
+        if self._relabel_due and self._job is None:
+            # a clock sync arrived while this was read-only: claim that
+            # file before appending, so the new rows can never land in the
+            # one the job reads (a job already running claims it when it
+            # finishes, _finish_relabel)
             self._ensure_dir(self.data_dir())
             offset, self._relabel_offset = self._relabel_offset, 0
             self._relabel_due = False
-            if self._rewrite_unsynced(offset) < 0:
+            if self._start_relabel(offset) < 0:
                 # it could not start: the correction is still owed, and
                 # this boot's rows would otherwise be guessed at later
                 self._relabel_offset, self._relabel_due = offset, True

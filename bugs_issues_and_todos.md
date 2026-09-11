@@ -412,12 +412,25 @@ breaker would be the code answer if that ever has to change.
       hub booted with no NTP that a browser then syncs, and two or three
       power cuts before that sync (check the flagged rows land before the
       last boot and the counter reads 0 in `/api/storage` afterwards).
-      Known cost, not yet measured: the rewrite runs synchronously inside
-      `POST /api/time` (and at boot when the clock is already set), so a
-      hub that logged for days without a clock does hundreds of KB of file
-      I/O before that reply -- seconds during which no other connection is
-      served and no ESP-NOW packet is read. Time it on the bench before
-      deciding whether it has to become a chunked background job.
+      The rewrite used to run synchronously inside `POST /api/time` (and
+      at boot when the clock was already set): hundreds of KB of file I/O
+      before that reply, seconds of no other connection served and no
+      ESP-NOW packet read. It is now a job the main loop steps
+      (`store.relabel_step()`, ~25 ms or 200 rows a pass, plan pass then
+      move, byte offset checkpointed to the `.plan` every 16 KB), reported
+      under `relabel` in `/api/storage` / BLE `storage`, with the page
+      following it and holding a sync until it is done. **Not yet timed
+      on the bench**: `relabel.last` carries `elapsed_ms` (sync to last
+      row), `work_ms` (inside steps), `steps` and `rows_per_s`, and the
+      console prints the same line at completion -- so a run needs only
+      an unsynced hub with a big `unsynced.csv` (gen it, or let a hub log
+      overnight with no NTP), a browser clock sync, and a poll of
+      `/api/storage`. Worth checking alongside: that HTTP stays
+      responsive and ESP-NOW packets keep arriving while it runs (a node
+      on a 30 s interval), how much of the wall time is the loop's own
+      work (`elapsed_ms - work_ms`), and whether 25 ms is the right
+      budget on flash, where a step that opens a new day file pays a
+      4 KB erase.
       `unsynced.csv` is also exempt from `_rotate_oldest`, so on flash an
       unsynced hub fills the free space until `_drop_bounded` starts
       dropping the oldest queued readings (announced, not silent).

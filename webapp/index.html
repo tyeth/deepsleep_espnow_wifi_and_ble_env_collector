@@ -715,14 +715,63 @@ function parseBegin(line){
  const total=parts.length>2?parseInt(parts[2],10):NaN;
  return {day:parts[1]||"",total:Number.isFinite(total)?total:null};
 }
+/* The hub's clock relabel -- pre-clock records rewritten into day files --
+   is a job its main loop steps through, not something the clock-sync
+   request waits for. /api/time returns its starting state, and
+   /api/storage (BLE `storage`) reports it as it runs:
+     {state, pct, bytes_done, bytes_total, rows_done, rows_total, kept,
+      elapsed_ms, last:{rows, kept, torn, span_s, elapsed_ms, rows_per_s, at}}
+   state: idle | deferred (storage read-only, nothing claimed yet) |
+   planning (reading the file) | moving | waiting (storage went read-only
+   mid-job). A sync must not read the days it is still rewriting. */
+function relabelActive(st){
+ return !!st&&(st.state==="planning"||st.state==="moving"||st.state==="waiting");
+}
+/* 0..1 for the bar: the hub's own pct (plan pass = first quarter, then the
+   move), else bytes, else nothing. */
+function relabelFraction(st){
+ if(!st)return 0;
+ if(Number.isFinite(st.pct))return Math.max(0,Math.min(1,st.pct/100));
+ if(!st.bytes_total)return 0;
+ return Math.min(1,(st.bytes_done||0)/st.bytes_total);
+}
+/* Status text while it runs, and -- for an idle state with a `last` --
+   the completion line: what moved, how long it took, and the rate, which
+   is what a bench run compares. Callers decide whether an old `last` is
+   worth showing; this only formats it. */
+function fmtRelabel(st){
+ if(!st)return "";
+ const done=fmtBytes(st.bytes_done||0),total=fmtBytes(st.bytes_total||0);
+ if(st.state==="planning")return `relabelling stored records: reading ${done} of ${total} to plan the move`;
+ if(st.state==="moving"){
+  const rows=st.rows_total?`${st.rows_done||0} of ${st.rows_total} rows`:`${st.rows_done||0} rows`;
+  return `relabelling stored records: ${rows} · ${done} of ${total} (${st.pct||0}%)`;
+ }
+ if(st.state==="waiting")return `relabel paused at ${done} of ${total} - the hub's storage is read-only`;
+ if(st.state==="deferred")return `${total} of pre-clock records wait for writable storage`;
+ const l=st.last;
+ if(!l||(!l.rows&&!l.kept))return "";
+ const secs=((l.elapsed_ms||0)/1000).toFixed(1);
+ return `relabelled ${l.rows} stored records in ${secs} s (${l.rows_per_s||0} rows/s)`+
+        (l.kept?`, ${l.kept} kept for a later sync`:"")+
+        (l.torn?`, ${l.torn} torn rows dropped`:"");
+}
+/* The clause the clock-sync line adds about what it queued; "" when the
+   sync had nothing stored to move. */
+function fmtRelabelQueued(st){
+ if(!st||!st.bytes_total)return "";
+ if(relabelActive(st))return `, ${fmtBytes(st.bytes_total)} of stored records being relabelled`;
+ if(st.state==="deferred")return `, ${fmtBytes(st.bytes_total)} of stored records wait for writable storage`;
+ return "";
+}
 /* --- end history sync helpers --- */
 let resyncDays=0;  // how far back the next sync re-reads days it holds
 
 /* --- hub time service: push this browser's clock to the device --- */
 async function syncClock(auto){
  const epoch=Math.round(Date.now()/1000);
- // not instant when it matters: a hub that logged for a while with no
- // clock rewrites those records into day files before it answers
+ // the reply is prompt now: a hub that logged for a while with no clock
+ // queues the rewrite of those records and the page watches it below
  setStatus("conn-note","setting the hub clock...",true);
  try{
   let r;
@@ -736,17 +785,72 @@ async function syncClock(auto){
    false,!auto);
    return;}
   if(r.ok){
-   // the days this correction could have changed get re-read on the next sync
+   // the days this correction could have changed get re-read on the next
+   // sync (r.relabelled_span_s: an older hub that rewrote before replying;
+   // this one reports that under relabel.last when the job finishes)
    resyncDays=Math.max(resyncDays,
     resyncWindow(r.now||epoch,r.delta_s||0,r.relabelled_span_s||0));
    setStatus("conn-note",
     `clock synced (hub adjusted ${r.delta_s>=0?"+":""}${r.delta_s}s`+
     (r.adjusted?`, ${r.adjusted} buffered records fixed`:"")+
-    (r.relabelled?`, ${r.relabelled} stored records relabelled`:"")+")");
+    (r.relabelled?`, ${r.relabelled} stored records relabelled`:"")+
+    fmtRelabelQueued(r.relabel)+")");
+   if(r.relabel)watchRelabel(r.relabel);
   }
   else setStatus("conn-note",auto?"":"clock sync: "+(r.err||"failed"),
    false,!auto);
  }catch(e){setStatus("conn-note",auto?"":"clock sync failed: "+e,false,!auto);}
+}
+
+/* --- the hub's clock relabel, watched --- */
+let relabelBusy=null;  // a promise while the hub is rewriting stored records
+async function relabelStatus(){
+ if(httpBase){const st=await storageStatus();return st?st.relabel||null:null;}
+ if(bleIO){const r=await bleJSON("storage");return r?r.relabel||null:null;}
+ return null;
+}
+/* Follow a running relabel on the sync line and bar until the hub says it
+   is done, then widen the next sync's re-read to the span it says it
+   moved rows across. Returns the promise a sync waits on (null when there
+   is nothing to watch), and there is only ever one. Polls slower over
+   BLE: each status reply is ~30 paced notifications. */
+function watchRelabel(st){
+ if(relabelBusy)return relabelBusy;
+ if(!relabelActive(st))return null;
+ const bar=$("sync-prog");
+ const show=s=>{setStatus("sync-status",fmtRelabel(s),true);bar.hidden=false;
+  bar.value=relabelFraction(s);};
+ show(st);
+ relabelBusy=(async()=>{
+  const t0=Date.now();let cur=st;
+  try{
+   while(relabelActive(cur)&&Date.now()-t0<15*60*1000){
+    await new Promise(r=>setTimeout(r,httpBase?1500:4000));
+    // a poll that fails (HTTP down, a BLE timeout) ends the watch without
+    // a claim either way -- and without rejecting, since most callers do
+    // not await this
+    let next=null;
+    try{next=await relabelStatus();}catch(e){}
+    if(!next)break;
+    cur=next;show(cur);
+   }
+   if(cur.state==="idle"&&cur.last){
+    // the day files just changed under our cache, as far back as the hub
+    // says; the next sync re-reads them -- say so, since the user may
+    // have synced already while it ran
+    resyncDays=Math.max(resyncDays,
+     resyncWindow(cur.last.at||Date.now()/1000,0,cur.last.span_s||0));
+    setStatus("sync-status",fmtRelabel(cur)+" - sync days to pick them up");
+    bar.value=1;setTimeout(()=>{bar.hidden=true;},1500);
+    return cur.last;
+   }
+   bar.hidden=true;
+   setStatus("sync-status",relabelActive(cur)?
+    "the hub is still relabelling - sync later":fmtRelabel(cur),false,false);
+   return null;
+  }finally{relabelBusy=null;}
+ })();
+ return relabelBusy;
 }
 
 /* --- BLE (Nordic UART) --- */
@@ -784,6 +888,10 @@ async function bleConnect(){
   chip("chip-ble","ble: on",true);$("btn-sync").disabled=false;
   setStatus("conn-note","BLE connected");
   try{calFillSources(await bleJSON("latest"));}catch(e){}
+  // a relabel the hub queued at boot (NTP got there first): follow it, so
+  // a sync waits for it rather than reading half-rewritten days. An
+  // older hub answers `storage` with an error JSON: no relabel, nothing.
+  try{const r=await bleJSON("storage");if(r&&r.relabel)watchRelabel(r.relabel);}catch(e){}
  }catch(e){setStatus("conn-note","BLE: "+e,false,true);}
 }
 async function bleJSON(cmd){
@@ -836,13 +944,18 @@ async function storageStatus(){
 }
 function storageShow(st){
  if(!st){$("storage-row").hidden=true;return;}
+ // whatever else this says, a relabel in progress belongs on the sync line
+ if(st.relabel)watchRelabel(st.relabel);
  $("storage-row").hidden=false;
  if(!st.supported){
   setStatus("storage-note","this board has no USB drive to hand over");
   $("btn-fs-mcu").disabled=$("btn-fs-pc").disabled=true;return;}
  const eff=st.effective==="pc"?"a PC holds the drive - the hub is NOT logging"
                               :"the hub owns the flash and is logging";
- setStatus("storage-note",eff+" (setting: "+st.owner+", storage: "+st.store+")",
+ // a relabel the hub owes but cannot run yet is this row's business too:
+ // taking the drive back is what lets it start
+ const owed=st.relabel&&st.relabel.state==="deferred"?" - "+fmtRelabel(st.relabel):"";
+ setStatus("storage-note",eff+" (setting: "+st.owner+", storage: "+st.store+")"+owed,
            false,st.effective==="pc");
 }
 async function storageSet(owner){
@@ -955,9 +1068,18 @@ function calFillSources(latest){
 async function sync(){
  const bar=$("sync-prog");
  const showBar=f=>{bar.hidden=false;bar.value=f;};
- setStatus("sync-status","listing days...",true);
- bar.hidden=false;bar.removeAttribute("value");  // indeterminate while listing
  try{
+  // a relabel in progress is rewriting the very days this would fetch;
+  // wait for it (its progress takes over the line meanwhile), and ask
+  // the hub once in case one is running that nothing here has seen yet
+  // (queued at boot, or by another client's clock sync)
+  if(!relabelBusy&&(httpBase||bleIO)){
+   setStatus("sync-status","checking the hub...",true);
+   try{const st=await relabelStatus();if(st)watchRelabel(st);}catch(e){}
+  }
+  if(relabelBusy)await relabelBusy;
+  setStatus("sync-status","listing days...",true);
+  bar.hidden=false;bar.removeAttribute("value");  // indeterminate while listing
   let days;
   if(httpBase)days=(await(await fetch(httpBase+"/api/history")).json()).days;
   else if(bleIO)days=(await bleJSON("days")).days;

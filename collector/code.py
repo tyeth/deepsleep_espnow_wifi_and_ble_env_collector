@@ -887,7 +887,12 @@ def h_storage(body=None):
              # The boot id is which unsynced boot this is (0: none of that
              # file is ours) -- the count of boots since the last sync
              "unsynced_bytes": store.unsynced_stored(),
-             "unsynced_boot": store.boot_id}
+             "unsynced_boot": store.boot_id,
+             # ...and the job doing that join, if one is running: state,
+             # bytes and rows so far, and under `last` what the previous
+             # one moved and how long it took. The page polls this after
+             # a clock sync, and a bench run times the rewrite from it.
+             "relabel": store.relabel_status()}
     if not body or "owner" not in body:
         return state
     want = str(body["owner"]).strip().lower()
@@ -938,6 +943,10 @@ def h_storage(body=None):
             if not datastore.take_filesystem():
                 raise RuntimeError("host still holds the drive")
             store.read_only = False
+            # the drive is ours again by request, so the store's one
+            # automatic last-resort take is available once more for a
+            # drive that gets mounted without anyone asking us
+            store._usb_released = False
             store.root = store._pick_root()
             store.flush()          # everything buffered while it was theirs
             print("storage: drive ejected; the hub is logging to", store.root)
@@ -953,6 +962,11 @@ def h_storage(body=None):
             store.flush()          # we still own it: nothing is at risk
             datastore.give_filesystem_back()
             store.read_only = True
+            # ...and it stays theirs: the store's automatic "nothing is
+            # writable, take the drive back" would otherwise fire on the
+            # very next flush and undo what was just asked for. Only
+            # owner=mcu (or a reboot) makes that available again.
+            store._usb_released = True
             print("storage: flushed and handed the drive back; the host "
                   "re-mounts it within a second or two")
         state["applied"] = True
@@ -979,12 +993,21 @@ def h_time_set(epoch):
     """Set the hub clock (browser time via web page / BLE).
 
     Everything logged with the boot clock is moved onto the real timeline
-    here: records still queued in RAM are shifted, and any that already
-    reached /data/unsynced.csv are rewritten into their day files -- this
-    boot's by the measured correction, earlier boots' by their order (see
-    datastore._plan_relabel). Without that, a browser that sets the clock
-    and then syncs gets the history from before the sync labelled
-    2000-01-01 -- or not at all.
+    from here: records still queued in RAM are shifted now (instant), and
+    any that already reached /data/unsynced.csv are QUEUED to be rewritten
+    into their day files -- this boot's by the measured correction,
+    earlier boots' by their order (see datastore._plan_boots). Without
+    that, a browser that sets the clock and then syncs gets the history
+    from before the sync labelled 2000-01-01 -- or not at all.
+
+    Queued, not done: a hub that logged for days without a clock has
+    hundreds of KB to move, and doing it inside this request was seconds
+    of no HTTP, no BLE and no ESP-NOW. The main loop steps the job
+    (store.relabel_step) and the reply carries its starting state under
+    `relabel` -- the same object GET /api/storage (BLE `storage`) reports
+    as it runs, and where `last` says what moved once it is done. So the
+    rows moved and how far back they reached are read from there at
+    completion, not from this reply, which only knows the bytes queued.
     """
     global TIME_SYNCED
     try:
@@ -995,23 +1018,16 @@ def h_time_set(epoch):
         return {"err": "implausible epoch"}
     delta = epoch - int(time.time())
     rtc.RTC().datetime = time.localtime(epoch)
-    adjusted = relabelled = 0
+    adjusted = queued = 0
     if abs(delta) > 5:
         adjusted = store.adjust_pending(delta)
-        relabelled = store.relabel_unsynced(delta)
+        queued = store.relabel_unsynced(delta)
     TIME_SYNCED = True
     now = int(time.time())
-    print("clock set by client: %+ds (%d pending adjusted, %d stored "
-          "relabelled)" % (delta, adjusted, relabelled))
-    reply = {"ok": True, "delta_s": delta, "adjusted": adjusted,
-             "relabelled": relabelled, "now": now}
-    earliest = store.last_relabel[1]
-    if relabelled and earliest:
-        # how far back the day files just changed: earlier boots' rows can
-        # land well before this boot began, further than delta_s tells the
-        # browser, and a cached copy of those days is now stale
-        reply["relabelled_span_s"] = now - earliest
-    return reply
+    print("clock set by client: %+ds (%d pending adjusted, %d bytes of "
+          "stored records queued for relabel)" % (delta, adjusted, queued))
+    return {"ok": True, "delta_s": delta, "adjusted": adjusted, "now": now,
+            "relabel": store.relabel_status()}
 
 
 def h_history_lines(day):
@@ -1541,6 +1557,12 @@ while True:
         ble.poll()
         captive.poll()
         store.maybe_flush()
+        # a clock relabel in progress: one bounded slice (~25 ms of file
+        # I/O) per pass, so the portals above and the ESP-NOW poll keep
+        # their turn while hundreds of KB of pre-clock records move into
+        # day files. A no-op when nothing is queued. It prints its own
+        # timing when it finishes; /api/storage reports it as it goes.
+        store.relabel_step()
 
         # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
         # HTTP bursts can't fragment the heap out from under the next

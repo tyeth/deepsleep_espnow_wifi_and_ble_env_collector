@@ -18,6 +18,8 @@ lines out. Commands map to the same shared handlers as the HTTP API:
                     -> schedule the reference window (default next 04:00);
                        'asc' = overnight automatic-self-calibration mode
   days              -> list of stored days on SD
+  storage           -> who owns the filesystem, what is buffered, and the
+                       clock-relabel job's progress (same as GET /api/storage)
 
 This exact file is deployed to BOTH the collector and the nodes (a copy
 lives in collector/ and node/ -- keep them identical). A node passes a much
@@ -173,7 +175,8 @@ class BleUartPortal:
     _CMD_HANDLER = {"latest": "latest", "battery": "battery",
                     "events": "events", "config": "config_get",
                     "set": "config_set", "days": "list_days",
-                    "hist": "history_lines", "time": "time_set"}
+                    "hist": "history_lines", "time": "time_set",
+                    "storage": "storage"}
 
     def _dispatch(self, line):
         h = self.handlers
@@ -241,6 +244,11 @@ class BleUartPortal:
                     self._send(h["calibrate"](src, step, opts))
             elif cmd == "time" and len(parts) > 1:
                 self._send(h["time_set"](parts[1]))
+            elif cmd == "storage":
+                # read-only over BLE: the page polls this for the relabel
+                # a `time` command queued, and the filesystem handover is
+                # a confirm-first HTTP action (h_storage in code.py)
+                self._send(h["storage"]())
             elif cmd == "mem":
                 import gc
                 gc.collect()
@@ -256,6 +264,7 @@ class BleUartPortal:
         "list_days": "days", "history_lines": "hist <day>",
         "cal_status": "cal", "calibrate": "cal <src> 1 | cal <src> 2 "
         "[4am|now] [dur_s] [dry|asc]", "time_set": "time <epoch>",
+        "storage": "storage",
     }
 
     def _commands(self):

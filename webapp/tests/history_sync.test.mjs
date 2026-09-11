@@ -18,7 +18,8 @@ const dayOf = html.match(/^function dayOf\(.*$/m);
 assert.ok(dayOf, "dayOf not found in index.html");
 
 const H = new Function(`${dayOf[0]}\n${m[1]}\nreturn {resyncWindow,daysToFetch,` +
-  `fmtBytes,fmtProgress,syncFraction,parseBegin};`)();
+  `fmtBytes,fmtProgress,syncFraction,parseBegin,` +
+  `relabelActive,relabelFraction,fmtRelabel,fmtRelabelQueued};`)();
 
 const DAY = 86400;
 const NOW = Date.parse("2026-09-11T12:00:00Z") / 1000;
@@ -142,6 +143,82 @@ group("the bar crosses the whole sync once, not once per day", () => {
   assert.equal(p(3, 1000, 1000), 1);
   assert.equal(p(2, 999, null), 0.5);     // unknown size: hold at the day mark
   assert.ok(p(9, 5000, 1000, 4) <= 1);    // never past the end
+});
+
+/* --- the hub's clock relabel: a job the page watches, not a reply it waits for --- */
+
+// what /api/storage (and the reply to /api/time) report, at each stage
+const IDLE = { state: "idle", pct: 0, bytes_done: 0, bytes_total: 0, rows_done: 0,
+  rows_total: null, kept: 0, elapsed_ms: 0, last: null };
+const PLANNING = { ...IDLE, state: "planning", pct: 12, bytes_done: 190000, bytes_total: 389120 };
+const MOVING = { ...IDLE, state: "moving", pct: 62, bytes_done: 194560, bytes_total: 389120,
+  rows_done: 4000, rows_total: 8000 };
+const WAITING = { ...MOVING, state: "waiting" };
+const DEFERRED = { ...IDLE, state: "deferred", bytes_total: 389120 };
+const DONE = { ...IDLE, last: { rows: 8000, kept: 0, torn: 0, span_s: 3 * DAY,
+  elapsed_ms: 42100, work_ms: 30500, steps: 1700, rows_per_s: 262, at: NOW } };
+
+group("a sync must wait while the hub is planning, moving, or paused mid-move", () => {
+  assert.equal(H.relabelActive(PLANNING), true);
+  assert.equal(H.relabelActive(MOVING), true);
+  assert.equal(H.relabelActive(WAITING), true);   // storage went read-only: still owed
+  assert.equal(H.relabelActive(IDLE), false);
+  assert.equal(H.relabelActive(DEFERRED), false); // nothing claimed yet: days are intact
+  assert.equal(H.relabelActive(DONE), false);
+  assert.equal(H.relabelActive(null), false);     // an older hub sends nothing
+  assert.equal(H.relabelActive(undefined), false);
+});
+
+group("the bar follows the hub's own percentage, plan pass then move", () => {
+  assert.equal(H.relabelFraction(PLANNING), 0.12);
+  assert.equal(H.relabelFraction(MOVING), 0.62);
+  assert.equal(H.relabelFraction({ ...MOVING, pct: 250 }), 1);   // clamped
+  // no pct: fall back to bytes; no bytes: nothing to show
+  assert.equal(H.relabelFraction({ state: "moving", bytes_done: 100, bytes_total: 400 }), 0.25);
+  assert.equal(H.relabelFraction({ state: "moving" }), 0);
+  assert.equal(H.relabelFraction(null), 0);
+});
+
+group("the status line says what stage it is at, in bytes and rows", () => {
+  assert.equal(H.fmtRelabel(PLANNING),
+    "relabelling stored records: reading 185.5 KB of 380.0 KB to plan the move");
+  assert.equal(H.fmtRelabel(MOVING),
+    "relabelling stored records: 4000 of 8000 rows · 190.0 KB of 380.0 KB (62%)");
+  // a job resumed after a power cut from a plan that never counted its rows
+  assert.equal(H.fmtRelabel({ ...MOVING, rows_total: null }),
+    "relabelling stored records: 4000 rows · 190.0 KB of 380.0 KB (62%)");
+  assert.equal(H.fmtRelabel(WAITING),
+    "relabel paused at 190.0 KB of 380.0 KB - the hub's storage is read-only");
+  assert.equal(H.fmtRelabel(DEFERRED),
+    "380.0 KB of pre-clock records wait for writable storage");
+});
+
+group("...and, done, what moved and how fast -- the number a bench run compares", () => {
+  assert.equal(H.fmtRelabel(DONE), "relabelled 8000 stored records in 42.1 s (262 rows/s)");
+  const l = DONE.last;
+  assert.equal(H.fmtRelabel({ ...DONE, last: { ...l, kept: 12, torn: 1 } }),
+    "relabelled 8000 stored records in 42.1 s (262 rows/s), 12 kept for a later sync, 1 torn rows dropped");
+  // nothing was placed: only worth a line if something was kept back
+  assert.equal(H.fmtRelabel({ ...DONE, last: { ...l, rows: 0, kept: 3 } }),
+    "relabelled 0 stored records in 42.1 s (262 rows/s), 3 kept for a later sync");
+  assert.equal(H.fmtRelabel({ ...DONE, last: { ...l, rows: 0 } }), "");
+  assert.equal(H.fmtRelabel(IDLE), "");
+  assert.equal(H.fmtRelabel(null), "");
+});
+
+group("the clock-sync line says what it queued, and nothing when there was nothing", () => {
+  assert.equal(H.fmtRelabelQueued(PLANNING), ", 380.0 KB of stored records being relabelled");
+  assert.equal(H.fmtRelabelQueued(DEFERRED), ", 380.0 KB of stored records wait for writable storage");
+  assert.equal(H.fmtRelabelQueued(IDLE), "");
+  assert.equal(H.fmtRelabelQueued(DONE), "");      // an old completion is not this sync's
+  assert.equal(H.fmtRelabelQueued(undefined), ""); // an older hub: no field at all
+});
+
+group("the completed job widens the re-read window the way the old reply did", () => {
+  // the hub says it placed rows reaching 3 days back: the same 4-day window
+  // resyncWindow gave for relabelled_span_s in the synchronous reply
+  assert.equal(H.resyncWindow(DONE.last.at, 0, DONE.last.span_s), 4);
+  assert.equal(H.resyncWindow(NOW, 0, 0), 0);      // nothing moved: nothing to re-read
 });
 
 console.log(`\n${groups} test groups passed`);

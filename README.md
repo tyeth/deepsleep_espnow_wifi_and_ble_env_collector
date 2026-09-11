@@ -222,9 +222,15 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
     stashed readings;
   * records that already reached storage went to `data/unsynced.csv`, not
     to a 2000-01-01 "day" — on sync they are rewritten into the day files
-    they belong in, and `/api/time` reports how many (`relabelled`). A
-    read-only filesystem defers that rewrite to the first flush that can
-    write. `GET /api/storage` reports the file's size as `unsynced_bytes`;
+    they belong in. The rewrite is a job the hub's main loop steps
+    through (~25 ms of file I/O a pass), not something `/api/time` waits
+    for: that reply says what it queued (`relabel` — the same object
+    `GET /api/storage` and BLE `storage` report as it runs: state, bytes
+    and rows done, and under `last` what the previous job moved, how long
+    it took and its rows/s). A read-only filesystem defers the job to the
+    first flush that can write, and one paused by a host taking the drive
+    mid-way resumes when it is handed back. `GET /api/storage` reports the
+    file's size as `unsynced_bytes`;
   * **every boot without a clock starts at 2000-01-01 again**, so the rows
     of successive unsynced boots share one timestamp range. Each row in
     `unsynced.csv` therefore carries the id of the boot that logged it (a
@@ -240,17 +246,22 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
     for measured ones. A boot that ended in a soft reset (the RTC runs on)
     is recognised and keeps its exact offset. The rewrite is crash-safe:
     the file is renamed aside and the per-boot offsets committed to a
-    `.plan` before any row moves, so a power cut mid-rewrite finishes at
-    the next boot with the same offsets and the browser folds the rows it
-    sees twice. Once the file is empty the counter returns to 0, and the
+    `.plan` before any row moves, and the job's byte offset is appended
+    to that `.plan` every 16 KB, so a power cut mid-rewrite resumes at the
+    next boot from the last checkpoint with the same offsets — redoing at
+    most that much, and the browser folds the rows it sees twice. Once the
+    file is empty the counter returns to 0, and the
     `unsynced_boot` field of `/api/storage` is how many boots it has been
     since the hub last knew the time;
-  * the Analyzer uses the reported `delta_s`, and `relabelled_span_s`
-    (how far back the rewrite actually reached), to decide how many days
-    of its cached history to re-read on the next sync (the drift itself,
-    or how long the hub ran with no clock at all, plus a day for the
-    timezone) — otherwise it keeps a stale copy of a day whose records
-    have just moved. Day CSVs are served `no-store` for the same reason.
+  * the Analyzer uses the reported `delta_s`, and — once the job
+    reports itself done — `last.span_s` (how far back the rewrite actually
+    reached), to decide how many days of its cached history to re-read on
+    the next sync (the drift itself, or how long the hub ran with no clock
+    at all, plus a day for the timezone) — otherwise it keeps a stale copy
+    of a day whose records have just moved. A sync started while the job
+    runs waits for it, showing its progress on the sync line, rather than
+    fetching days the hub is still rewriting. Day CSVs are served
+    `no-store` for the same reason.
 * Node data packets carry an `at` reading-timestamp; the collector
   ignores implausible ones (unsynced clocks) and uses receive time.
 

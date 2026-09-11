@@ -51,9 +51,12 @@ by Chrome; state at `chrome://on-device-internals`. See
   the total the hub announced (`#BEGIN <day> <bytes>` over BLE,
   `Content-Length` over HTTP), and one bar across the whole run. That
   matters most over BLE, where a single day can take a minute and the
-  alternative is a page that looks hung. Setting the clock says so too:
-  the hub may be rewriting pre-clock records into day files before it
-  answers. Tests: `node webapp/tests/history_sync.test.mjs`.
+  alternative is a page that looks hung. Setting the clock can queue a
+  rewrite of pre-clock records into day files on the hub; the page
+  follows that job on the same line and bar (polling `/api/storage`, or
+  BLE `storage`), reports what moved and how fast when it finishes, and
+  makes a sync wait for it rather than fetch days the hub is still
+  rewriting. Tests: `node webapp/tests/history_sync.test.mjs`.
 * **Charts**: Plotly (pinned CDN version, cached by the service worker for
   offline use) with threshold lines per metric.
 * **Threshold testing**: editable thresholds (prefilled from the device
