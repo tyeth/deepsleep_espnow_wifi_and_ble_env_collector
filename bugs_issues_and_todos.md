@@ -259,6 +259,27 @@ was "paced by net_ble" was aspirational. Fixed by a chunked, acknowledged
 upload (`cert begin` / `cert c|k <chunk>` / `cert end`) that the hub writes
 straight to `/certs/*.new`, so the certificate is never held in RAM whole.
 
+Bench-verified on the C6 devkit (`HUB-D754`, CP 10.3.0-alpha.4), against the
+real `gundryconsultancy.com` pair:
+
+* the old behaviour, on hardware: the 5,473-byte `cert {json}` command now
+  gets `{"err": "line too long (max 512 bytes)", "cmds": [...]}` rather than
+  the silence it used to get;
+* the new one: `cert begin` → `{"max": 392, "ok": true}`, 15 acknowledged
+  chunks, `cert end` → installed. **5,363 bytes in 19.4 s**, and the hub
+  logged `certstore: installed new certificate (5363 bytes)`;
+* read back off the board: `fullchain.pem` 3,655 bytes / adler32
+  `0xfca29728` and `key.pem` 1,708 bytes / `0xec072b03` — byte-for-byte
+  what the browser sent;
+* and after a restart: `HTTPS portal on port 443 as
+  192dot168dot4dot1.gundryconsultancy.com (cert from /certs/fullchain.pem)`,
+  so mbedTLS accepts what arrived. 22 KB of heap still free with AP, HTTP,
+  HTTPS and BLE all up.
+
+`days_left` reads `null` throughout because the bench hub's clock is
+unsynced — `days_left()` is documented to return None below the 2023 epoch
+guard, so that is correct, not a fault.
+
 ### Windows caches an empty GATT table, per BLE address, and will not let go
 
 Every connection to the hub came back with **only GAP (0x1800) and GATT

@@ -57,7 +57,7 @@ _RX_LINE_MAX = 512
 # not fit -- a certificate is ~5.5 KB -- goes up in pieces (see `cert`
 # below): Web Bluetooth also refuses a writeValue over 512 bytes, and the
 # hub has ~40 KB of heap, so no layer here can take one in a single write.
-CERT_CHUNK_MAX = 400
+CERT_CHUNK_MAX = 392   # + len("cert c ") + the newline = one 400-byte write
 
 try:
     from adafruit_ble import BLERadio
@@ -79,6 +79,7 @@ class BleUartPortal:
         self.ok = False
         self.connected = False
         self._rxbuf = b""
+        self._rxdrop = False   # swallowing the tail of an over-long line
         self._pb = None
         self._name = name   # re-applied at every re-advertise (see poll)
         if not enabled:
@@ -340,6 +341,7 @@ class BleUartPortal:
                 if self.connected:
                     self.connected = False
                     self._rxbuf = b""
+                    self._rxdrop = False
                     # a certificate upload that was in flight is now half a
                     # file with its handle still open: let it go
                     if "cert" in self.handlers:
@@ -376,14 +378,28 @@ class BleUartPortal:
                 self._rxbuf += self.uart.read(n) or b""
                 while b"\n" in self._rxbuf:
                     line, self._rxbuf = self._rxbuf.split(b"\n", 1)
+                    if self._rxdrop:
+                        # The tail of a line already answered and abandoned.
+                        # A client that gives up mid-line without sending a
+                        # newline loses its next command to this too -- there
+                        # is no way to tell the two apart from here, and a
+                        # retry works.
+                        self._rxdrop = False
+                        continue
                     self._dispatch(line.decode())
                 if len(self._rxbuf) > _RX_LINE_MAX:
                     # Garbage guard. It used to drop the line in silence,
                     # which is what a client pushing a whole certificate in
-                    # one command saw: no reply, no clue. Say so instead.
+                    # one command saw: no reply, no clue. Answer once, then
+                    # swallow the rest of that line -- a 5 KB command
+                    # overflows this buffer many times over, and a reply per
+                    # overflow would leave the client reading a stale error
+                    # as the answer to its next command.
                     self._rxbuf = b""
-                    self._send({"err": "line too long (max %d bytes)"
-                                       % _RX_LINE_MAX,
-                                "cmds": self._commands()})
+                    if not self._rxdrop:
+                        self._rxdrop = True
+                        self._send({"err": "line too long (max %d bytes)"
+                                           % _RX_LINE_MAX,
+                                    "cmds": self._commands()})
         except Exception as exc:
             print("BLE poll error:", exc)

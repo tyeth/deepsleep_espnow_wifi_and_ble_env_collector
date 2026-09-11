@@ -81,8 +81,11 @@ function fakeHub() {
     async json(cmd) {
       this.lines.push(cmd);
       if (cmd.length + 1 > RX_LINE_MAX) return { err: `line too long (max ${RX_LINE_MAX} bytes)` };
+      // Python's str.split(None, 2): any run of whitespace separates, \r
+      // included. Matching that here is the point -- a chunk beginning with
+      // a CR would lose it on the real hub and nowhere else.
       const s = cmd.replace(/^\s+|\s+$/g, "");
-      const m = s.match(/^(\S+)(?:[ \t]+(\S+)(?:[ \t]+([\s\S]*))?)?$/);
+      const m = s.match(/^(\S+)(?:\s+(\S+)(?:\s+([\s\S]*))?)?$/);
       const [, word, op = "status", payload = ""] = m;
       assert.equal(word, "cert");
       if (op === "begin") { open = true; n = 0; got.cert = got.key = ""; return { ok: true, max: 400 }; }
@@ -119,7 +122,20 @@ group("certChunks survives a line longer than the whole budget", () => {
   const text = "x".repeat(1000) + "\ntail\n";
   const chunks = H.certChunks(text, 400);
   for (const c of chunks) assert.ok(c.length <= 400);
-  assert.equal(chunks.join("").replace(/\|/g, "\n").length, text.length);
+  assert.equal(chunks.join("").replace(/\|/g, "\n"), text);
+});
+
+group("CRLF input is normalised before it can lose a byte to the hub", () => {
+  // Python's split() eats a leading \r, so a chunk that began with the CR of
+  // a blank line would arrive one byte short -- silently. validateCertPair
+  // is where both transports converge, so it is normalised there.
+  const crlf = s => s.replace(/\n/g, "\r\n");
+  const { chain, key } = H.validateCertPair(
+    crlf([LEAF, INTER, ROOT].join("\n")), crlf(KEY));
+  assert.ok(!chain.includes("\r"), "the chain must reach the hub as LF");
+  assert.ok(!key.includes("\r"), "the key must reach the hub as LF");
+  for (const c of H.certChunks(chain, 40).concat(H.certChunks(key, 40)))
+    assert.doesNotMatch(c, /^\s|\s$/);
 });
 
 await (async () => {
@@ -153,7 +169,9 @@ await (async () => {
   // the hub's complaints have to surface, not be swallowed as success
   const refuse = { lines: [], async json(c) { this.lines.push(c); return c === "cert begin" ? { ok: true, max: 400 } : { err: "cannot write /certs" }; } };
   await rejects(H.bleCertPush(refuse, chain, key), /cannot write \/certs/);
-  console.log("ok - a hub-side error stops the upload and is reported"); groups++;
+  assert.equal(refuse.lines.at(-1), "cert abort",
+    "a failed upload must not leave the hub holding half a certificate");
+  console.log("ok - a hub-side error stops the upload, is reported, and aborts"); groups++;
 
   const noBegin = { async json() { return { err: "not supported on this device" }; } };
   await rejects(H.bleCertPush(noBegin, chain, key), /not supported on this device/);

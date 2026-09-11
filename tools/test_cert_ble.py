@@ -65,11 +65,17 @@ class FakePortal(net_ble.BleUartPortal):
         self._rxbuf += chunk
         while b"\n" in self._rxbuf:
             line, self._rxbuf = self._rxbuf.split(b"\n", 1)
+            if self._rxdrop:
+                self._rxdrop = False
+                continue
             self._dispatch(line.decode())
         if len(self._rxbuf) > net_ble._RX_LINE_MAX:
             self._rxbuf = b""
-            self._send({"err": "line too long (max %d bytes)"
-                               % net_ble._RX_LINE_MAX})
+            if not self._rxdrop:
+                self._rxdrop = True
+                self._send({"err": "line too long (max %d bytes)"
+                                   % net_ble._RX_LINE_MAX,
+                            "cmds": self._commands()})
 
     def replies(self):
         out = [json.loads(b.decode()) for b in self.sent]
@@ -139,6 +145,21 @@ def main():
               rx.n == len(cert) + len(key))
         check("finish() refuses a chain that is not a certificate",
               certstore.Installer(root).finish() is False)
+        # The .new files from the run above are still on disk. A second
+        # upload that sends nothing must not be able to install them over a
+        # working certificate and report success.
+        check("finish() refuses an upload that sent nothing",
+              certstore.Installer(root).finish() is False)
+        half = certstore.Installer(root)
+        half.write("cert", cert)
+        check("finish() refuses an upload missing the key",
+              half.finish() is False)
+        # ...and abort() takes the leftovers with it
+        rx2 = certstore.Installer(root)
+        rx2.write("key", key)
+        rx2.abort()
+        check("abort() removes the part-received files",
+              not os.path.exists(os.path.join(root, certstore.KEY + ".new")))
     finally:
         shutil.rmtree(root)
 
@@ -175,6 +196,17 @@ def main():
         check("the hub says the line was too long",
               "line too long" in p2.replies()[0]["err"])
         check("and drops it rather than growing the buffer", p2._rxbuf == b"")
+        # the rest of that 5 KB command keeps arriving: it must not produce a
+        # reply per overflow, or the client reads a stale error as the answer
+        # to whatever it sends next
+        for _ in range(8):
+            p2.feed(b"y" * 600)
+        check("one complaint per over-long line, not one per overflow",
+              p2.replies() == [])
+        p2.feed(b'"}\ncert begin\n')
+        after = p2.replies()
+        check("and the next command is answered normally",
+              len(after) == 1 and after[0].get("ok") is True)
 
         print("a disconnect mid-upload drops the part-received file")
         p3 = FakePortal({"cert": h_cert})
@@ -200,14 +232,15 @@ def main():
             p = FakePortal({"cert": h_cert})
             p.feed(b"cert begin\n")
             p.replies()
+            longest = 0
             for which, chunks in (("c", chunks_c), ("k", chunks_k)):
                 for c in chunks:
                     line = ("cert %s %s\n" % (which, c)).encode()
-                    check_len = len(line) <= net_ble._RX_LINE_MAX
-                    if not check_len:
-                        check("every command fits the receive buffer", False)
-                        break
+                    longest = max(longest, len(line))
                     p.feed(line)
+            check("every command fits the receive buffer (longest %d)" % longest,
+                  longest <= net_ble._RX_LINE_MAX)
+            check("...and fits a single 400-byte writeValue", longest <= 400)
             errs = [r for r in p.replies() if "err" in r]
             check("no chunk was refused", not errs)
             p.feed(b"cert end\n")

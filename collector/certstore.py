@@ -194,6 +194,7 @@ class Installer:
         self.root = root
         self.n = 0                  # bytes written, for the client's progress
         self._files = {}
+        self._got = []              # halves this upload actually wrote
 
     def _open(self, which):
         f = self._files.get(which)
@@ -212,6 +213,8 @@ class Installer:
         if which not in ("cert", "key"):
             raise ValueError("expected cert or key, got %r" % (which,))
         self._open(which).write(text)
+        if which not in self._got:
+            self._got.append(which)
         self.n += len(text)
         return self.n
 
@@ -226,6 +229,14 @@ class Installer:
     def finish(self):
         """Validate what arrived and put it in place. True when installed."""
         self._close()
+        # Both halves must have come from THIS upload. Renaming whatever
+        # .new files happen to be on disk would let a `begin` + `end` with
+        # nothing in between install the leftovers of someone else's
+        # abandoned upload over a working certificate -- and report success.
+        if sorted(self._got) != ["cert", "key"]:
+            print("certstore: incomplete upload (%s); not installing"
+                  % (",".join(self._got) or "nothing"))
+            return False
         try:
             exp = not_after(self.root + "/" + CERT + ".new")
             if exp is None or (time.time() > 1700000000 and exp < time.time()):
@@ -242,9 +253,16 @@ class Installer:
             return False
 
     def abort(self):
-        """Give up on a part-received certificate. The `.new` files are left
-        where they are: nothing reads them, and the next upload overwrites."""
+        """Give up on a part-received certificate, and take the `.new` files
+        with it -- half a chain left on disk is exactly what a later upload
+        must not be able to finish on behalf of."""
         self._close()
+        self._got = []
+        for name in (CERT, KEY):
+            try:
+                os.remove("%s/%s.new" % (self.root, name))
+            except OSError:
+                pass
 
 
 _rx = [None]

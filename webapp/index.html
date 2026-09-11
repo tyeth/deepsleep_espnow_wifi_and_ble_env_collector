@@ -1727,7 +1727,8 @@ async function fetchCertFile(name){
   if(!(e instanceof TypeError))throw e;
   return await fetchViaCors(url);}}
 function pemChain(text,n=2){ // keep leaf + intermediate (the root is in every browser)
- const certs=(text||"").match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)||[];
+ const certs=((text||"").replace(/\r\n/g,"\n")
+   .match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g))||[];
  return certs.slice(0,n).join("\n")+"\n";}
 // Check what came back before pushing it. A CORS proxy or a captive portal will
 // happily return an HTML error page with status 200, and the hub would write that
@@ -1738,7 +1739,10 @@ function validateCertPair(certText,keyText){
  if(n<2)throw new Error(CERT_COMBINED+": expected leaf + intermediate, found "+n);
  if(!/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(keyText||""))
   throw new Error(CERT_KEY+": no PRIVATE KEY block");
- return {chain,key:keyText};}
+ // CRLF out, here rather than per transport, so HTTP and BLE install the
+ // same bytes. It also matters over BLE: a chunk that began with the CR of
+ // a blank line would lose it to the hub's split(), silently.
+ return {chain,key:(keyText||"").replace(/\r\n/g,"\n")};}
 function certFileKind(text){
  if(/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(text))return "key";
  if(/-----BEGIN CERTIFICATE-----/.test(text))return "cert";
@@ -1756,7 +1760,12 @@ function certFileKind(text){
    split is on line boundaries so that a chunk never begins or ends mid-word
    -- the hub tokenises the command with split(), which would eat a leading
    space out of "-----BEGIN PRIVATE KEY-----". */
-const CERT_CHUNK=400;   // must match net_ble.CERT_CHUNK_MAX
+// Sized so "cert c " + chunk + "\n" is one writeValue, not two: the page has
+// other BLE callers (the relabel poller), and a command split across two
+// awaited writes is no longer written atomically. Must match
+// net_ble.CERT_CHUNK_MAX.
+const CERT_CHUNK=392;   // = BLE_WRITE_MAX - "cert c ".length - 1; must match
+                        // net_ble.CERT_CHUNK_MAX
 function certChunks(text,max=CERT_CHUNK){
  // Each line carries the '|' that stands in for its own newline, so chunks
  // are whole lines and concatenate back into the original text -- a boundary
@@ -1783,14 +1792,20 @@ async function bleCertPush(io,cert,key,onProgress){
        .concat(certChunks(key,max).map(c=>["k",c]));
  const total=cert.length+key.length;
  let sent=0;
- for(const [which,chunk] of parts){
-  const r=await io.json("cert "+which+" "+chunk);
-  if(r.err)throw new Error(r.err);
-  sent+=chunk.length;
-  if(onProgress)onProgress(typeof r.n==="number"?r.n:sent,total);}
- const res=await io.json("cert end",30000);   // validates + writes flash
- if(res.err)throw new Error(res.err);
- return res;}
+ try{
+  for(const [which,chunk] of parts){
+   const r=await io.json("cert "+which+" "+chunk);
+   if(r.err)throw new Error(r.err);
+   sent+=chunk.length;
+   if(onProgress)onProgress(typeof r.n==="number"?r.n:sent,total);}
+  const res=await io.json("cert end",30000);   // validates + writes flash
+  if(res.err)throw new Error(res.err);
+  return res;
+ }catch(e){
+  // don't leave half a certificate open on the hub waiting for an `end`
+  // that is never coming
+  try{await io.json("cert abort");}catch(_){}
+  throw e;}}
 /* --- end cert helpers --- */
 
 // Status line for the cert row. setStatus() is textContent-only; the failure path
