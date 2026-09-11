@@ -396,6 +396,44 @@ breaker would be the code answer if that ever has to change.
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
+* [x] History that would not sync to a browser (issue 9's clock TODO,
+      host-side tests in `tools/test_datastore_sync.py` and
+      `webapp/tests/history_sync.test.mjs`): RAM-buffered readings are now
+      listed by `/api/history` and served after the day file (BLE `hist`
+      too), and records logged before the clock was set go to
+      `data/unsynced.csv` and are rewritten into real day files on sync
+      instead of becoming an uncorrectable 2000-01-01. Since every
+      unsynced boot restarts at 2000-01-01, rows carry a boot id (NVM
+      counter `nvm[1..3]`, file max as fallback); at sync this boot's rows
+      get the measured offset and earlier boots are stacked before it in
+      order, flagged `0x08` estimated, so nothing collides and the
+      browser's ts|src de-dup drops nothing. **Not yet run on the bench**
+      -- the interesting cases are a C6 hub with the drive held by a PC, a
+      hub booted with no NTP that a browser then syncs, and two or three
+      power cuts before that sync (check the flagged rows land before the
+      last boot and the counter reads 0 in `/api/storage` afterwards).
+      The rewrite used to run synchronously inside `POST /api/time` (and
+      at boot when the clock was already set): hundreds of KB of file I/O
+      before that reply, seconds of no other connection served and no
+      ESP-NOW packet read. It is now a job the main loop steps
+      (`store.relabel_step()`, ~25 ms or 200 rows a pass, plan pass then
+      move, byte offset checkpointed to the `.plan` every 16 KB), reported
+      under `relabel` in `/api/storage` / BLE `storage`, with the page
+      following it and holding a sync until it is done. **Not yet timed
+      on the bench**: `relabel.last` carries `elapsed_ms` (sync to last
+      row), `work_ms` (inside steps), `steps` and `rows_per_s`, and the
+      console prints the same line at completion -- so a run needs only
+      an unsynced hub with a big `unsynced.csv` (gen it, or let a hub log
+      overnight with no NTP), a browser clock sync, and a poll of
+      `/api/storage`. Worth checking alongside: that HTTP stays
+      responsive and ESP-NOW packets keep arriving while it runs (a node
+      on a 30 s interval), how much of the wall time is the loop's own
+      work (`elapsed_ms - work_ms`), and whether 25 ms is the right
+      budget on flash, where a step that opens a new day file pays a
+      4 KB erase.
+      `unsynced.csv` is also exempt from `_rotate_oldest`, so on flash an
+      unsynced hub fills the free space until `_drop_bounded` starts
+      dropping the oldest queued readings (announced, not silent).
 * [x] Channel agility on the bench (2026-09-02, below): hub on 6 then 11,
       node re-hunts and repins; a hop then a send on channel 1 still ACKs;
       `start_ap`/`stop_ap` beside a live ESPNow object is benign on the S3
@@ -413,6 +451,11 @@ breaker would be the code answer if that ever has to change.
       verified over BLE (2 min window, ref 568/spread 8, no FRC written).
       Node-side window still needs an end-to-end run (needs espnow TX +
       a trigger path: STA-WiFi HTTP, or a PSRAM hub) -- see README.
+* [ ] AI model download progress (the other half of issue 9's "download
+      progress" box). Data transfers now report bytes against the total --
+      `#BEGIN <day> <bytes>` over BLE, `Content-Length` over HTTP -- but
+      the Prompt API model download still only says "loading"; it exposes
+      a `downloadprogress` event that should drive the same bar.
 * [ ] QT Py S3 + 2.9" tri-color HIL rig bring-up (profile `tri_2in9`).
 * [ ] GitHub Pages deploy of `webapp/` + web-BLE against the S3 node/hub.
 * [ ] Adafruit IO upload of averaged subsets (future).

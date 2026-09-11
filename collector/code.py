@@ -876,7 +876,23 @@ def h_storage(body=None):
     state = {"owner": owner_now,
              "effective": "pc" if store.read_only else "mcu",
              "supported": has_msc,
-             "store": store.mode}
+             "store": store.mode,
+             # readings the hub is holding because it cannot write them --
+             # they ARE served to a browser, but they are one power cut
+             # from being gone, which is the reason to take the drive back
+             "buffered": store.pending_count(),
+             "unsynced": store.unsynced_pending(),
+             # ...and what is on storage with no usable timestamp yet: set
+             # the clock (browser / BLE `time`) and it joins the day files.
+             # The boot id is which unsynced boot this is (0: none of that
+             # file is ours) -- the count of boots since the last sync
+             "unsynced_bytes": store.unsynced_stored(),
+             "unsynced_boot": store.boot_id,
+             # ...and the job doing that join, if one is running: state,
+             # bytes and rows so far, and under `last` what the previous
+             # one moved and how long it took. The page polls this after
+             # a clock sync, and a bench run times the rewrite from it.
+             "relabel": store.relabel_status()}
     if not body or "owner" not in body:
         return state
     want = str(body["owner"]).strip().lower()
@@ -927,6 +943,10 @@ def h_storage(body=None):
             if not datastore.take_filesystem():
                 raise RuntimeError("host still holds the drive")
             store.read_only = False
+            # the drive is ours again by request, so the store's one
+            # automatic last-resort take is available once more for a
+            # drive that gets mounted without anyone asking us
+            store._usb_released = False
             store.root = store._pick_root()
             store.flush()          # everything buffered while it was theirs
             print("storage: drive ejected; the hub is logging to", store.root)
@@ -942,6 +962,11 @@ def h_storage(body=None):
             store.flush()          # we still own it: nothing is at risk
             datastore.give_filesystem_back()
             store.read_only = True
+            # ...and it stays theirs: the store's automatic "nothing is
+            # writable, take the drive back" would otherwise fire on the
+            # very next flush and undo what was just asked for. Only
+            # owner=mcu (or a reboot) makes that available again.
+            store._usb_released = True
             print("storage: flushed and handed the drive back; the host "
                   "re-mounts it within a second or two")
         state["applied"] = True
@@ -965,8 +990,25 @@ def h_storage(body=None):
 
 
 def h_time_set(epoch):
-    """Set the hub clock (browser time via web page / BLE). Pending
-    records buffered with a wrong clock are retro-adjusted."""
+    """Set the hub clock (browser time via web page / BLE).
+
+    Everything logged with the boot clock is moved onto the real timeline
+    from here: records still queued in RAM are shifted now (instant), and
+    any that already reached /data/unsynced.csv are QUEUED to be rewritten
+    into their day files -- this boot's by the measured correction,
+    earlier boots' by their order (see datastore._plan_boots). Without
+    that, a browser that sets the clock and then syncs gets the history
+    from before the sync labelled 2000-01-01 -- or not at all.
+
+    Queued, not done: a hub that logged for days without a clock has
+    hundreds of KB to move, and doing it inside this request was seconds
+    of no HTTP, no BLE and no ESP-NOW. The main loop steps the job
+    (store.relabel_step) and the reply carries its starting state under
+    `relabel` -- the same object GET /api/storage (BLE `storage`) reports
+    as it runs, and where `last` says what moved once it is done. So the
+    rows moved and how far back they reached are read from there at
+    completion, not from this reply, which only knows the bytes queued.
+    """
     global TIME_SYNCED
     try:
         epoch = int(epoch)
@@ -976,34 +1018,64 @@ def h_time_set(epoch):
         return {"err": "implausible epoch"}
     delta = epoch - int(time.time())
     rtc.RTC().datetime = time.localtime(epoch)
-    adjusted = 0
+    adjusted = queued = 0
     if abs(delta) > 5:
         adjusted = store.adjust_pending(delta)
+        queued = store.relabel_unsynced(delta)
     TIME_SYNCED = True
-    print("clock set by client: %+ds (%d pending adjusted)" % (delta, adjusted))
-    return {"ok": True, "delta_s": delta, "adjusted": adjusted,
-            "now": int(time.time())}
+    now = int(time.time())
+    print("clock set by client: %+ds (%d pending adjusted, %d bytes of "
+          "stored records queued for relabel)" % (delta, adjusted, queued))
+    return {"ok": True, "delta_s": delta, "adjusted": adjusted, "now": now,
+            "relabel": store.relabel_status()}
 
 
 def h_history_lines(day):
-    """Generator of file chunks for BLE streaming, or None if missing."""
-    if store.data_dir() is None:
+    """(total_bytes, generator) for a day's CSV, or None if we have none.
+
+    The generator yields the file on storage (when there is one) and then
+    the rows for that day still queued in RAM -- a hub whose filesystem is
+    read-only has all of its recent history in the queue and none of it in
+    a file. The byte count is measured up front and is exactly what the
+    generator will yield, so a client watching a slow BLE transfer can say
+    how far through it is rather than only that it is still going.
+
+    Only a day the hub actually lists, which the HTTP route checks for
+    itself but BLE did not: it kept the caller's string, so `hist ../x`
+    reached any CSV on the root, and `hist unsynced` would have streamed
+    the pre-clock holding file -- whose extra boot column the analyzer
+    would read as a timestamp.
+    """
+    if day not in h_list_days():
         return None
-    path = "%s/%s.csv" % (store.data_dir(), day)
+    path = store.day_path(day)
+    size = 0
+    if path is not None:
+        try:
+            size = os.stat(path)[6]
+        except OSError:
+            path = None
+    tail = store.pending_csv(day)
+    if path is None and not tail:
+        return None
 
     def _gen():
-        with open(path, "rb") as f:
-            while True:
-                chunk = f.read(512)
-                if not chunk:
-                    return
-                yield chunk
+        # only the bytes that were on storage when the request arrived: a
+        # flush part-way through would otherwise write the very rows the
+        # tail is about to send, and the client would see them twice
+        left = size
+        if path is not None:
+            with open(path, "rb") as f:
+                while left > 0:
+                    chunk = f.read(min(512, left))
+                    if not chunk:
+                        break
+                    left -= len(chunk)
+                    yield chunk
+        if tail:
+            yield tail
 
-    try:
-        os.stat(path)
-    except OSError:
-        return None
-    return _gen()
+    return size + len(tail), _gen()
 
 
 handlers = {
@@ -1017,6 +1089,7 @@ handlers = {
     "ingest": h_ingest,
     "list_days": h_list_days,
     "history_lines": h_history_lines,
+    "pending_csv": lambda day: store.pending_csv(day),
     "data_dir": lambda: store.data_dir(),
     "time_set": h_time_set,
     "reset": h_reset,
@@ -1484,6 +1557,12 @@ while True:
         ble.poll()
         captive.poll()
         store.maybe_flush()
+        # a clock relabel in progress: one bounded slice (~25 ms of file
+        # I/O) per pass, so the portals above and the ESP-NOW poll keep
+        # their turn while hundreds of KB of pre-clock records move into
+        # day files. A no-op when nothing is queued. It prints its own
+        # timing when it finishes; /api/storage reports it as it goes.
+        store.relabel_step()
 
         # we're tight on RAM (no PSRAM): sweep regularly so captive-probe /
         # HTTP bursts can't fragment the heap out from under the next

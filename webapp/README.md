@@ -47,6 +47,16 @@ by Chrome; state at `chrome://on-device-internals`. See
   card. Stored in the browser (IndexedDB), so old/disparate files remain
   analysable with the device offline. Duplicate rows are merged; data gaps
   (nodes asleep, hub powered off) are detected and shaded on charts.
+  A sync reports itself as it runs — which day of how many, bytes against
+  the total the hub announced (`#BEGIN <day> <bytes>` over BLE,
+  `Content-Length` over HTTP), and one bar across the whole run. That
+  matters most over BLE, where a single day can take a minute and the
+  alternative is a page that looks hung. Setting the clock can queue a
+  rewrite of pre-clock records into day files on the hub; the page
+  follows that job on the same line and bar (polling `/api/storage`, or
+  BLE `storage`), reports what moved and how fast when it finishes, and
+  makes a sync wait for it rather than fetch days the hub is still
+  rewriting. Tests: `node webapp/tests/history_sync.test.mjs`.
 * **Charts**: Plotly (pinned CDN version, cached by the service worker for
   offline use) with threshold lines per metric.
 * **Threshold testing**: editable thresholds (prefilled from the device

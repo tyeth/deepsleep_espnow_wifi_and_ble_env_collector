@@ -154,6 +154,15 @@ already has**, reports `"store": "flash (read-only)"` in `GET
 /api/latest`, buffers new readings in RAM, and starts writing the moment
 the drive is released or an SD card appears.
 
+Those RAM-buffered readings are **served as history too**: `/api/history`
+lists the days they belong to, and `?day=` returns what is on storage
+followed by the rows still queued — one CSV, one `Content-Length`, the
+file part capped at the size it had when the request arrived so a flush
+mid-transfer cannot send a row twice. BLE `hist <day>` streams the same
+pair. A hub that has never managed to write a byte can therefore still
+hand a browser everything it has (up to the RAM cap: `ram_lines`, 200
+readings and 100 events by default).
+
 ## Install
 
 Libraries are staged **into the repo** with circup's `--path` mode (no
@@ -207,11 +216,54 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 * Every ESP-NOW/HTTP `cfg` reply carries the epoch when the hub is
   synced; nodes set their RTC from it (the ESP32 RTC keeps ticking
   through deep sleep).
-* Data buffered under a wrong clock is **retro-adjusted on sync**: the
-  collector shifts its pending (unwritten) records; nodes shift their
-  stashed readings. Node data packets carry an `at` reading-timestamp;
-  the collector ignores implausible ones (unsynced clocks) and uses
-  receive time.
+* Data logged under a wrong clock is **retro-labelled on sync**, wherever
+  it is by then:
+  * pending (unwritten) records are shifted in RAM, as are a node's
+    stashed readings;
+  * records that already reached storage went to `data/unsynced.csv`, not
+    to a 2000-01-01 "day" — on sync they are rewritten into the day files
+    they belong in. The rewrite is a job the hub's main loop steps
+    through (~25 ms of file I/O a pass), not something `/api/time` waits
+    for: that reply says what it queued (`relabel` — the same object
+    `GET /api/storage` and BLE `storage` report as it runs: state, bytes
+    and rows done, and under `last` what the previous job moved, how long
+    it took and its rows/s). A read-only filesystem defers the job to the
+    first flush that can write, and one paused by a host taking the drive
+    mid-way resumes when it is handed back. `GET /api/storage` reports the
+    file's size as `unsynced_bytes`;
+  * **every boot without a clock starts at 2000-01-01 again**, so the rows
+    of successive unsynced boots share one timestamp range. Each row in
+    `unsynced.csv` therefore carries the id of the boot that logged it (a
+    leading `boot` column; the day-file schema is unchanged), taken from a
+    counter in NVM (`nvm[1..3]`; `nvm[0]` is the USB-drive owner) or, if
+    NVM was wiped or is absent, from the highest id already in the file.
+    At sync, this boot's rows get the measured correction. Earlier boots'
+    cannot be measured — their offset went with the power — but they can
+    be *ordered*: each ended before the next began, so they are stacked
+    back-to-back before this boot's start (a minute apart, keeping their
+    own spacing), never colliding with each other or with live rows, and
+    flagged `0x08` (estimated) in `flags` so nobody mistakes the times
+    for measured ones. A boot that ended in a soft reset (the RTC runs on)
+    is recognised and keeps its exact offset. The rewrite is crash-safe:
+    the file is renamed aside and the per-boot offsets committed to a
+    `.plan` before any row moves, and the job's byte offset is appended
+    to that `.plan` every 16 KB, so a power cut mid-rewrite resumes at the
+    next boot from the last checkpoint with the same offsets — redoing at
+    most that much, and the browser folds the rows it sees twice. Once the
+    file is empty the counter returns to 0, and the
+    `unsynced_boot` field of `/api/storage` is how many boots it has been
+    since the hub last knew the time;
+  * the Analyzer uses the reported `delta_s`, and — once the job
+    reports itself done — `last.span_s` (how far back the rewrite actually
+    reached), to decide how many days of its cached history to re-read on
+    the next sync (the drift itself, or how long the hub ran with no clock
+    at all, plus a day for the timezone) — otherwise it keeps a stale copy
+    of a day whose records have just moved. A sync started while the job
+    runs waits for it, showing its progress on the sync line, rather than
+    fetching days the hub is still rewriting. Day CSVs are served
+    `no-store` for the same reason.
+* Node data packets carry an `at` reading-timestamp; the collector
+  ignores implausible ones (unsynced clocks) and uses receive time.
 
 ## Resilience (no data loss)
 
@@ -241,8 +293,10 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 * Storage root falls back **`/sd` → `/saves` (CPSAVES) → `/`** (the flash
   root is writable to code on no-MSC boards like the C6). Layout under
   the root: `data/YYYY-MM-DD.csv` (all sources, one file/day),
-  `events.csv` (state transitions with held-duration), `config.json`
-  (runtime overrides). On flash the record cadence stretches
+  `data/unsynced.csv` (records logged before the clock was ever set, each
+  tagged with its boot id — emptied into the day files on the first
+  sync), `events.csv` (state
+  transitions with held-duration), `config.json` (runtime overrides). On flash the record cadence stretches
   ×`flash_record_multiplier` and ≥`flash_min_free_kb` stays free (oldest
   day rotated out). A tiny crossed-SD glyph shows on the eInk whenever
   storage is not the SD card.
@@ -288,7 +342,9 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   `settings.toml` or `ble_name` in config.json) with the Nordic UART
   service. Text commands:
   `latest`, `battery`, `events`, `config`, `days`, `hist <day>` (streams a
-  day's CSV between `#BEGIN`/`#END`), `set <json>`, `cal <src> <1|2>`,
+  day's CSV between `#BEGIN <day> <bytes>` and `#END` — the byte count is
+  what lets the page show a progress bar on a transfer that can take a
+  minute), `set <json>`, `cal <src> <1|2>`,
   `time <epoch>`. Works with Adafruit's web bluetooth terminal and the
   Analyzer app. (C6 caveat: BLE + softAP coexistence is under test — see
   `bugs_issues_and_todos.md`.)
