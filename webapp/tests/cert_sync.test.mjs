@@ -15,7 +15,8 @@ assert.ok(m, "cert helper block not found in index.html (markers moved?)");
 // Evaluate the block and hand back the names under test.
 const load = (fetchImpl) => {
   const fn = new Function("fetch", "AbortSignal",
-    `${m[1]}\nreturn {fetchViaCors,fetchCertFile,pemChain,validateCertPair,certFileKind,CERT_SRC,CERT_COMBINED,CERT_KEY};`);
+    `${m[1]}\nreturn {fetchViaCors,fetchCertFile,pemChain,validateCertPair,certFileKind,` +
+    `certChunks,bleCertPush,CERT_CHUNK,CERT_SRC,CERT_COMBINED,CERT_KEY};`);
   return fn(fetchImpl, { timeout: () => undefined });
 };
 const H = load(async () => { throw new Error("no fetch in this test"); });
@@ -64,6 +65,100 @@ group("certFileKind tells the two uploaded halves apart", () => {
   assert.equal(H.certFileKind(LEAF), "cert");
   assert.equal(H.certFileKind("just some text"), null);
 });
+
+// --- pushing the certificate over BLE (issue #25) ---
+// A hub stand-in that parses a command line exactly as net_ble._dispatch does:
+// `line.strip().split(None, 2)`, and drops anything over the 512-byte receive
+// buffer. If the chunker ever produces a line this cannot put back together
+// byte-for-byte, the real hub would write a broken certificate to flash.
+const RX_LINE_MAX = 512;   // net_ble._RX_LINE_MAX
+function fakeHub() {
+  const got = { cert: "", key: "" };
+  let open = false, n = 0;
+  return {
+    got,
+    lines: [],
+    async json(cmd) {
+      this.lines.push(cmd);
+      if (cmd.length + 1 > RX_LINE_MAX) return { err: `line too long (max ${RX_LINE_MAX} bytes)` };
+      const s = cmd.replace(/^\s+|\s+$/g, "");
+      const m = s.match(/^(\S+)(?:[ \t]+(\S+)(?:[ \t]+([\s\S]*))?)?$/);
+      const [, word, op = "status", payload = ""] = m;
+      assert.equal(word, "cert");
+      if (op === "begin") { open = true; n = 0; got.cert = got.key = ""; return { ok: true, max: 400 }; }
+      if (op === "abort") { open = false; return { ok: true }; }
+      if (!open) return { err: "send `cert begin` first" };
+      if (op === "c" || op === "k") {
+        const text = payload.replace(/\|/g, "\n");
+        got[op === "c" ? "cert" : "key"] += text;
+        n += text.length;
+        return { n };
+      }
+      if (op === "end") { open = false; return { days_left: 76, note: "installed to /certs" }; }
+      return { err: `unknown cert step '${op}'` };
+    },
+  };
+}
+
+group("certChunks keeps every chunk inside the hub's line budget", () => {
+  // the key is in here for its header: "-----BEGIN PRIVATE KEY-----" is the
+  // one part of a PEM with spaces in it, and a chunk edge must not land there
+  const big = [LEAF, INTER].join("\n") + "\n" + KEY + "\n";
+  for (const max of [40, 100, 400]) {
+    for (const c of H.certChunks(big, max)) {
+      assert.ok(c.length <= max, `chunk of ${c.length} exceeds ${max}`);
+      // net_ble tokenises with split(), which would eat a leading space out
+      // of "-----BEGIN PRIVATE KEY-----"
+      assert.doesNotMatch(c, /^\s|\s$/, "a chunk must not begin or end with whitespace");
+    }
+  }
+  assert.deepEqual(H.certChunks(""), []);
+});
+
+group("certChunks survives a line longer than the whole budget", () => {
+  const text = "x".repeat(1000) + "\ntail\n";
+  const chunks = H.certChunks(text, 400);
+  for (const c of chunks) assert.ok(c.length <= 400);
+  assert.equal(chunks.join("").replace(/\|/g, "\n").length, text.length);
+});
+
+await (async () => {
+  const { chain, key } = H.validateCertPair([LEAF, INTER, ROOT].join("\n"), KEY);
+  const hub = fakeHub();
+  const seen = [];
+  const res = await H.bleCertPush(hub, chain, key, (n, t) => seen.push([n, t]));
+  assert.equal(hub.got.cert, chain, "the chain must arrive byte-for-byte");
+  assert.equal(hub.got.key, key, "the key must arrive byte-for-byte");
+  assert.equal(res.days_left, 76);
+  assert.ok(hub.lines[0] === "cert begin" && hub.lines.at(-1) === "cert end");
+  for (const l of hub.lines) assert.ok(l.length + 1 <= RX_LINE_MAX, `line of ${l.length} is too long`);
+  assert.equal(seen.at(-1)[0], chain.length + key.length, "progress must reach the total");
+  console.log("ok - a chain + key round-trip intact through the chunked protocol"); groups++;
+
+  // a real certificate, not the three-line stubs: this is the size that broke
+  const realChain = "-----BEGIN CERTIFICATE-----\n"
+    + Array.from({ length: 30 }, () => "A".repeat(64)).join("\n")
+    + "\n-----END CERTIFICATE-----\n".repeat(1);
+  const pair = realChain + realChain;
+  const realKey = "-----BEGIN PRIVATE KEY-----\n"
+    + Array.from({ length: 25 }, () => "B".repeat(64)).join("\n") + "\n-----END PRIVATE KEY-----\n";
+  const hub2 = fakeHub();
+  await H.bleCertPush(hub2, pair, realKey);
+  assert.equal(hub2.got.cert, pair);
+  assert.equal(hub2.got.key, realKey);
+  assert.ok(pair.length + realKey.length > 4000, "the fixture must be a realistic size");
+  assert.ok(hub2.lines.length > 10, "a real certificate must go up in many pieces");
+  console.log("ok - a realistically sized certificate crosses in many pieces"); groups++;
+
+  // the hub's complaints have to surface, not be swallowed as success
+  const refuse = { lines: [], async json(c) { this.lines.push(c); return c === "cert begin" ? { ok: true, max: 400 } : { err: "cannot write /certs" }; } };
+  await rejects(H.bleCertPush(refuse, chain, key), /cannot write \/certs/);
+  console.log("ok - a hub-side error stops the upload and is reported"); groups++;
+
+  const noBegin = { async json() { return { err: "not supported on this device" }; } };
+  await rejects(H.bleCertPush(noBegin, chain, key), /not supported on this device/);
+  console.log("ok - a device without the cert command says so up front"); groups++;
+})();
 
 // --- the CORS fallback ---
 const res = (body, ok = true, status = 200) =>

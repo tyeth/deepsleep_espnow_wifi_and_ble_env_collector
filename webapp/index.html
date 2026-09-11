@@ -854,6 +854,7 @@ function watchRelabel(st){
 }
 
 /* --- BLE (Nordic UART) --- */
+const BLE_WRITE_MAX=400;   // <= the 512 writeValue cap and the hub's RX buffer
 const UART={svc:"6e400001-b5a3-f393-e0a9-e50e24dcca9e",
  rx:"6e400002-b5a3-f393-e0a9-e50e24dcca9e",
  tx:"6e400003-b5a3-f393-e0a9-e50e24dcca9e"};
@@ -877,7 +878,15 @@ async function bleConnect(){
     if(waiters.length)waiters.shift()(line);
    }});
   bleIO={
-   async cmd(s){await rx.writeValue(new TextEncoder().encode(s+"\n"));},
+   // Web Bluetooth refuses a writeValue over 512 bytes, and the hub's
+   // receive buffer is 512 too, so a command goes out in slices and the hub
+   // reassembles on the newline. Every command the page sends fits in one
+   // slice; what does not is a certificate, and that has its own chunked
+   // protocol (bleCertPush) rather than one enormous line.
+   async cmd(s){
+    const b=new TextEncoder().encode(s+"\n");
+    for(let i=0;i<b.length;i+=BLE_WRITE_MAX)
+     await rx.writeValue(b.slice(i,i+BLE_WRITE_MAX));},
    line(timeout=8000){return new Promise((res,rej)=>{
     const t=setTimeout(()=>rej(new Error("ble timeout")),timeout);
     waiters.push(l=>{clearTimeout(t);res(l);});});},
@@ -894,8 +903,8 @@ async function bleConnect(){
   try{const r=await bleJSON("storage");if(r&&r.relabel)watchRelabel(r.relabel);}catch(e){}
  }catch(e){setStatus("conn-note","BLE: "+e,false,true);}
 }
-async function bleJSON(cmd){
- await bleIO.cmd(cmd);return JSON.parse(await bleIO.line());
+async function bleJSON(cmd,timeout){
+ await bleIO.cmd(cmd);return JSON.parse(await bleIO.line(timeout));
 }
 async function bleDay(day,onProgress){
  await bleIO.cmd("hist "+day);
@@ -1734,6 +1743,54 @@ function certFileKind(text){
  if(/-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/.test(text))return "key";
  if(/-----BEGIN CERTIFICATE-----/.test(text))return "cert";
  return null;}
+/* Pushing a certificate over BLE. Roughly 5.5 KB of PEM has to cross a link
+   where writeValue refuses more than 512 bytes, the hub's receive buffer is
+   512, and the hub has ~40 KB of heap -- so it goes as a run of short
+   commands, each acknowledged before the next is sent. (Sending it as one
+   command is what issue #25 was: Chrome threw "Value can't exceed 512
+   bytes" before anything reached the hub, and the hub had no `cert` command
+   to receive it with anyway.)
+
+   Newlines travel as '|': the command stream is newline-delimited, and '|'
+   appears in neither base64 nor a PEM delimiter, so nothing is escaped. The
+   split is on line boundaries so that a chunk never begins or ends mid-word
+   -- the hub tokenises the command with split(), which would eat a leading
+   space out of "-----BEGIN PRIVATE KEY-----". */
+const CERT_CHUNK=400;   // must match net_ble.CERT_CHUNK_MAX
+function certChunks(text,max=CERT_CHUNK){
+ // Each line carries the '|' that stands in for its own newline, so chunks
+ // are whole lines and concatenate back into the original text -- a boundary
+ // between two chunks loses nothing.
+ const lines=(text||"").split("\n");
+ const pieces=lines.map((l,i)=>i<lines.length-1?l+"|":l).filter(p=>p!=="");
+ const out=[];let cur="";
+ for(let p of pieces){
+  while(p.length>max){    // a line longer than a whole chunk shouldn't happen
+   let k=max;             // in PEM, but split it without leaving a space at
+   while(k>1&&(/\s/.test(p[k-1])||/\s/.test(p[k])))k--;   // either edge
+   if(cur){out.push(cur);cur="";}
+   out.push(p.slice(0,k));p=p.slice(k);}
+  if(cur&&cur.length+p.length>max){out.push(cur);cur="";}
+  cur+=p;}
+ if(cur)out.push(cur);
+ return out;}
+// io.json(command, timeoutMs) -> the hub's reply, parsed
+async function bleCertPush(io,cert,key,onProgress){
+ const hello=await io.json("cert begin");
+ if(hello.err)throw new Error(hello.err);
+ const max=Math.min(hello.max||CERT_CHUNK,CERT_CHUNK);
+ const parts=certChunks(cert,max).map(c=>["c",c])
+       .concat(certChunks(key,max).map(c=>["k",c]));
+ const total=cert.length+key.length;
+ let sent=0;
+ for(const [which,chunk] of parts){
+  const r=await io.json("cert "+which+" "+chunk);
+  if(r.err)throw new Error(r.err);
+  sent+=chunk.length;
+  if(onProgress)onProgress(typeof r.n==="number"?r.n:sent,total);}
+ const res=await io.json("cert end",30000);   // validates + writes flash
+ if(res.err)throw new Error(res.err);
+ return res;}
 /* --- end cert helpers --- */
 
 // Status line for the cert row. setStatus() is textContent-only; the failure path
@@ -1749,13 +1806,18 @@ function certNote(parts,err=true){
 function certInstalled(res){
  setStatus("cert-note",res.err?("hub: "+res.err):`installed, ${Math.round(res.days_left)} days left`,
            false,!!res.err);}
+// BLE takes a few seconds for a certificate, so it reports bytes moving
+// rather than sitting on one "installing..." line
+function certSending(n,total){
+ setStatus("cert-note","sending certificate over BLE... "
+           +Math.round(100*n/total)+"%",true);}
 async function pushCert(cert,key){
  if(!/BEGIN CERTIFICATE/.test(cert)||!/PRIVATE KEY/.test(key))throw new Error("files don't look like a cert + key");
- const body=JSON.stringify({cert,key});
  if(httpBase){
-  const r=await fetch(httpBase+"/api/cert",{method:"POST",headers:{"Content-Type":"application/json"},body});
+  const r=await fetch(httpBase+"/api/cert",{method:"POST",headers:{"Content-Type":"application/json"},
+                                            body:JSON.stringify({cert,key})});
   return await r.json();}
- if(bleIO)return await bleJSON("cert "+body);   // long: paced by net_ble
+ if(bleIO)return await bleCertPush({json:bleJSON},cert,key,certSending);
  throw new Error("connect to the hub first (HTTP or BLE)");}
 async function certSync(){
  setStatus("cert-note","fetching latest certificate...",true);

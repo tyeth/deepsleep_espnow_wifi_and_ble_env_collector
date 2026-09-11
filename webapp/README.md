@@ -142,7 +142,22 @@ by Chrome; state at `chrome://on-device-internals`. See
   working certificate. When every attempt fails, the message links both
   files so they can be downloaded by hand; *upload* then takes them
   together or one at a time.
-  Tests: `node webapp/tests/cert_sync.test.mjs`.
+
+  **Over BLE the push is chunked.** A certificate is ~5.5 KB and a Web
+  Bluetooth `writeValue` refuses anything over 512 bytes, so sending it as
+  one `cert {json}` command failed before a byte left the browser (issue
+  #25) — and the hub had no `cert` command to receive it with in any case.
+  `bleCertPush` now walks `cert begin` / `cert c|k <chunk>` / `cert end`,
+  waiting for the hub's acknowledgement of each piece before sending the
+  next (that handshake is also what keeps the hub's 512-byte receive buffer
+  from overflowing), and reports the bytes moving on the cert row. Chunks
+  split on line boundaries with the newlines written as `|`: the command
+  stream is newline-delimited, and the hub tokenises with `split()`, which
+  would eat the leading space out of `-----BEGIN PRIVATE KEY-----` if a
+  chunk edge landed there.
+  Tests: `node webapp/tests/cert_sync.test.mjs`, and
+  `python tools/test_cert_ble.py`, which feeds the chunks this page
+  produces through the hub's own parser.
 
   Before changing any of this, read
   [`docs/chrome-built-in-ai-reference.md`](../docs/chrome-built-in-ai-reference.md):
