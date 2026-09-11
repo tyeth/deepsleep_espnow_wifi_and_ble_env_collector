@@ -17,8 +17,17 @@ Design goals (no PSRAM, minimise flash/SD wear, minimise dataloss):
 SD layout:
   /sd/data/YYYY-MM-DD.csv   one file per day, all sources
       ts,src,tc,rh,co2,pm1,pm25,pm4,pm10,voc,nox,vb,flags
+  /sd/data/unsynced.csv     records logged before the clock was ever set,
+      boot,ts,src,...,flags each tagged with the id of the boot that logged
+                            it; relabel_unsynced() moves them into their
+                            real day files the moment a clock arrives
+                            (.moving/.plan beside it: a rewrite in flight)
   /sd/events.csv            ts,src,metric,state,prev,value,held_s
   /sd/config.json           runtime config overrides (written by the API)
+
+Records queued in RAM are part of the history too: list_days() and
+pending_csv() expose them, so a browser syncing from a hub whose storage
+is read-only (a computer holding CIRCUITPY) still gets every reading.
 """
 
 import os
@@ -33,11 +42,122 @@ _REC_SIZE = struct.calcsize(_REC_FMT)  # 20 bytes
 FLAG_IMPROVING = 0x01
 FLAG_DECLINING = 0x02
 FLAG_ABNORMAL = 0x04
+# The timestamp was inferred, not measured: the row was logged by an earlier
+# boot that never got a clock, and a later clock sync placed it by ordering
+# alone (see _plan_relabel). Real to the minute at best; never before the
+# reading was actually taken, never later than the boot that followed it.
+FLAG_ESTIMATED = 0x08
 
 _NOVAL = 0xFFFF  # sentinel for "no reading" in unsigned ring fields
 
 CSV_HEADER = "ts,src,tc,rh,co2,pm1,pm25,pm4,pm10,voc,nox,vb,flags\n"
 EVENTS_HEADER = "ts,src,metric,state,prev,value,held_s\n"
+
+# A hub with no RTC battery boots at 2000-01-01 and stays there until NTP or
+# a browser sets the clock. Readings taken in that window are real; their
+# timestamps are not, so they are kept apart from the day files rather than
+# written as a 2000-01-01 "day" that no one can use and nothing will fix.
+PLAUSIBLE_EPOCH = 1700000000   # 2023-11; same line as envproto's
+BOOT_EPOCH = 946684800         # 2000-01-01: where an unsynced clock starts
+UNSYNCED_DAY = "unsynced"
+_MOVING_SUFFIX = ".moving"     # a relabel in progress (see _rewrite_unsynced)
+_PLAN_SUFFIX = ".plan"         # the offsets that relabel committed to
+
+# Every unsynced boot starts at 2000-01-01 again, so the rows of boot 1, boot
+# 2 and boot 3 all sit in the same timestamp range of one unsynced.csv. A
+# clock sync can only measure the CURRENT boot's offset; shifting the others
+# by it would land them on top of this boot's rows -- and the analyzer keys
+# rows on ts+src, so colliding rows are silently dropped. Each row therefore
+# carries the id of the boot that logged it, as its own leading column (this
+# file never reaches a browser as-is; the day-file schema above is unchanged).
+# The id lives in NVM so it survives the power cut that ends each boot.
+#
+# The hub's NVM map -- nothing else may use these bytes:
+#   nvm[0]     who owns the USB drive: 0xF0 mcu / 0xF1 pc  (boot.py, h_storage)
+#   nvm[1]     0xB7 when nvm[2:4] holds a boot id
+#   nvm[2:4]   little-endian id of the last boot that wrote to unsynced.csv;
+#              back to 0 once a relabel has emptied the file
+_NVM_MAGIC_AT = 1
+_NVM_ID_AT = 2
+_NVM_MAGIC = 0xB7
+_BOOT_ID_MAX = 0xFFFF
+_UNSYNCED_HEADER = "boot," + CSV_HEADER
+_TAIL_COMMAS = CSV_HEADER.count(",") - 1    # commas after ts in a whole row
+# A relabel that has to guess where an earlier boot ended stacks it this far
+# before the boot that followed. The true gap was a power cut of unknown
+# length, so this is the LATEST those readings can have been taken; a real
+# gap shorter than this would need two boots within a minute.
+_BOOT_GAP_S = 60
+
+
+def _nvm():
+    """The board's NVM, or None when there is none (or too little) to use."""
+    try:
+        import microcontroller
+        nvm = microcontroller.nvm
+    except (ImportError, AttributeError):
+        return None
+    if nvm is None or len(nvm) < _NVM_ID_AT + 2:
+        return None
+    return nvm
+
+
+def _nvm_boot_id():
+    nvm = _nvm()
+    if nvm is None or nvm[_NVM_MAGIC_AT] != _NVM_MAGIC:
+        return 0
+    return nvm[_NVM_ID_AT] | (nvm[_NVM_ID_AT + 1] << 8)
+
+
+def _nvm_set_boot_id(n):
+    nvm = _nvm()
+    if nvm is None:
+        return False
+    try:
+        nvm[_NVM_MAGIC_AT:_NVM_ID_AT + 2] = bytes(
+            [_NVM_MAGIC, n & 0xFF, (n >> 8) & 0xFF])
+        return True
+    except (ValueError, OSError, RuntimeError) as exc:
+        print("datastore: could not record boot id in NVM:", exc)
+        return False
+
+
+def _parse_unsynced(line):
+    """(boot, ts, tail) for one row of unsynced.csv; None for a header.
+
+    Rows written before the boot column existed start with the timestamp
+    itself, which is far larger than any boot id; they count as boot 0,
+    "some earlier boot", and are placed like any other earlier boot.
+    """
+    first, _, rest = line.partition(",")
+    try:
+        head = int(first)
+    except ValueError:
+        return None
+    if head > _BOOT_ID_MAX:
+        boot, ts, tail = 0, head, rest
+    else:
+        stamp, _, tail = rest.partition(",")
+        try:
+            boot, ts = head, int(stamp)
+        except ValueError:
+            return None
+    # a clock never reads earlier than its origin, and record() always
+    # writes src + ten metrics + flags: anything else is the stub of a row
+    # torn by a power cut, which must neither steer a relabel nor reach a
+    # day file as a short row
+    if ts < BOOT_EPOCH or tail.rstrip("\r\n").count(",") != _TAIL_COMMAS:
+        return None
+    return boot, ts, tail
+
+
+def _or_flags(tail, bits):
+    """`tail` (src,...,flags) with `bits` set in its flags column."""
+    head, _, flags = tail.rpartition(",")
+    try:
+        return "%s,%d" % (head, int(flags) | bits)
+    except ValueError:
+        return tail
 
 
 def _enc(val, scale=1):
@@ -196,6 +316,24 @@ class DataStore:
         self.root = self._pick_root()
         self.write_errors = 0
         self.dropped_lines = 0
+        # the id this boot's pre-clock rows are filed under in unsynced.csv:
+        # 0 until the first flush that writes one, so a boot that gets a
+        # clock in time (or never gets to write) burns no id
+        self.boot_id = 0
+        # a clock sync that landed while storage was read-only: the rewrite
+        # it owes the day files happens on the next flush that can write,
+        # with this much accumulated correction for this boot's own rows
+        self._relabel_due = False
+        self._relabel_offset = 0
+        # (rows moved, earliest real ts placed) by the last relabel, so a
+        # client can be told how far back its copy of the history changed
+        self.last_relabel = (0, None)
+        self._recover_unsynced()
+        if time.time() >= PLAUSIBLE_EPOCH:
+            # the clock was set before we existed (NTP at bring-up, an RTC
+            # battery), so whatever earlier boots logged without one can be
+            # placed now; none of it is this boot's, hence no offset
+            self.relabel_unsynced(0)
 
     @property
     def sd_ok(self):
@@ -214,6 +352,28 @@ class DataStore:
     def data_dir(self):
         return None if self.root is None else (
             self.root.rstrip("/") + "/data")
+
+    def day_path(self, day):
+        d = self.data_dir()
+        return None if d is None else "%s/%s.csv" % (d, day)
+
+    def _day_of(self, ts):
+        """The day file a timestamp belongs in -- UNSYNCED_DAY while the
+        clock is still the one the board booted with."""
+        if ts < PLAUSIBLE_EPOCH:
+            return UNSYNCED_DAY
+        t = time.localtime(ts)
+        return "%04d-%02d-%02d" % (t[0], t[1], t[2])
+
+    def _day_size(self, day):
+        """Bytes already on storage for a day (0 = nothing, or no storage)."""
+        path = self.day_path(day)
+        if path is None:
+            return 0
+        try:
+            return os.stat(path)[6]
+        except OSError:
+            return 0
 
     def _writable(self, root):
         probe = root.rstrip("/") + "/.dsprobe"
@@ -278,7 +438,7 @@ class DataStore:
 
     def _rotate_oldest(self):
         """Delete the oldest day file to reclaim flash space. True if one went."""
-        days = self.list_days()
+        days = self.stored_days()   # only files can be rotated out
         if len(days) <= 1:  # never delete the day we're writing
             return False
         try:
@@ -347,6 +507,387 @@ class DataStore:
               % (len(self._pending), offset_s))
         return len(self._pending)
 
+    # ---------------- records still in RAM ----------------
+
+    def pending_days(self):
+        """Days that have records queued in RAM but not yet on storage.
+
+        Records logged before the clock was set are deliberately left out:
+        they have no real day yet, and relabel_unsynced() gives them one
+        the instant a clock arrives.
+        """
+        days = []
+        for ts, _ in self._pending:
+            day = self._day_of(ts)
+            if day != UNSYNCED_DAY and day not in days:
+                days.append(day)
+        return days
+
+    def pending_csv(self, day):
+        """The queued rows for one day as CSV bytes, b"" when there are none.
+
+        The history API appends this to whatever is on storage, so a hub
+        that cannot write -- a computer holding CIRCUITPY, a missing card --
+        still hands a browser the readings buffered in RAM. The header comes
+        with it when nothing for that day has reached storage yet.
+        """
+        rows = [rec for rec in self._pending if self._day_of(rec[0]) == day]
+        if not rows:
+            return b""
+        # built into one bytearray rather than joined: at the RAM cap this
+        # is ~12 KB, and the hub has no PSRAM to hold two copies of it
+        out = bytearray()
+        if not self._day_size(day):
+            out += CSV_HEADER.encode()
+        for ts, tail in rows:
+            out += ("%d,%s\n" % (ts, tail)).encode()
+        return out
+
+    def unsynced_pending(self):
+        """How many queued records still carry a pre-clock timestamp."""
+        n = 0
+        for ts, _ in self._pending:
+            if ts < PLAUSIBLE_EPOCH:
+                n += 1
+        return n
+
+    def unsynced_stored(self):
+        """Bytes of pre-clock records sitting on storage awaiting a clock.
+
+        Non-zero on a hub that has never been told the time -- including
+        the rows of EARLIER boots that ended without one: they wait in the
+        same file, each under its boot id, for the sync that places them
+        (a relabel caught by a power cut counts too: its .moving file).
+        """
+        path = self.day_path(UNSYNCED_DAY)
+        if path is None:
+            return 0
+        return self._size(path) + self._size(path + _MOVING_SUFFIX)
+
+    # ---------------- clock sync ----------------
+
+    def _size(self, path):
+        try:
+            return os.stat(path)[6]
+        except OSError:
+            return 0
+
+    def _exists(self, path):
+        try:
+            os.stat(path)
+            return True
+        except OSError:
+            return False
+
+    def _claim_boot_id(self):
+        """The id this boot's pre-clock rows are filed under, taken on first
+        use.
+
+        One more than the last id in NVM -- or in the file, whichever is
+        higher: the file outlives an NVM wiped by a firmware reflash, and
+        on a board with no NVM it is the only record there is. The wrap at
+        65535 is academic; that many boots without one clock sync would
+        have filled the flash long before.
+        """
+        if self.boot_id:
+            return self.boot_id
+        last = _nvm_boot_id()
+        path = self.day_path(UNSYNCED_DAY)
+        for p in (path, path + _MOVING_SUFFIX):
+            try:
+                with open(p) as f:
+                    for line in f:
+                        rec = _parse_unsynced(line)
+                        if rec is not None and rec[0] > last:
+                            last = rec[0]
+            except OSError:
+                pass
+        self.boot_id = last + 1 if last < _BOOT_ID_MAX else 1
+        _nvm_set_boot_id(self.boot_id)
+        print("datastore: logging without a clock as boot %d" % self.boot_id)
+        return self.boot_id
+
+    def relabel_unsynced(self, offset_s, boot_real=None):
+        """Move already-stored pre-clock records onto the real timeline.
+
+        The companion to adjust_pending(): that fixes what is still in RAM,
+        this rewrites what reached /data/unsynced.csv into the day files
+        those readings actually belong in. `offset_s` is the correction the
+        clock just received -- exact for the rows THIS boot wrote. Rows
+        from earlier boots are placed by inference (_plan_relabel), which
+        is why a hub that came up with a clock passes 0 and still empties
+        the file. Storage that cannot be written right now defers the
+        rewrite to the next flush that can. Returns the records moved.
+        """
+        if self.root is not None and not self.unsynced_stored():
+            return 0          # nothing was ever logged without a clock
+        if self.root is None or self.read_only:
+            # (with no root at all we cannot even see whether the card that
+            # comes back holds such a file, so the correction is kept)
+            self._relabel_offset += offset_s
+            self._relabel_due = True
+            print("datastore: relabel deferred (%+ds owed); storage is not "
+                  "writable" % self._relabel_offset)
+            return 0
+        return max(0, self._rewrite_unsynced(offset_s, boot_real))
+
+    def _recover_unsynced(self):
+        """Finish, or put back, a relabel that a power cut interrupted.
+
+        The rewrite renames the file aside and commits its offsets to a
+        .plan before it writes a row (_rewrite_unsynced). Interrupted after
+        that, it is simply run again with the same plan: the rows it had
+        already moved come out identical -- same ts, same src -- and the
+        analyzer folds them. Interrupted before the plan existed, nothing
+        has moved, and the file goes back to wait for a sync -- appended,
+        when a boot in between has already started a fresh one.
+        """
+        if self.root is None or self.read_only:
+            return            # retried from the next flush that can write
+        path = self.day_path(UNSYNCED_DAY)
+        moving = path + _MOVING_SUFFIX
+        plan_path = path + _PLAN_SUFFIX
+        if not self._exists(moving):
+            try:
+                os.remove(plan_path)   # its file is done; this is litter
+            except OSError:
+                pass
+            return
+        plan = self._read_plan(plan_path)
+        if plan:
+            print("datastore: finishing an interrupted clock relabel")
+            self._apply_plan(moving, plan)
+            return
+        try:
+            if not self._exists(path):
+                os.rename(moving, path)
+            else:
+                with open(moving) as src:
+                    with open(path, "a") as dst:
+                        for line in src:
+                            if _parse_unsynced(line) is None:
+                                continue     # the header is there already
+                            if not line.endswith("\n"):
+                                line += "\n"  # torn by the same power cut
+                            dst.write(line)
+                os.remove(moving)
+            print("datastore: recovered an interrupted clock relabel")
+        except OSError as exc:
+            print("datastore: could not recover %s: %s" % (moving, exc))
+
+    def _read_plan(self, plan_path):
+        """{boot: (offset_s, flag bits)} from a .plan, {} if none/unreadable."""
+        plan = {}
+        try:
+            with open(plan_path) as f:
+                for line in f:
+                    parts = line.strip().split(",")
+                    try:
+                        plan[int(parts[0])] = (int(parts[1]), int(parts[2]))
+                    except (IndexError, ValueError):
+                        continue     # a torn line: the plan never completed
+        except OSError:
+            pass
+        return plan
+
+    def _plan_relabel(self, moving, offset_s, boot_real=None):
+        """Decide what every boot in the file is shifted by:
+        {boot: (offset_s, flag bits)}. A boot left out stays in the file.
+
+        This boot's rows take `offset_s`, the correction the clock just
+        received, and that is exact. Nothing measured the offset of an
+        earlier boot -- it went with the power. What IS known is the order:
+        each boot ended before the next began, and this one began at the
+        moment its clock read BOOT_EPOCH, which is `offset_s` ago in real
+        time. So, walking back from there, every earlier boot is placed
+        with its last row _BOOT_GAP_S before the boot that followed it
+        powered on -- which, once that boot's offset is chosen, is exactly
+        BOOT_EPOCH + offset -- its own spacing and order intact. Rows
+        placed this way cannot collide -- not with each other, not with
+        this boot's, not with what is queued in RAM (all of which is after
+        that moment) -- and carry FLAG_ESTIMATED.
+
+        One refinement: the ESP32's RTC runs on through a soft reset (a
+        watchdog, `reset` over the API, the error-streak restart), so a
+        boot whose rows all end a clear gap before the following boot's
+        first row shared its clock, keeps its offset, and is as exact as
+        it. A genuine chain has a reboot plus a record interval between
+        the two; a one-row boot that lost power a second before the next
+        boot's first reading has not, and the gap keeps it apart. The test
+        is on the file's own timestamps, so it needs nothing from the port.
+
+        A firmware build date as a floor was considered and dropped: the
+        placement is already the LATEST the rows can have been taken (the
+        gap it assumes is the shortest a power cycle allows), so a floor
+        could only ever clip rows that are already after it.
+
+        `boot_real` -- real time now less time.monotonic() -- is only the
+        anchor when there is no correction to go by (this boot came up
+        synced, so none of the file is its own); monotonic() may count
+        from power-on rather than this boot on some ports, and any error
+        there only back-dates the estimates, never collides them. It is a
+        parameter so the host tests can pin it.
+        """
+        first = {}
+        last = {}
+        with open(moving) as f:
+            for line in f:
+                rec = _parse_unsynced(line)
+                if rec is None:
+                    continue
+                boot, ts = rec[0], rec[1]
+                if boot not in first or ts < first[boot]:
+                    first[boot] = ts
+                if boot not in last or ts > last[boot]:
+                    last[boot] = ts
+        anchor = BOOT_EPOCH + offset_s if offset_s else 0
+        if anchor < PLAUSIBLE_EPOCH:
+            # no correction, or one too small to have come from the boot
+            # clock (a browser nudging an already-real clock): uptime it is
+            if boot_real is None:
+                boot_real = int(time.time() - time.monotonic())
+            anchor = boot_real
+        plan = {}
+        # 0 is "no id yet" for us but "some earlier boot" in the file
+        cur = self.boot_id or None
+        prev_off = prev_first = None
+        if cur in first and offset_s:
+            plan[cur] = (offset_s, 0)
+            prev_off, prev_first = offset_s, first[cur]
+        # ...and this boot's rows with no correction to place them by are
+        # left out: they wait for the sync that brings one, never guessed
+        for boot in sorted(first, reverse=True):
+            if boot == cur:
+                continue
+            if prev_first is not None and \
+                    last[boot] + _BOOT_GAP_S <= prev_first:
+                off = prev_off        # same clock, still ticking
+            else:
+                off = anchor - _BOOT_GAP_S - last[boot]
+            plan[boot] = (off, FLAG_ESTIMATED)
+            # when this boot powered on (for a shared clock: when the chain
+            # it belongs to did, which is earlier still, so just as safe)
+            anchor = BOOT_EPOCH + off
+            prev_off, prev_first = off, first[boot]
+        return plan
+
+    def _rewrite_unsynced(self, offset_s, boot_real=None):
+        """Rewrite unsynced.csv into day files. Returns the records moved,
+        or -1 when it could not even start (the caller keeps its offset).
+
+        Renamed aside first, so a crash part-way leaves work to finish
+        rather than a file being appended to while it is read; then the
+        offsets are committed to a .plan before a row moves, so finishing
+        it later reproduces the very same rows (_recover_unsynced).
+        """
+        # never plan over an unfinished one -- but finishing it must not
+        # cost us our own id: this boot's rows may be in the live file, and
+        # the counter only resets once nothing is left anywhere
+        boot_id = self.boot_id
+        self._recover_unsynced()
+        self.boot_id = boot_id
+        path = self.day_path(UNSYNCED_DAY)
+        moving = path + _MOVING_SUFFIX
+        if not self._exists(path):
+            return 0
+        try:
+            os.rename(path, moving)
+        except OSError as exc:
+            print("datastore: relabel could not claim the file:", exc)
+            return -1
+        try:
+            plan = self._plan_relabel(moving, offset_s, boot_real)
+            with open(path + _PLAN_SUFFIX, "w") as f:
+                for boot in plan:
+                    f.write("%d,%d,%d\n" % (boot, plan[boot][0], plan[boot][1]))
+        except OSError as exc:
+            # nothing has moved; recovery hands the .moving file back
+            print("datastore: relabel could not be planned:", exc)
+            self.write_errors += 1
+            return -1
+        return self._apply_plan(moving, plan)
+
+    def _apply_plan(self, moving, plan):
+        """Write each row of `moving` where `plan` puts its boot; rows of a
+        boot the plan leaves out go back to a fresh unsynced.csv, boot id
+        intact, for a later sync. Returns the records moved into day files.
+
+        Done, it removes the .moving and .plan and -- if the file is now
+        empty -- hands the boot counter back to 0, so the next boot without
+        a clock is boot 1 again and the ids never grow.
+        """
+        path = self.day_path(UNSYNCED_DAY)
+        moved = kept = torn = 0
+        earliest = None
+        out = None
+        out_day = None
+        try:
+            with open(moving) as f:
+                for line in f:
+                    line = line.strip()
+                    rec = _parse_unsynced(line)
+                    if rec is None:
+                        if line and not line.startswith("boot,") \
+                                and not line.startswith("ts,"):
+                            torn += 1     # a power cut's half-written row
+                        continue
+                    boot, ts, tail = rec
+                    p = plan.get(boot)
+                    if p is not None and ts + p[0] >= PLAUSIBLE_EPOCH:
+                        ts += p[0]
+                        if p[1]:
+                            tail = _or_flags(tail, p[1])
+                        day = self._day_of(ts)
+                        row = "%d,%s\n" % (ts, tail)
+                        moved += 1
+                        if earliest is None or ts < earliest:
+                            earliest = ts
+                    else:
+                        day = UNSYNCED_DAY   # no usable offset: keep, not guess
+                        row = "%d,%d,%s\n" % (boot, ts, tail)
+                        kept += 1
+                    if day != out_day:
+                        # rows are in time order, so this opens each day
+                        # file once, not once per line
+                        if out is not None:
+                            out.close()
+                        fresh = not self._day_size(day)
+                        out = open(self.day_path(day), "a")
+                        if fresh:
+                            out.write(_UNSYNCED_HEADER if day == UNSYNCED_DAY
+                                      else CSV_HEADER)
+                        out_day = day
+                    out.write(row)
+        except OSError as exc:
+            # whatever was moved is in the day files; the rest is still in
+            # the .moving file, and the .plan makes the retry land the same
+            print("datastore: relabel stopped part-way:", exc)
+            self.write_errors += 1
+            if out is not None:
+                out.close()
+            return moved
+        if out is not None:
+            out.close()
+        for p in (moving, path + _PLAN_SUFFIX):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        try:
+            os.sync()
+        except (OSError, AttributeError):
+            pass
+        if not kept and not self._exists(path):
+            # nothing left anywhere -- not even a live file this boot has
+            # started meanwhile -- so the ids can start over
+            self.boot_id = 0
+            _nvm_set_boot_id(0)
+        self.last_relabel = (moved, earliest)
+        print("datastore: relabelled %d stored record(s)%s%s"
+              % (moved, (", %d kept for a later sync" % kept) if kept else "",
+                 (", %d torn row(s) dropped" % torn) if torn else ""))
+        return moved
+
     def log_event(self, event):
         """Queue an alert transition; forces a flush so it survives power loss."""
         self._pending_events.append(
@@ -360,7 +901,7 @@ class DataStore:
         self.flush()
 
     def maybe_flush(self):
-        if (self._pending or self._pending_events) and (
+        if (self._pending or self._pending_events or self._relabel_due) and (
             time.monotonic() - self._last_flush >= self.flush_interval_s
         ):
             self.flush()
@@ -375,11 +916,22 @@ class DataStore:
 
     def _append(self, path, header, lines):
         need_header = True
+        mend = False
         try:
-            need_header = os.stat(path)[6] == 0
+            size = os.stat(path)[6]
+            need_header = size == 0
+            if size:
+                # a power cut mid-write leaves a torn last row with no
+                # newline; appended to as-is it would fuse with our first
+                # row into one line with a nonsense timestamp
+                with open(path, "rb") as f:
+                    f.seek(size - 1)
+                    mend = f.read(1) != b"\n"
         except OSError:
             pass  # missing -> header needed
         with open(path, "a") as f:
+            if mend:
+                f.write("\n")
             if need_header:
                 f.write(header)
             for line in lines:
@@ -407,7 +959,8 @@ class DataStore:
     def flush(self):
         """Write everything pending in one burst. Safe to call anytime."""
         self._last_flush = time.monotonic()
-        if not (self._pending or self._pending_events):
+        if not (self._pending or self._pending_events
+                or self._relabel_due):
             return True
         if self.root is None or self.read_only:
             # re-probe: an SD card may have been inserted, or the USB drive
@@ -423,19 +976,36 @@ class DataStore:
                   % self.min_free_bytes)
             self._drop_bounded()
             return False
+        if self._relabel_due:
+            # a clock sync arrived while this was read-only: pay that debt
+            # before appending, so the rewrite cannot race the new rows
+            self._ensure_dir(self.data_dir())
+            offset, self._relabel_offset = self._relabel_offset, 0
+            self._relabel_due = False
+            if self._rewrite_unsynced(offset) < 0:
+                # it could not start: the correction is still owed, and
+                # this boot's rows would otherwise be guessed at later
+                self._relabel_offset, self._relabel_due = offset, True
         try:
             if self._pending:
                 self._ensure_dir(self.data_dir())
-                # group by day so a flush spanning midnight lands correctly
+                # group by day so a flush spanning midnight lands correctly;
+                # anything logged before the clock was set goes to its own
+                # file, under this boot's id, until relabel_unsynced() can
+                # place it
                 by_day = {}
                 for ts, tail in self._pending:
-                    t = time.localtime(ts)
-                    day = "%04d-%02d-%02d" % (t[0], t[1], t[2])
-                    by_day.setdefault(day, []).append("%d,%s\n" % (ts, tail))
+                    day = self._day_of(ts)
+                    if day == UNSYNCED_DAY:
+                        line = "%d,%d,%s\n" % (self._claim_boot_id(), ts, tail)
+                    else:
+                        line = "%d,%s\n" % (ts, tail)
+                    by_day.setdefault(day, []).append(line)
                 for day, lines in by_day.items():
                     self._append(
-                        "%s/%s.csv" % (self.data_dir(), day), CSV_HEADER, lines
-                    )
+                        "%s/%s.csv" % (self.data_dir(), day),
+                        _UNSYNCED_HEADER if day == UNSYNCED_DAY else CSV_HEADER,
+                        lines)
                 self._pending = []
                 del by_day
             if self._pending_events:
@@ -455,16 +1025,31 @@ class DataStore:
             self.root = self._pick_root()  # re-probe (SD yanked?)
             return False
 
-    def list_days(self):
+    def stored_days(self):
+        """Day files actually on storage (never the unsynced holding file)."""
         if self.root is None:
             return []
         try:
             return sorted(
                 f[:-4] for f in os.listdir(self.data_dir())
-                if f.endswith(".csv")
+                if f.endswith(".csv") and f[:-4] != UNSYNCED_DAY
             )
         except OSError:
             return []
+
+    def list_days(self):
+        """Every day a client can ask for -- on storage OR queued in RAM.
+
+        Leaving the RAM-only days out is what made a read-only hub look
+        like it had no history at all: the readings were there, just not
+        in a file yet, and the browser was never told to ask for them.
+        """
+        days = self.stored_days()
+        for day in self.pending_days():
+            if day not in days:
+                days.append(day)
+        days.sort()
+        return days
 
     def pending_count(self):
         return len(self._pending) + len(self._pending_events)

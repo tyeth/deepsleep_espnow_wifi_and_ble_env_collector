@@ -645,6 +645,43 @@ async function httpConnect(){
    "device unreachable: "+e,false,true);
  }
 }
+/* --- history sync helpers: how much of a cached history a sync re-reads.
+   Marked off so webapp/tests can exercise them without a DOM. --- */
+const HUB_BOOT_EPOCH=946684800;   // 2000-01-01: a hub with no clock at all
+const PLAUSIBLE_EPOCH=1700000000; // 2023-11, same line the hub draws
+/* How many days back a cached day file can have changed under us, given
+   what the hub's clock said just before we set it:
+     plausible but drifting -> the drift itself; its day files are labelled
+                               with a clock that was up to that far out
+     never set (boot 2000)  -> however long it ran without one, which is
+                               the span its records move across when the
+                               hub relabels them on this sync
+   Plus a day, because the hub's day boundaries are its timezone's and
+   ours are UTC. The hub also says how far back it actually moved rows
+   (spanS, its relabelled_span_s): boots before this one that never got a
+   clock are placed before this boot began, further back than the drift
+   alone can tell us. Capped, so a wildly wrong clock cannot turn the next
+   sync into a full re-download (which over BLE is a long wait). */
+function resyncWindow(hubNow,deltaS,spanS){
+ const was=hubNow-deltaS;
+ const drift=was>PLAUSIBLE_EPOCH?Math.abs(deltaS):Math.max(0,was-HUB_BOOT_EPOCH);
+ const span=Math.max(drift,spanS||0);
+ return span>60?Math.min(30,Math.ceil(span/86400)+1):0;
+}
+/* Which of the hub's days this sync actually fetches. A day we already
+   hold is skipped unless it can still be growing or changing: today, the
+   hub's own newest day (its clock need not agree with ours, and RAM-
+   buffered readings land there when its storage comes back), or anything
+   inside the window a clock sync just corrected. */
+function daysToFetch(days,have,nowS,back){
+ const today=dayOf(nowS);
+ const newest=days.length?days[days.length-1]:null;
+ const cutoff=dayOf(nowS-back*86400);
+ return days.filter(d=>!(have.has(d)&&d<cutoff&&d!==today&&d!==newest));
+}
+/* --- end history sync helpers --- */
+let resyncDays=0;  // how far back the next sync re-reads days it holds
+
 /* --- hub time service: push this browser's clock to the device --- */
 async function syncClock(auto){
  const epoch=Math.round(Date.now()/1000);
@@ -656,9 +693,15 @@ async function syncClock(auto){
   else if(bleIO)r=await bleJSON("time "+epoch);
   else{if(!auto)setStatus("conn-note","connect first to sync the clock",false,true);
    return;}
-  if(r.ok)setStatus("conn-note",
-   `clock synced (hub adjusted ${r.delta_s>=0?"+":""}${r.delta_s}s`+
-   (r.adjusted?`, ${r.adjusted} buffered records fixed`:"")+")");
+  if(r.ok){
+   // the days this correction could have changed get re-read on the next sync
+   resyncDays=Math.max(resyncDays,
+    resyncWindow(r.now||epoch,r.delta_s||0,r.relabelled_span_s||0));
+   setStatus("conn-note",
+    `clock synced (hub adjusted ${r.delta_s>=0?"+":""}${r.delta_s}s`+
+    (r.adjusted?`, ${r.adjusted} buffered records fixed`:"")+
+    (r.relabelled?`, ${r.relabelled} stored records relabelled`:"")+")");
+  }
   else if(!auto)setStatus("conn-note","clock sync: "+(r.err||"failed"),false,true);
  }catch(e){if(!auto)setStatus("conn-note","clock sync failed: "+e,false,true);}
 }
@@ -845,16 +888,16 @@ async function sync(){
   else if(bleIO)days=(await bleJSON("days")).days;
   else throw new Error("not connected");
   const have=new Set((await idb.all()).map(f=>f.day));
-  const today=dayOf(Date.now()/1000);
+  const want=daysToFetch(days,have,Date.now()/1000,resyncDays);
   let n=0;
-  for(const d of days){
-   if(have.has(d)&&d!==today)continue; // today may still be growing
+  for(const d of want){
    setStatus("sync-status","fetching "+d+(bleIO&&!httpBase?" over BLE (slow)":"")+"...",true);
    const csv=httpBase?
     await(await fetch(httpBase+"/api/history?day="+d)).text():
     await bleDay(d);
    await idb.put(d,csv);n++;
   }
+  resyncDays=0;   // that window has now been re-read; back to "today only"
   setStatus("sync-status",`synced ${n} file(s) of ${days.length}`);
   refreshFiles();
  }catch(e){setStatus("sync-status","sync failed: "+e,false,true);}

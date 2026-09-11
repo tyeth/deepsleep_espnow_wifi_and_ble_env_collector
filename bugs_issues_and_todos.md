@@ -396,6 +396,31 @@ breaker would be the code answer if that ever has to change.
 ## TODOs
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
+* [x] History that would not sync to a browser (issue 9's clock TODO,
+      host-side tests in `tools/test_datastore_sync.py` and
+      `webapp/tests/history_sync.test.mjs`): RAM-buffered readings are now
+      listed by `/api/history` and served after the day file (BLE `hist`
+      too), and records logged before the clock was set go to
+      `data/unsynced.csv` and are rewritten into real day files on sync
+      instead of becoming an uncorrectable 2000-01-01. Since every
+      unsynced boot restarts at 2000-01-01, rows carry a boot id (NVM
+      counter `nvm[1..3]`, file max as fallback); at sync this boot's rows
+      get the measured offset and earlier boots are stacked before it in
+      order, flagged `0x08` estimated, so nothing collides and the
+      browser's ts|src de-dup drops nothing. **Not yet run on the bench**
+      -- the interesting cases are a C6 hub with the drive held by a PC, a
+      hub booted with no NTP that a browser then syncs, and two or three
+      power cuts before that sync (check the flagged rows land before the
+      last boot and the counter reads 0 in `/api/storage` afterwards).
+      Known cost, not yet measured: the rewrite runs synchronously inside
+      `POST /api/time` (and at boot when the clock is already set), so a
+      hub that logged for days without a clock does hundreds of KB of file
+      I/O before that reply -- seconds during which no other connection is
+      served and no ESP-NOW packet is read. Time it on the bench before
+      deciding whether it has to become a chunked background job.
+      `unsynced.csv` is also exempt from `_rotate_oldest`, so on flash an
+      unsynced hub fills the free space until `_drop_bounded` starts
+      dropping the oldest queued readings (announced, not silent).
 * [x] Channel agility on the bench (2026-09-02, below): hub on 6 then 11,
       node re-hunts and repins; a hop then a send on channel 1 still ACKs;
       `start_ap`/`stop_ap` beside a live ESPNow object is benign on the S3
