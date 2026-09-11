@@ -9,7 +9,7 @@
  * Only active on secure origins (the GitHub Pages copy); the device-hosted
  * plain-http copy never registers it.
  */
-const CACHE = "envhub-v13";
+const CACHE = "envhub-v14";
 const SHELL = [
   "./",
   "./index.html",
@@ -87,8 +87,16 @@ self.addEventListener("fetch", (e) => {
 
   if (url.origin === location.origin) {
     // navigations: any query string (?demo=1 etc.) must hit the cached
-    // shell offline — match ignoring the search part
+    // shell offline — match ignoring the search part. The revalidated
+    // response is written back under that same search-stripped key (not
+    // e.g. "index.html?demo=1"), otherwise it lands under a key an
+    // ignoreSearch match never returns and the precached shell from
+    // install time — however old — is what every ?query navigation gets
+    // forever.
     const isNav = e.request.mode === "navigate";
+    const putReq = isNav
+      ? new Request(new URL("./index.html", e.request.url).href)
+      : e.request;
     e.respondWith(
       caches
         .match(e.request, { ignoreSearch: isNav })
@@ -97,7 +105,7 @@ self.addEventListener("fetch", (e) => {
             .then((resp) => {
               if (cacheable(resp) && resp.type !== "opaque") {
                 const copy = resp.clone();
-                caches.open(CACHE).then((c) => c.put(e.request, copy));
+                caches.open(CACHE).then((c) => c.put(putReq, copy));
               }
               return resp;
             })

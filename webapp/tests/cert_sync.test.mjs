@@ -97,14 +97,41 @@ await (async () => {
   assert.equal(calls.length, 1, "404 must not be retried through the proxy");
   console.log("ok - a 404 is reported, not proxied"); groups++;
 
-  // proxy failures are reported honestly
-  h = load(async (u) => u.startsWith("https://api.allorigins.win/")
-    ? res("", false, 502) : (() => { throw new TypeError("Failed to fetch"); })());
-  await rejects(h.fetchCertFile("ssl.key"), /proxy 502/);
-  h = load(async (u) => u.startsWith("https://api.allorigins.win/")
-    ? res(JSON.stringify({ nope: 1 })) : (() => { throw new TypeError("Failed to fetch"); })());
-  await rejects(h.fetchCertFile("ssl.key"), /proxy returned no contents/);
-  console.log("ok - proxy errors and empty replies are surfaced"); groups++;
+  // allorigins is retried once (with a short backoff) before giving up: its
+  // outages are frequently a few seconds long, and a single flaky request
+  // shouldn't take the whole feature down
+  calls = [];
+  let proxyCalls = 0;
+  h = load(async (u) => {
+    calls.push(u);
+    if (u.startsWith(H.CERT_SRC)) throw new TypeError("Failed to fetch");
+    proxyCalls++;
+    if (proxyCalls === 1) return res("", false, 502);
+    return res(JSON.stringify({ contents: KEY }));
+  });
+  assert.equal(await h.fetchCertFile("ssl.key"), KEY);
+  assert.equal(calls.length, 3, "direct, then two proxy attempts");
+  console.log("ok - a failed proxy attempt is retried once before giving up"); groups++;
+
+  // every attempt fails: every failure is reported, not just the last one
+  h = load(async (u) => {
+    if (u.startsWith(H.CERT_SRC)) throw new TypeError("Failed to fetch");
+    return res("", false, 502);
+  });
+  await rejects(h.fetchCertFile("ssl.key"), /proxy 502.*proxy 502/s);
+  console.log("ok - when every retry fails, each failure is reported"); groups++;
+
+  // an empty/invalid reply from the proxy is treated as a failure, same as an
+  // error status, and is itself retried
+  proxyCalls = 0;
+  h = load(async (u) => {
+    if (u.startsWith(H.CERT_SRC)) throw new TypeError("Failed to fetch");
+    proxyCalls++;
+    if (proxyCalls === 1) return res(JSON.stringify({ nope: 1 }));
+    return res(JSON.stringify({ contents: KEY }));
+  });
+  assert.equal(await h.fetchCertFile("ssl.key"), KEY);
+  console.log("ok - an empty or malformed proxy reply is retried"); groups++;
 
   // the whole point: a proxied HTML error page must never reach the hub
   h = load(async (u) => u.startsWith("https://api.allorigins.win/")

@@ -1430,13 +1430,32 @@ const CERT_COMBINED="ssl.combined", CERT_KEY="ssl.key";
 // CORS: the proxy sees the private key in transit, which is acceptable only because
 // that key is already published at CERT_SRC. Serving CORS headers from that host is
 // the better answer; this keeps "sync cert" working until then.
+//
+// allorigins itself is intermittently down (Cloudflare 5xx / timeouts in front of
+// it) rather than reliably reachable. Checked several other public CORS proxies as
+// an alternative (corsproxy.io, thingproxy.freeboard.io, codetabs, cors.sh,
+// corsfix, everyorigin, whateverorigin, cors.x2u.in) while fixing this: as of
+// writing every one of them is either dead (DNS/TLS failure), requires a paid API
+// key, or rate-limits on the first request. Fanning out to more of the same kind
+// of free public proxy would not have bought real reliability. What actually
+// helps is retrying allorigins itself: its outages are frequently a few seconds
+// long, so a retry with a short backoff recovers a fair share of them; the manual
+// "upload" path remains the reliable fallback when it does not.
 const CERT_PROXY="https://api.allorigins.win/get?url=";
+const CERT_PROXY_TRIES=2, CERT_PROXY_BACKOFF_MS=1200;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function fetchViaCors(url){
- const r=await fetch(CERT_PROXY+encodeURIComponent(url),{signal:AbortSignal.timeout(20000)});
- if(!r.ok)throw new Error("proxy "+r.status);
- const j=await r.json().catch(()=>null);
- if(!j||typeof j.contents!=="string")throw new Error("proxy returned no contents");
- return j.contents;}
+ const failures=[];
+ for(let i=0;i<CERT_PROXY_TRIES;i++){
+  if(i)await sleep(CERT_PROXY_BACKOFF_MS);
+  try{
+   const r=await fetch(CERT_PROXY+encodeURIComponent(url),{signal:AbortSignal.timeout(15000)});
+   if(!r.ok){failures.push("proxy "+r.status);continue;}
+   const j=await r.json().catch(()=>null);
+   if(!j||typeof j.contents!=="string"){failures.push("proxy returned no contents");continue;}
+   return j.contents;
+  }catch(e){failures.push(String((e&&e.message)||e));}}
+ throw new Error("proxy failed ("+failures.join(", ")+")");}
 async function fetchCertFile(name){
  const url=CERT_SRC+name;
  try{

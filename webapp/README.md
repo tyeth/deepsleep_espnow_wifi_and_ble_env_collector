@@ -119,14 +119,19 @@ by Chrome; state at `chrome://on-device-internals`. See
 * **HTTPS cert sync** (*sync cert*): fetches `ssl.combined` + `ssl.key` from
   `gundryconsultancy.com` and pushes them to the hub over HTTPS or BLE. That
   host does not send CORS headers to every origin, so a refused direct fetch
-  (a `TypeError`, as distinct from a 404 or a timeout) retries once through
-  the allorigins proxy. The proxy sees the private key, which is only
-  tolerable because it is already published at that URL. Both halves are
-  validated -- leaf + intermediate, plus a PRIVATE KEY block -- before
-  anything reaches the hub, so an HTML error page returned with status 200
-  cannot clobber a working certificate. When it still fails, the message
-  links both files so they can be downloaded by hand; *upload* then takes
-  them together or one at a time.
+  (a `TypeError`, as distinct from a 404 or a timeout) retries through the
+  allorigins proxy, twice with a short backoff -- its outages are usually a
+  few seconds long, and other free public CORS proxies checked while fixing
+  this (corsproxy.io, thingproxy, codetabs, cors.sh, corsfix, everyorigin,
+  whateverorigin, cors.x2u.in) turned out to be dead, paywalled or
+  rate-limited, so chaining more of them wouldn't have added real
+  reliability. The proxy sees the private key, which is only tolerable
+  because it is already published at that URL. Both halves are validated --
+  leaf + intermediate, plus a PRIVATE KEY block -- before anything reaches
+  the hub, so an HTML error page returned with status 200 cannot clobber a
+  working certificate. When every attempt fails, the message links both
+  files so they can be downloaded by hand; *upload* then takes them
+  together or one at a time.
   Tests: `node webapp/tests/cert_sync.test.mjs`.
 
   Before changing any of this, read
