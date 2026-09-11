@@ -486,28 +486,43 @@ https hostname; CO2 calibration collapsed at the end. Pages (HTTPS) can call
 the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
 
 ### Open items
-* [x] **Cert sync CORS fallback** (web app `certSync()`) - done. The direct
-      `fetch` of `ssl.combined` / `ssl.key` is tried first; a CORS refusal
-      arrives as a `TypeError` with no status and only that falls back
-      through a chain of public CORS proxies (allorigins, then corsproxy.io,
-      then thingproxy.freeboard.io), tried in order until one answers. A
-      real answer (404, timeout, abort) is reported as-is rather than
-      retried through a proxy. allorigins alone was found to be
-      intermittently down (5xx/timeouts from Cloudflare in front of it),
-      which made "sync cert" flaky even though the code was correct -- the
-      chain means one flaky proxy no longer takes the feature down.
+* [x] **Cert sync CORS fallback** (web app `certSync()`) - done, then
+      hardened. The direct `fetch` of `ssl.combined` / `ssl.key` is tried
+      first; a CORS refusal arrives as a `TypeError` with no status and
+      only that falls back to the allorigins proxy. A real answer (404,
+      timeout, abort) is reported as-is rather than retried through the
+      proxy.
+      allorigins alone was found to be intermittently down (5xx/timeouts
+      from Cloudflare in front of it), which made "sync cert" flaky even
+      though the code was correct -- confirmed with repeated direct
+      `curl` hits returning 200/520/522/500 back to back. The fetch is now
+      retried once more with a ~1.2s backoff before giving up, since these
+      outages are usually a few seconds long. Checked whether chaining
+      *other* free public CORS proxies would help more: corsproxy.io now
+      requires a paid API key, thingproxy.freeboard.io's domain no longer
+      resolves, and codetabs / cors.sh / corsfix / everyorigin /
+      whateverorigin / cors.x2u.in were each dead, paywalled or
+      immediately rate-limited when tried live -- none would have added
+      real reliability, so the fix stays a retry on the one proxy known to
+      work rather than a chain of others that don't right now. The
+      durable fix remains CORS headers on `gundryconsultancy.com` itself.
       Whatever comes back is checked by `validateCertPair()` -- leaf +
       intermediate and a PRIVATE KEY block -- before it is pushed, so a
       proxy or captive-portal HTML error page with status 200 cannot
-      overwrite the hub's working certificate. Each proxy still sees the
+      overwrite the hub's working certificate. The proxy still sees the
       private key in transit; that is acceptable only because the key is
-      already published at `CERT_SRC`, and serving CORS headers from that
-      host remains the better fix. File upload stays the last resort, and
-      now accepts the two halves one at a time.
-      Also bumped the service worker's `CACHE` version (sw.js) - it wasn't
-      bumped when this feature first landed, so browsers with an
-      already-installed service worker could keep being served the
-      pre-fallback cached shell instead of picking up the fix.
+      already published at `CERT_SRC`. File upload stays the last resort,
+      and now accepts the two halves one at a time.
+      Also: `sw.js`'s `CACHE` version wasn't bumped when this feature
+      first landed, so a browser with an already-installed service worker
+      could keep being served the pre-fallback cached shell instead of
+      picking up the fix -- bumped to `envhub-v14`. Separately, the
+      same-origin fetch handler matched navigations ignoring the query
+      string (so `?demo=1` etc. hit the cached shell offline) but wrote
+      the revalidated response back keyed *with* the query string, which
+      an ignoreSearch match never returns -- so a `?query` navigation
+      could stay pinned to whatever was precached at install time forever.
+      Now writes back under the same search-stripped key it matched on.
       Tests: `node webapp/tests/cert_sync.test.mjs`.
 * HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
 * `node packet error: OverflowError overflow converting long int to machine
