@@ -502,6 +502,17 @@ breaker would be the code answer if that ever has to change.
       **The `.mpy` is load-bearing** — `hubmain.py` copied to the board as
       source fails exactly as the old `code.py` did, and a soft reload
       hides it (it boots; only a hard reset does not).
+* [x] **Same shim for the node** (`node/code.py` → `import nodemain`, body
+      in `node/nodemain.py`). Not a fix for an observed failure: the node
+      runs on the S3 bench board and has never shown the fault. But its
+      body was 46.9 KB — under the comment-stripped 48.7 KB that failed on
+      the hub, over the 62 KB that used to boot — which is the band where
+      placement, not size, decides, and a node has no console to tell you
+      about it. Wanted anyway to run a node on a C6.
+      **Still to bench:** hard-reset a node built this way and confirm a
+      full wake → report → deep-sleep cycle, including that
+      `alarm.sleep_memory` survives the sleep (a soft reload wipes it, so
+      Ctrl-D proves nothing here either).
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,

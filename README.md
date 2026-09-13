@@ -555,6 +555,21 @@ practical ones you need before touching the boards.
   `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`, so any
   build step that byte-compiles the whole directory has to copy this one
   through untouched.
+* **The node is built the same way**, `node/code.py` → `import nodemain`:
+
+  ```sh
+  mpy-cross -o nodemain.mpy node/nodemain.py
+  ```
+
+  Its body was 46.9 KB — under the 48.7 KB that failed on the hub and over
+  the 62 KB that used to boot, i.e. inside the band where placement decides
+  it, so this is the same fix applied *before* a failure rather than after
+  one. It has not been seen to fail on the S3 bench node; what it buys is a
+  node that will run on a C6. Same trap as above (test with a **hard
+  reset**), plus one of its own: the node's unsent readings, message-id
+  counter and discovered channel live in `alarm.sleep_memory`, which a soft
+  reload wipes — so after a hard reset expect the first wake to re-discover
+  its collector.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The
@@ -613,8 +628,10 @@ practical ones you need before touching the boards.
 ## Repo layout
 
 ```
-collector/   hub firmware (code.py + modules, config.json, lib/ via circup)
-node/        node firmware (code.py, node_sensors.py, node_portal.py, ...)
+collector/   hub firmware (code.py shim -> hubmain.py + modules,
+             config.json, lib/ via circup)
+node/        node firmware (code.py shim -> nodemain.py, node_sensors.py,
+             node_portal.py, ...)
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
@@ -648,8 +665,9 @@ sleep_memory still carries the stash/seq/channel).
 Hard-won ESP32-C6 (CP 10.3.0-alpha.4) findings (details + upstream-issue
 drafts in `bugs_issues_and_todos.md`):
 * `wifi.radio.start_ap()` / BLE init **hard-fault the core unless done at
-  the very top of code.py, before the heavy imports** ("EARLY RADIO
-  BRING-UP" block). Late BLE alongside the AP hard-faults 2/2.
+  the very top of the main module, before the heavy imports** ("EARLY
+  RADIO BRING-UP" block in `hubmain.py`). Late BLE alongside the AP
+  hard-faults 2/2.
 * The wifi stack **corrupts the shared SPI lock flag** (bus reads LOCKED,
   no owner) → every eInk refresh fails "Refresh too soon"; worked around
   by clearing the stale lock before each refresh. A failed `sdcardio`
@@ -661,7 +679,8 @@ drafts in `bugs_issues_and_todos.md`):
   flight — wedges the panel until a clean power-on.
 * mpremote: `fs cp` to a NEW file fails against CP 10.3-alpha (existing
   files OK — create once via exec, then mpremote); auto-reload is
-  disabled in code.py so multi-file deploys don't half-restart.
+  disabled in `hubmain.py` / `nodemain.py` so multi-file deploys don't
+  half-restart.
 * Device files: `/learn_demo.py` (exact learn example) + ruler bmp kept
   on the C6 for panel sanity checks.
 
