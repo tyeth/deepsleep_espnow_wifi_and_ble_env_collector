@@ -165,7 +165,7 @@ class Dashboard:
 
     def update(self, *, latest, tracker, zones, host_batt,
                node_batt_warnings, trends, status_line, now,
-               storage_mode="sd"):
+               storage_mode="sd", tz_offset_s=0):
         tri = self.tri
 
         # watermark
@@ -192,9 +192,14 @@ class Dashboard:
         self.sd_glyph.hidden = storage_mode == "sd"
 
         # header + status
+        # `now` is UTC, like every other timestamp in this project. The
+        # offset is added HERE and only here -- this line is the one thing
+        # on the hub a human reads as a wall clock. With no offset known
+        # (no override, no browser has synced) it shows UTC, which is
+        # honest rather than wrong.
         try:
             import time as _t
-            t = _t.localtime(now)
+            t = _t.localtime(now + tz_offset_s)
             clock = "%02d:%02d" % (t[3], t[4])
         except (OverflowError, OSError):
             clock = "--:--"

@@ -167,7 +167,13 @@ class _HubClock:
         return _real_time.monotonic_ns()
 
     def localtime(self, *a):
-        return _real_time.localtime(*a)
+        # gmtime, not localtime: CircuitPython's time.localtime() has no
+        # timezone of its own -- it is a plain epoch-to-fields conversion
+        # -- and the hub's clock holds UTC, so day files are UTC days.
+        # CPython's localtime() would apply the HOST's zone instead, which
+        # makes this test's day boundaries depend on where it is run and
+        # hides exactly the kind of off-by-a-day the day-file code can have.
+        return _real_time.gmtime(*a)
 
 
 import time as _real_time  # noqa: E402

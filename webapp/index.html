@@ -659,8 +659,9 @@ const PLAUSIBLE_EPOCH=1700000000; // 2023-11, same line the hub draws
      never set (boot 2000)  -> however long it ran without one, which is
                                the span its records move across when the
                                hub relabels them on this sync
-   Plus a day, because the hub's day boundaries are its timezone's and
-   ours are UTC. The hub also says how far back it actually moved rows
+   Plus a day. The hub's day files are UTC days now, the same as ours,
+   so this is slack against clock skew rather than the timezone gap it
+   used to cover. The hub also says how far back it actually moved rows
    (spanS, its relabelled_span_s): boots before this one that never got a
    clock are placed before this boot began, further back than the drift
    alone can tell us. Capped, so a wildly wrong clock cannot turn the next
@@ -770,6 +771,13 @@ let resyncDays=0;  // how far back the next sync re-reads days it holds
 /* --- hub time service: push this browser's clock to the device --- */
 async function syncClock(auto){
  const epoch=Math.round(Date.now()/1000);
+ // The epoch is UTC and the device keeps it that way. tzOffsetMin is a
+ // separate thing: THIS browser's offset from UTC, which the hub
+ // remembers only so its eInk can show a local time and a calibration
+ // can be scheduled for 04:00 local. A phone in front of the hub knows
+ // that better than the hub does -- not least that summer time exists.
+ // A config override on the device wins over it when one is set.
+ const tzOffsetMin=-new Date().getTimezoneOffset();
  // the reply is prompt now: a hub that logged for a while with no clock
  // queues the rewrite of those records and the page watches it below
  setStatus("conn-note","setting the hub clock...",true);
@@ -777,8 +785,8 @@ async function syncClock(auto){
   let r;
   if(httpBase)
    r=await(await fetch(httpBase+"/api/time",{method:"POST",
-    body:JSON.stringify({epoch})})).json();
-  else if(bleIO)r=await bleJSON("time "+epoch);
+    body:JSON.stringify({epoch,tz_offset_min:tzOffsetMin})})).json();
+  else if(bleIO)r=await bleJSON("time "+epoch+" "+tzOffsetMin);
   // clear the busy line either way: an auto sync that cannot run must not
   // leave the page claiming it is still setting the clock
   else{setStatus("conn-note",auto?"":"connect first to sync the clock",
