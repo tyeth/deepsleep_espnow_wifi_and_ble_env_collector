@@ -226,16 +226,39 @@ what runs out is the GC heap that has to hold the rest of the hub. This is
 the same wall the C6 hits (see `bugs_issues_and_todos.md`) and it applies
 to **any** no-PSRAM board, S3 included.
 
-So choose per deployment:
+### The measured matrix, with frozen libraries
 
-| | |
-|---|---|
-| `ap_enabled: true`, `ble_enabled: false` | **the default.** Captive portal, dashboard, REST API, clock sync from a browser |
-| `ap_enabled: false`, `ble_enabled: true` | BLE-centric hub: web-BLE access, no HTTP |
-| both `true` | only on a board **with PSRAM** |
+Every combination tried on the bench hub (Feather ESP32-S3 **No PSRAM**,
+firmware with this project's 22 libraries **frozen**, application as
+`.mpy`, 2026-09-13). "ESP-NOW" is always on — the early block starts it
+unconditionally, so even the display-only row is still collecting from
+nodes.
 
-`.mpy` everywhere buys real headroom (294 KB of source → 80 KB of
-bytecode, and no compiler peak) but it does not buy enough to have both.
+| display | AP | BLE | result |
+|---|---|---|---|
+| ✅ | — | — | **runs**, 22.3 KB free steady, eInk refreshing |
+| — | ✅ | — | **runs**, 33.5 KB free, HTTP portal on `:80` |
+| ✅ | ✅ | — | ✗ `MemoryError` — dashboard built with 14.5 KB, then died |
+| ✅ | — | ✅ | ✗ **hard fault** → safe mode |
+| — | ✅ | ✅ | ✗ **hard fault** → safe mode |
+| ✅ | ✅ | ✅ | ✗ **hard fault** → safe mode |
+
+**Exactly one of {display, AP, BLE} at a time on a no-PSRAM board.** Any
+second one is a hard fault or an OOM, and no amount of freezing changes
+that: with BLE + ESP-NOW + softAP all up the radios have already taken the
+heap before the first application import runs.
+
+What freezing *did* buy, same board and application: the failure moved
+from `import datastore` (line 189) to `import net_espnow` (line 194) — so
+`datastore` and `extrtc` now fit where they did not — and display-only
+went from dying in `battery.py` to running with the SD mounted and the
+eInk refreshing (40,256 bytes free at the dashboard build against 15,936).
+Real, and not enough for two radios.
+
+**If you want the dashboard and a portal at once, that wants PSRAM.**
+
+`.mpy` everywhere buys the compiler peak back (294 KB of source → 80 KB of
+bytecode); freezing buys the resident bytecode. Neither buys the radios.
 
 ## Time service & clocks
 
