@@ -208,6 +208,35 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 * **Config push**: every check-in's `cfg` reply carries interval, enabled
   metrics, ASC-off policy, pending calibration, and the current epoch.
 
+## Radios: pick one on a board without PSRAM
+
+`config.json` ships **`ap_enabled: true`, `ble_enabled: false`**, and that
+is a memory budget rather than a preference. Measured on the bench
+(2026-09-13, Feather ESP32-S3 **No PSRAM**, everything shipped as `.mpy`):
+with the early block bringing up BLE *and* ESP-NOW *and* the softAP, the
+very next import — `datastore` — dies with
+
+```
+MemoryError: memory allocation failed, allocating 158 bytes
+```
+
+The radios themselves all came up fine (`early BLE advertising as
+HUB-7DD4`, `early ESP-NOW up`, `early AP up: BASE217DD4 @ 192.168.4.1`);
+what runs out is the GC heap that has to hold the rest of the hub. This is
+the same wall the C6 hits (see `bugs_issues_and_todos.md`) and it applies
+to **any** no-PSRAM board, S3 included.
+
+So choose per deployment:
+
+| | |
+|---|---|
+| `ap_enabled: true`, `ble_enabled: false` | **the default.** Captive portal, dashboard, REST API, clock sync from a browser |
+| `ap_enabled: false`, `ble_enabled: true` | BLE-centric hub: web-BLE access, no HTTP |
+| both `true` | only on a board **with PSRAM** |
+
+`.mpy` everywhere buys real headroom (294 KB of source → 80 KB of
+bytecode, and no compiler peak) but it does not buy enough to have both.
+
 ## Time service & clocks
 
 **Every clock in this project holds UTC.** The system RTC, the coin-cell

@@ -332,7 +332,11 @@ if SD_CS is not None:
         storage.mount(storage.VfsFat(_sd), "/sd")
         sd_mounted = True
         print("SD mounted")
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, MemoryError) as exc:
+        # MemoryError belongs here. On a no-PSRAM board the mount can fail
+        # for 832 bytes with the eInk already built, and a hub that dies
+        # because it could not have the SD card is strictly worse than one
+        # that logs to flash: the store falls back on its own.
         print("SD mount failed:", exc)
         # a failed SDCard() leaves the shared SPI bus LOCKED, which makes
         # every eInk refresh fail with a misleading "Refresh too soon"
@@ -478,7 +482,11 @@ try:
         i2c = busio.I2C(board.IO20, board.IO19)
     local_sensor = sensors_local.LocalSensor(i2c)
     print("SEN66:", local_sensor.product, local_sensor.serial)
-except (OSError, ValueError, RuntimeError) as exc:
+except (OSError, ValueError, RuntimeError, MemoryError) as exc:
+    # MemoryError included for the same reason as the SD mount above, and
+    # because the SEN66's own driver raises espidf.MemoryError out of an
+    # I2C write when the IDF heap is tight -- measured on the S3 bench.
+    # A hub with no local sensor still collects from its nodes.
     print("Local sensor init failed:", exc)
 
 # A battery-backed RTC, if one is fitted. This has to happen BEFORE the
