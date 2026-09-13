@@ -20,7 +20,7 @@ does stripping the comments out -- a 48.7 KB code.py fails too.
 What does help is never compiling it on the device. A module ships as
 `.mpy`: no compiler peak, and far more compact bytecode (67 KB of source ->
 23 KB). So the hub lives in `hubmain.py`, is cross-compiled to
-`hubmain.mpy` by `tools/build_bundle.sh` (or by hand, see the README's
+`hubmain.mpy` by `tools/build_mpy.sh` (or by hand, see the README's
 *Deploy* section), and this file is small enough to cost nothing.
 
 **`hubmain.mpy` is not optional on the C6.** Copying `hubmain.py` to the

@@ -497,7 +497,7 @@ breaker would be the code answer if that ever has to change.
       compiled body of a 67 KB `code.py` takes the contiguous internal RAM
       `esp_wifi_init()` wants, with 242 KB still free. `collector/code.py`
       is now `import hubmain`, the body is `collector/hubmain.py`, and
-      `tools/build_bundle.sh` cross-compiles it. Bench: clean hard reset,
+      `tools/build_mpy.sh` cross-compiles it. Bench: clean hard reset,
       AP + HTTPS + BLE all up, 22 KB free after BLE.
       **The `.mpy` is load-bearing** — `hubmain.py` copied to the board as
       source fails exactly as the old `code.py` did, and a soft reload
