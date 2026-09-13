@@ -717,26 +717,29 @@ practical ones you need before touching the boards.
   counter and discovered channel live in `alarm.sleep_memory`, which a soft
   reload wipes — so after a hard reset expect the first wake to re-discover
   its collector.
-* **Whatever is on the filesystem SHADOWS the better copy.** `sys.path` is
-  searched in order — `/`, then `/lib`, then `.frozen` — and *within* a
-  directory a `.py` is preferred to a `.mpy`. Both were measured on the
-  bench, and both bite the same way: the improvement appears to be
-  installed and changes nothing.
-  * a `.py` left beside your new `.mpy` is the one that runs, so the
-    build step buys nothing until the `.py` is **deleted**
-    (`tools/build_mpy.sh` produces the bytecode; removing the sources is
-    a separate, deliberate step);
-  * a library left in `lib/` is the one that runs, so a firmware with
-    that library **frozen** still pays full RAM for it. Collecting the
-    benefit of a frozen build means **emptying `lib/`**.
-* **Frozen beats `.mpy` beats `.py`, and only frozen saves run-time RAM.**
+* **A `.py` left beside a `.mpy` is the one that runs.** Measured on the
+  bench: within a directory CircuitPython prefers the source, so the
+  cross-compile step buys nothing until the `.py` is **deleted**.
+  `tools/build_mpy.sh` produces the bytecode; removing the sources is a
+  separate, deliberate step, and skipping it looks exactly like success.
+* **Frozen wins over `lib/`, and only frozen saves run-time RAM.** Read
+  `sys.path` on the board rather than assuming the order — on the ESP32
+  builds it is `['', '/', '.frozen', '/lib']`, so **`.frozen` comes first**
+  and a stale copy in `lib/` does *not* shadow the frozen one. (Deleting
+  it still frees flash and removes the ambiguity, but it is not what
+  collects the RAM saving.)
   Cross-compiling removes the on-device *compiler* peak — that is what
   makes a large `code.py` bootable on the C6 — but the resident bytecode
   is much the same size either way. A frozen module executes in place from
-  flash and never occupies heap at all. The project's libraries are frozen
-  into the ESP32 builds for the 13 boards it targets
-  ([tyeth/circuitpython#30](https://github.com/tyeth/circuitpython/pull/30)):
-  ~162 KB of bytecode that no longer competes with the hub for RAM.
+  flash and never occupies heap. The project's libraries are frozen into
+  the ESP32 builds for the 13 boards it targets
+  ([tyeth/circuitpython#30](https://github.com/tyeth/circuitpython/pull/30)).
+  Measured on the S3 No PSRAM bench hub, same board, same application,
+  display on: `adafruit_ble` costs **5,728 bytes** to import frozen
+  against 30.6 KB of bytecode, and at the dashboard build the hub has
+  **40,256 bytes free instead of 15,936** — enough that the SD now mounts,
+  the fuel gauge initialises and the eInk refreshes, where before it died
+  in `battery.py`.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The
