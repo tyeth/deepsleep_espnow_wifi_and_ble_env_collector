@@ -513,6 +513,46 @@ breaker would be the code answer if that ever has to change.
       full wake → report → deep-sleep cycle, including that
       `alarm.sleep_memory` survives the sleep (a soft reload wipes it, so
       Ctrl-D proves nothing here either).
+* [x] **Battery-backed RTC on both boards** (`extrtc.py`, identical copy
+      in `collector/` and `node/`; `"rtc"` config key, default `"auto"`).
+      Closes the one gap the ESP32's own clock cannot: it survives a soft
+      reload and a deep sleep, not a power cut. With a coin cell the hub
+      boots knowing the time — no 2000-01-01 day file and no retro-label
+      job — and a node timestamps its stash from the first wake with no
+      hub in range. `sync()` is the single place the two clocks meet, so
+      NTP and browser syncs are also what *sets* a new RTC.
+      PCF85063A is driven directly (no Adafruit CP library exists for it);
+      PCF8563 / DS3231 / PCF8523 / DS1307 work through theirs if
+      installed. `tools/test_extrtc.py` covers the register map, the
+      shared-address detection and all four `sync()` cases against a
+      simulated bus.
+      **Still to bench** (nothing here has touched real hardware yet):
+      * a PCF85063A on the hub's STEMMA bus — detect, `sync()` both
+        directions, then **pull the power** and confirm the boot log says
+        `system clock set from pcf85063a` and no relabel job is queued;
+      * the same on a node, across a deep sleep *and* across a cell
+        change, checking stash timestamps land in the right day;
+      * whether `"auto"` actually picks the right chip on a board that
+        has one, or whether we end up telling people to name it. The
+        0x51/0x68 collisions are a hardware fact; the validation is a
+        good guess, not a proof, and the bench is where that gets
+        settled. (DS3231 vs DS1307 is already known to be undecidable —
+        identical registers at an identical address — so that one must
+        be named.)
+      * the coin-cell draw over a week, if it turns out to matter.
+      * how far the PCF85063A actually runs off: `extrtc.py` leaves
+        `CAP_SEL` at the power-on 7 pF and most breakout crystals are
+        12.5 pF, which should be ~20–30 ppm fast (a couple of seconds a
+        day). If a node ever has to hold time for months without a hub,
+        that wants a config knob.
+* [ ] **NTP writes local time, `/api/time` writes UTC.** `net_wifi.connect`
+      applies `timezone_offset_h` to what it puts on the clock; the webapp
+      POSTs a plain UTC epoch. Pre-existing, and harmless while the clock
+      is volatile — but the RTC makes it stick: with a non-zero offset the
+      two paths now rewrite the coin cell by the offset each time, and
+      `/api/latest`'s `clock.drift_s` will show it. Pick one (UTC on the
+      clock, offset applied at display time, is the one that does not lie
+      to the day-file names) and fix both ends together.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,

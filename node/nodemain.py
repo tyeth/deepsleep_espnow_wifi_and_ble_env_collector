@@ -41,9 +41,15 @@ import wifi
 
 import calref
 import envproto
+import extrtc
 import node_sensors
 import node_store
 from battery import BatteryMonitor
+
+# An optional battery-backed RTC on I2C. Attached further down, once the
+# bus exists; named here so apply_hub_time() -- defined before that point
+# and called after it -- has something to find either way.
+ext_rtc = None
 
 # --------------------------------------------------------------------------
 # sleep_memory layout
@@ -221,12 +227,24 @@ def stash_shift_time(delta):
 
 
 def apply_hub_time(epoch):
-    """Set the RTC from the hub's time service; fix stashed timestamps."""
+    """Set the clock from the hub's time service; fix stashed timestamps."""
     delta = int(epoch) - int(time.time())
     if abs(delta) > 5:
         rtc.RTC().datetime = time.localtime(int(epoch))
         stash_shift_time(delta)
         print("clock set from hub: %+ds" % delta)
+    # Carry it to the coin cell too, so the next power cut costs nothing.
+    # "system": the hub's time is the authoritative one here -- it is the
+    # clock every node's readings are filed against, so the chip follows
+    # it even when the chip is the better oscillator. Outside the delta
+    # test on purpose: a fitted RTC that has never been set still needs
+    # writing when the two clocks already agree, which is exactly the
+    # case a moment after a hub sync.
+    if ext_rtc is not None:
+        try:
+            print("clock:", extrtc.sync(ext_rtc, "system"))
+        except Exception as exc:
+            print("extrtc: could not carry the time to the RTC:", exc)
 
 # --------------------------------------------------------------------------
 # Config
@@ -238,6 +256,10 @@ DEFAULTS = {
     "metrics": None,               # None = send everything the sensor has
     "sensor": "",                  # "" = auto-detect on I2C, "sim" = bench
                                    # rig with synthetic readings
+    "rtc": "auto",                 # battery-backed RTC: "auto" to detect,
+                                   # "off", or a chip name (extrtc.CHIPS --
+                                   # naming it skips the guess two chips
+                                   # sharing one address forces)
     "pm_warmup_s": 20,             # extra fan spin-up for SEN5x/SEN6x PM
     "cal_measure_s": 180,          # fallback window when the hub sends none
     "cal_max_spread_ppm": 60,      # stability gate over the last 15 min
@@ -388,6 +410,45 @@ else:
         print("I2C bus unavailable:", exc)
         i2c = None
     sensor = node_sensors.detect(i2c) if i2c is not None else None
+
+# A battery-backed RTC, if one is fitted. Deep sleep keeps the SoC's own
+# clock running, so this is not about the interval -- it is about the cell
+# being changed, the USB lead being pulled, or a brownout, after which a
+# node otherwise wakes in 2000 and stashes readings the hub can only place
+# once it hears from one. With a coin cell every reading carries a real
+# time from the first wake, whether or not a hub is in range.
+#
+# Before the no-sensor bail below on purpose: a node whose sensor is
+# temporarily unreachable still has a stash to keep coherent, and this is
+# the cheapest possible moment to be sure of the clock.
+#
+# Sim mode gets none: it is a devkit with nothing on the bus, by
+# definition (i2c is None there, and attach() says so).
+#
+# Guarded the way the report path is, and for the same reason: nothing
+# optional gets to end this script before go_to_sleep(). code.py is a bare
+# `import nodemain`, so an exception here would leave the node awake on
+# battery until the cell died, and an RTC is an optional part whose
+# drivers are third-party.
+try:
+    ext_rtc = extrtc.attach(i2c, config.get("rtc", "auto"))
+    if ext_rtc is not None:
+        # Default "chip" trust: nothing has told this node the time yet,
+        # and the coin cell keeps it far better than the ESP32's own
+        # clock does across a week of deep sleeps.
+        _clock_was = int(time.time())
+        print("clock:", extrtc.sync(ext_rtc))
+        # Stashed readings are timestamped against the clock we just
+        # moved, so move them with it -- the same fix-up apply_hub_time
+        # does. Narrow (the resets that lose the clock usually clear
+        # sleep memory too) but two lines.
+        _clock_delta = int(time.time()) - _clock_was
+        if abs(_clock_delta) > 5:
+            stash_shift_time(_clock_delta)
+except Exception as exc:
+    print("extrtc: giving up on the RTC (%s: %s)" % (type(exc).__name__, exc))
+    ext_rtc = None
+
 if sensor is None:
     print("no sensor found; retrying in %ds" % interval)
     blink(False)

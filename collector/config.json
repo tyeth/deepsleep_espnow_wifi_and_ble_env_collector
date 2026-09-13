@@ -24,6 +24,7 @@
   "node_batt_warn_v": 3.5,
   "node_batt_crit_v": 3.3,
   "timezone_offset_h": 0,
+  "rtc": "auto",
   "zones": {
     "local": "Room"
   },
