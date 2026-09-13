@@ -717,6 +717,26 @@ practical ones you need before touching the boards.
   counter and discovered channel live in `alarm.sleep_memory`, which a soft
   reload wipes — so after a hard reset expect the first wake to re-discover
   its collector.
+* **Whatever is on the filesystem SHADOWS the better copy.** `sys.path` is
+  searched in order — `/`, then `/lib`, then `.frozen` — and *within* a
+  directory a `.py` is preferred to a `.mpy`. Both were measured on the
+  bench, and both bite the same way: the improvement appears to be
+  installed and changes nothing.
+  * a `.py` left beside your new `.mpy` is the one that runs, so the
+    build step buys nothing until the `.py` is **deleted**
+    (`tools/build_mpy.sh` produces the bytecode; removing the sources is
+    a separate, deliberate step);
+  * a library left in `lib/` is the one that runs, so a firmware with
+    that library **frozen** still pays full RAM for it. Collecting the
+    benefit of a frozen build means **emptying `lib/`**.
+* **Frozen beats `.mpy` beats `.py`, and only frozen saves run-time RAM.**
+  Cross-compiling removes the on-device *compiler* peak — that is what
+  makes a large `code.py` bootable on the C6 — but the resident bytecode
+  is much the same size either way. A frozen module executes in place from
+  flash and never occupies heap at all. The project's libraries are frozen
+  into the ESP32 builds for the 13 boards it targets
+  ([tyeth/circuitpython#30](https://github.com/tyeth/circuitpython/pull/30)):
+  ~162 KB of bytecode that no longer competes with the hub for RAM.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The
