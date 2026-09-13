@@ -745,12 +745,23 @@ practical ones you need before touching the boards.
   cross-compile step buys nothing until the `.py` is **deleted**.
   `tools/build_mpy.sh` produces the bytecode; removing the sources is a
   separate, deliberate step, and skipping it looks exactly like success.
-* **Frozen wins over `lib/`, and only frozen saves run-time RAM.** Read
-  `sys.path` on the board rather than assuming the order — on the ESP32
-  builds it is `['', '/', '.frozen', '/lib']`, so **`.frozen` comes first**
-  and a stale copy in `lib/` does *not* shadow the frozen one. (Deleting
-  it still frees flash and removes the ambiguity, but it is not what
-  collects the RAM saving.)
+* **Frozen wins over `lib/` — but not over `/`.** Read `sys.path` on the
+  board rather than assuming the order. On the ESP32 builds it is
+
+  ```
+  ['', '/', '.frozen', '/lib']
+  ```
+
+  so a stale copy in **`lib/` does not shadow** a frozen module, while a
+  module dropped in the **flash root does** — `/` is searched before
+  `.frozen`. On this project only the hub's own modules live in `/`, and
+  none of them shares a name with a frozen library, so there is nothing
+  there to clear; the thing to avoid is dropping a library copy into `/`.
+  Deleting `lib/` is worth doing for flash and for removing the ambiguity,
+  and **not** for RAM: measured on the bench hub, removing all 91 files
+  freed **346 KB of flash and zero RAM** — `display + AP` failed
+  identically before and after (13,232 vs 14,544 bytes free at the
+  dashboard build, i.e. noise).
   Cross-compiling removes the on-device *compiler* peak — that is what
   makes a large `code.py` bootable on the C6 — but the resident bytecode
   is much the same size either way. A frozen module executes in place from
