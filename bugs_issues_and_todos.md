@@ -567,6 +567,27 @@ breaker would be the code answer if that ever has to change.
       default (0/unset) is unaffected. Not benched; nothing here needs
       hardware, but the eInk clock line and a real NTP sync are worth an
       eyeball on the next bench run.
+* [ ] **The S3 bench hub has logged nothing, ever, and the SD never
+      mounted** (found 2026-09-13 while setting up for the RTC bench).
+      Two separate questions, and the boot log answers both in one line
+      each — capture it before theorising further:
+      * `SD mount failed: <exc>` vs `SD mounted`. Ranked candidates: an
+        **exFAT card** (anything over 32 GB is exFAT out of the box and
+        `storage.VfsFat` only does FAT12/16/32 — reformat as FAT32); no
+        card seated; a card the shared SPI bus cannot reach. Note there
+        is a **`/sd` DIRECTORY on the flash** holding `placeholder.txt`,
+        which is exactly the decoy `hubmain` warns about — it makes a
+        failed mount look mounted to anything that only does
+        `os.listdir("/sd")`. `sd_mounted` guards the store correctly, but
+        the directory should go so nobody is fooled twice.
+      * **no `/data` at all, on SD *or* flash.** That is independent of
+        the card: `_pick_root()` falls through `/saves` (absent) to `/`
+        (verified writable), so records should have landed in
+        `/data/unsynced.csv`. Nothing did, which means no record was ever
+        added — so suspect `sensors_local.LocalSensor(i2c)` raising and
+        being swallowed into `local_sensor = None` (the SEN66 *does*
+        answer at 0x6B). The boot log says `SEN66: <product> <serial>` or
+        `Local sensor init failed: <exc>`.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,
