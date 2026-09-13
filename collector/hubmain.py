@@ -187,6 +187,7 @@ import alerts
 import battery
 import calref
 import datastore
+import extrtc
 if DISPLAY_WANTED:
     import display_hw
     import display_ui
@@ -380,10 +381,13 @@ print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
 # boot log that names the reset reason is the only way to spot them here.
 print("reset reason:", microcontroller.cpu.reset_reason)
 
-# hub time service: synced by NTP (net_wifi.connect) or by a browser via
-# POST /api/time / BLE "time <epoch>"; pushed to nodes in every cfg reply
+# hub time service: synced by NTP (net_wifi.connect above), by a battery-
+# backed RTC if one is fitted (below, once the I2C bus exists), or by a
+# browser via POST /api/time / BLE "time <epoch>"; pushed to nodes in
+# every cfg reply.
+ext_rtc = None                 # set at the I2C bring-up further down
 TIME_SYNCED = time.localtime()[0] >= 2025
-print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for NTP/browser)")
+print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for RTC/NTP/browser)")
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
@@ -435,6 +439,32 @@ try:
     print("SEN66:", local_sensor.product, local_sensor.serial)
 except (OSError, ValueError, RuntimeError) as exc:
     print("Local sensor init failed:", exc)
+
+# A battery-backed RTC, if one is fitted. This has to happen BEFORE the
+# DataStore below: the store names its day files from the clock, and a hub
+# that came up at 2000-01-01 writes a 2000-01-01 file and then has to
+# relabel every row in it when a browser finally turns up. With a coin
+# cell it simply knows, and there is nothing to relabel.
+#
+# Deliberately after the sensor try/except rather than inside it: a hub
+# with no SEN66 on the bus still wants its clock.
+#
+# Which clock wins: if NTP has already set ours a few lines above, that is
+# the better time and the chip gets written from it. Otherwise the chip is
+# the better keeper and we take its time -- see extrtc.sync().
+#
+# The whole thing is wrapped because an RTC is an optional part on an
+# optional bus, and nothing about it is worth a hub that will not boot.
+try:
+    ext_rtc = extrtc.attach(i2c, config.get("rtc", "auto"))
+    if ext_rtc is not None:
+        print("clock:", extrtc.sync(
+            ext_rtc,
+            "system" if (HTTP_WANTED and net_wifi.ntp_synced) else "chip"))
+        TIME_SYNCED = time.localtime()[0] >= 2025
+except Exception as exc:
+    print("extrtc: giving up on the RTC (%s: %s)" % (type(exc).__name__, exc))
+    ext_rtc = None
 
 batt_mon = battery.BatteryMonitor(
     i2c,
@@ -547,8 +577,13 @@ def h_latest():
         mesh["dropped"] = store.dropped_lines
     if hub.last_error:
         mesh["err"] = hub.last_error
+    # Where the hub's clock comes from. A page that knows there is a coin
+    # cell can stop treating "the hub might be at 2000-01-01" as the
+    # default case, and a flat cell is worth showing before it is the
+    # reason a week of history is labelled wrong.
+    clock = extrtc.status(ext_rtc)
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
-            "mesh": mesh}
+            "mesh": mesh, "clock": clock}
 
 
 def h_battery():
@@ -1035,6 +1070,17 @@ def h_time_set(epoch):
     now = int(time.time())
     print("clock set by client: %+ds (%d pending adjusted, %d bytes of "
           "stored records queued for relabel)" % (delta, adjusted, queued))
+    # Push it out to the coin cell as well, so the NEXT power cut costs
+    # nothing. "system": the client's time is the authoritative one here,
+    # whatever the chip currently thinks. Failing must not fail the sync
+    # -- the time is already on the system clock and the history has
+    # already been relabelled around it, so a chip that would not take the
+    # write is a thing to say on the console, not an error to report back.
+    if ext_rtc is not None:
+        try:
+            print("clock:", extrtc.sync(ext_rtc, "system"))
+        except Exception as exc:
+            print("extrtc: could not carry the time to the RTC:", exc)
     return {"ok": True, "delta_s": delta, "adjusted": adjusted, "now": now,
             "relabel": store.relabel_status()}
 

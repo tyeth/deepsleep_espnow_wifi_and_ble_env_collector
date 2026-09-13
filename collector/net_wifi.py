@@ -88,8 +88,15 @@ _EAGAIN = 11
 HTTP_DEBUG = True  # print one line per request (path, bytes, ms) -- bring-up aid
 
 
+# True once NTP has set the system clock this run. The hub reads it to
+# decide which way its RTC sync should go: a clock NTP has just set beats
+# the coin cell, and a clock nobody has set does not.
+ntp_synced = False
+
+
 def connect(ssid, password, tz_offset_h=0):
     """Connect WiFi + best-effort NTP sync. Returns ip string or None."""
+    global ntp_synced
     try:
         wifi.radio.connect(ssid, password, timeout=15)
     except (ConnectionError, ValueError, OSError) as exc:
@@ -104,6 +111,7 @@ def connect(ssid, password, tz_offset_h=0):
         pool = socketpool.SocketPool(wifi.radio)
         ntp = adafruit_ntp.NTP(pool, tz_offset=tz_offset_h, cache_seconds=3600)
         rtc.RTC().datetime = ntp.datetime
+        ntp_synced = True
         print("NTP synced")
     except Exception as exc:  # NTP failure must never kill startup
         print("NTP failed:", exc)
@@ -386,7 +394,7 @@ class WebPortal:
         if not self.tls_expiry:
             return None
         now = time.time()
-        if now < 1700000000:  # clock not synced yet (no RTC battery)
+        if now < 1700000000:  # clock not synced yet (no NTP, no RTC, no page)
             return None
         days = (self.tls_expiry - now) / 86400
         if days < 0:
