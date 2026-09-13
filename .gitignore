@@ -4,3 +4,4 @@ lib/
 settings.toml
 tools/.localcert/
 .playwright-mcp/
+build/

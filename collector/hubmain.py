@@ -294,12 +294,41 @@ _dashboard = None
 # room for the full tree?" BEFORE building it was wrong on a C6 running BLE
 # + AP + eInk: the check passed with 85KB free, the tree took ~70KB, and
 # bring-up then died allocating 2400 bytes for the ring.
-_DASH_MIN_FREE = 40000
+#
+# It has to be a reserve for what bring-up will ACTUALLY build, though, and
+# that depends on the configuration. 40000 budgets for the captive DNS, the
+# HTTP server and the BLE portal; with the AP/HTTP stack and BLE both off,
+# none of those is ever constructed and the number is charging the display
+# for rooms it will not rent. Measured on the S3 No PSRAM bench hub
+# (2026-09-13, display only): the FULL tree built and left 39,472 free and
+# was thrown away over 528 bytes, for a lite one that left 40,256 and then
+# ran happily at 23 KB. Everything after the tree costs ~17 KB in that
+# configuration, so the floor there is that plus working headroom, not 40 KB.
+_DASH_MIN_FREE = 40000 if (HTTP_WANTED or _ble_radio is not None) else 30000
+# ...and the gate BEFORE the build, which refuses to attempt the full tree
+# at all below this. It has to move with the one above or lowering that one
+# achieves nothing -- measured the hard way on the S3 No PSRAM bench hub,
+# which reported `dashboard=lite` with the post-build reserve already
+# lowered, because this gate had rejected the full tree first.
+_DASH_TRY_FULL_FREE = 60000 if (HTTP_WANTED or _ble_radio is not None) else 45000
+DASH_MODE = "none"
+DASH_WHY = "no display"
 if display is not None:
     for _slim in (False, True):
         try:
             gc.collect()
-            lite = _slim or gc.mem_free() < 60000
+            # Two gates decide this, and only ever moving the second one is
+            # how you end up certain you have the full tree and wrong: this
+            # one refuses to even ATTEMPT it below _DASH_TRY_FULL_FREE.
+            _free_before = gc.mem_free()
+            lite = _slim or _free_before < _DASH_TRY_FULL_FREE
+            if lite and not _slim:
+                DASH_WHY = ("only %d free before the build, under %d"
+                            % (_free_before, _DASH_TRY_FULL_FREE))
+            elif _slim:
+                DASH_WHY = "the full tree left too little and was rebuilt slim"
+            else:
+                DASH_WHY = "full tree fits"
             _dashboard = display_ui.Dashboard(
                 180 if display.width == 184 else display.width,
                 180 if display.height == 184 else display.height,
@@ -311,8 +340,9 @@ if display is not None:
             # showing "Loading Data" until the first dashboard refresh
             display.root_group = _dashboard.root
             gc.collect()
+            DASH_MODE = "lite" if lite else "full"
             print("dashboard tree built (%s, mem %d)"
-                  % ("lite" if lite else "full", gc.mem_free()))
+                  % (DASH_MODE, gc.mem_free()))
             if lite or gc.mem_free() >= _DASH_MIN_FREE:
                 break
             print("dashboard leaves only %d free; rebuilding it slim"
@@ -332,7 +362,11 @@ if SD_CS is not None:
         storage.mount(storage.VfsFat(_sd), "/sd")
         sd_mounted = True
         print("SD mounted")
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, MemoryError) as exc:
+        # MemoryError belongs here. On a no-PSRAM board the mount can fail
+        # for 832 bytes with the eInk already built, and a hub that dies
+        # because it could not have the SD card is strictly worse than one
+        # that logs to flash: the store falls back on its own.
         print("SD mount failed:", exc)
         # a failed SDCard() leaves the shared SPI bus LOCKED, which makes
         # every eInk refresh fail with a misleading "Refresh too soon"
@@ -478,7 +512,11 @@ try:
         i2c = busio.I2C(board.IO20, board.IO19)
     local_sensor = sensors_local.LocalSensor(i2c)
     print("SEN66:", local_sensor.product, local_sensor.serial)
-except (OSError, ValueError, RuntimeError) as exc:
+except (OSError, ValueError, RuntimeError, MemoryError) as exc:
+    # MemoryError included for the same reason as the SD mount above, and
+    # because the SEN66's own driver raises espidf.MemoryError out of an
+    # I2C write when the IDF heap is tight -- measured on the S3 bench.
+    # A hub with no local sensor still collects from its nodes.
     print("Local sensor init failed:", exc)
 
 # A battery-backed RTC, if one is fitted. This has to happen BEFORE the
@@ -1603,6 +1641,32 @@ def refresh_display(now_epoch):
 # Main loop
 # ---------------------------------------------------------------------------
 print("collector running; portal:", "http://%s/" % ip if ip else "no wifi")
+
+# A headless hub answers "what did you decide at boot?" only on a console
+# line that scrolls past in the USB re-enumeration gap -- which is exactly
+# the question you need answered when there is no portal and no screen you
+# can read remotely. Write the decisions down where they can be read at any
+# time over the REPL. Best effort: a hub that cannot write this still runs.
+try:
+    _lines = [
+        "dashboard=%s (%s)" % (DASH_MODE, DASH_WHY),
+        "dash_try_full_free=%d dash_min_free=%d"
+        % (_DASH_TRY_FULL_FREE, _DASH_MIN_FREE),
+        "display_enabled=%s" % DISPLAY_WANTED,
+        "ap_enabled=%s ble_enabled=%s" % (config.get("ap_enabled"),
+                                          config.get("ble_enabled")),
+        "storage=%s root=%s" % (store.mode, store.root),
+        "clock_synced=%s rtc=%s" % (TIME_SYNCED,
+                                    ext_rtc.chip if ext_rtc else None),
+        "free_after_bringup=%d" % gc.mem_free(),
+    ]
+    with open("/boot_status.txt", "w") as _bs:
+        for _l in _lines:
+            _bs.write(_l)
+            _bs.write(chr(10))
+    os.sync()
+except OSError as _exc:
+    print("boot status not written:", _exc)
 
 _last_sample = 0.0
 _last_record = 0.0
