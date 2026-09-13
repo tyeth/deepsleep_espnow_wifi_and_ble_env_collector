@@ -23,7 +23,7 @@
   "host_vcc_unplugged_v": 4.15,
   "node_batt_warn_v": 3.5,
   "node_batt_crit_v": 3.3,
-  "timezone_offset_h": 0,
+  "_timezone_offset_h__comment": "Rename this key to timezone_offset_h to PIN the hub's local-time offset. Hours east of UTC, fractional allowed (5.5 = India, -3.5 = Newfoundland). Left as _-prefixed it is inert, and the hub instead learns the offset from the browser that syncs its clock -- which knows about summer time, and a config file does not. Either way the CLOCK is always UTC: this offset never moves a stored timestamp, only the eInk clock line and 04:00-local calibration scheduling.",
   "rtc": "auto",
   "zones": {
     "local": "Room"

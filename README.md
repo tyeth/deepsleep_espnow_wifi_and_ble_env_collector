@@ -210,13 +210,71 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 
 ## Time service & clocks
 
+**Every clock in this project holds UTC.** The system RTC, the coin-cell
+RTC, `time.time()`, CSV rows, ESP-NOW packets, the API, what the hub
+pushes to nodes — all true Unix epochs, with nothing added. The timezone
+offset is a **separate, presentation-only** quantity used in exactly two
+places (the eInk clock line, and scheduling a calibration for 04:00
+local), and it never moves a stored timestamp.
+
 * The hub's clock syncs from a **battery-backed RTC** if one is fitted
   (see below), from **NTP** (when home WiFi is up), or from a **browser**:
   the Analyzer auto-POSTs `/api/time` on connect and has a "Sync clock"
-  button (BLE: `time <epoch>`).
+  button (BLE: `time <utc_epoch> [tz_offset_min]`).
 * Every ESP-NOW/HTTP `cfg` reply carries the epoch when the hub is
   synced; nodes set their clock from it (the ESP32's own RTC keeps ticking
-  through deep sleep).
+  through deep sleep). Nodes have no timezone setting and need none —
+  they have no screen and nothing that reasons about local time.
+
+### Timezone: the browser's by default, config to override
+
+* **By default there is no setting.** The Analyzer sends its own offset
+  (`-new Date().getTimezoneOffset()`, in minutes) alongside the epoch on
+  every clock sync, and the hub remembers it across reboots
+  (`tz_offset_min_learned`, written to `config.json` only when it
+  *changes*). A phone standing in front of the hub knows the local time
+  better than a config file written months ago in another country — and
+  it knows whether summer time is in force, which nothing else here does.
+* **To pin it instead**, rename `_timezone_offset_h__comment` in
+  `collector/config.json` to `timezone_offset_h` and give it a number:
+  hours east of UTC, fractional allowed (`5.5` India, `5.75` Nepal,
+  `-3.5` Newfoundland). JSON has no comments, so an `_`-prefixed key is
+  how the field ships switched off. An override always wins over the
+  browser, including an override of `0` — that is a choice, not an
+  absence.
+* **With neither**, the hub runs on UTC and its eInk says UTC. That is
+  the NTP-only, no-browser case: the clock is right, it just is not local.
+* `GET /api/latest` reports `clock.tz_offset_min` and `clock.tz_source`
+  (`"config"` / `"browser"` / `"utc"`), so you can see which of the three
+  you are in.
+* **Day files are UTC days**, the same 24 hours the Analyzer's own day
+  keys name, so a history sync never has to reconcile two ideas of where
+  a day ends.
+
+> **Upgrade notes.** This used to be inconsistent: NTP put *local* time on
+> the clock (`adafruit_ntp(tz_offset=...)`) while a browser put UTC on it,
+> so a hub told different stories about when a reading happened depending
+> on which source reached it first. With the shipped default (`0`, or
+> unset) nothing changes. If you were running a **non-zero**
+> `timezone_offset_h` **and** NTP:
+>
+> * existing rows are labelled local and new ones will be UTC — a one-off
+>   step of that many hours at the upgrade;
+> * a **coin-cell RTC written by the old firmware holds a local epoch**.
+>   On the first boot after upgrading, with no NTP and no browser yet, the
+>   hub adopts it as UTC and is wrong by the offset until the next sync.
+>   `/api/latest` → `clock.drift_s` shows exactly that gap. One clock sync
+>   corrects the chip permanently;
+> * `Date:` response headers and the TLS certificate-expiry margin were
+>   both off by the offset too, and are now right.
+>
+> One migration runs automatically: a `config.json` saved by an older
+> build carries `"timezone_offset_h": 0` — the old shipped default, which
+> nobody chose — and that saved copy *overrides* the file in `collector/`.
+> Left alone it would read as "pin me to UTC" and silently defeat the
+> browser-learned offset, so the hub drops exactly that value once (it
+> says so on the console) and stamps `config_rev` so it never does it
+> again. A non-zero offset you actually set is kept.
 
 ### Battery-backed RTC (optional, both boards) — `extrtc.py`
 
@@ -402,8 +460,8 @@ first wake, with or without a hub in range.
   `latest`, `battery`, `events`, `config`, `days`, `hist <day>` (streams a
   day's CSV between `#BEGIN <day> <bytes>` and `#END` — the byte count is
   what lets the page show a progress bar on a transfer that can take a
-  minute), `set <json>`, `cal <src> <1|2>`,
-  `time <epoch>`, `storage`, and `cert` — which is a short conversation
+  minute), `set <json>`, `cal <src> <1|2>`, `time <utc_epoch>
+  [tz_offset_min]`, `storage`, and `cert` — which is a short conversation
   rather than one command, because a certificate is ~5.5 KB and nothing on
   this path will take that in one piece (Web Bluetooth refuses a
   `writeValue` over 512 bytes, the hub's receive buffer is 512, and the hub
@@ -498,8 +556,10 @@ the self-configuring default:
 * **BLE** — `"ble_config_s": <seconds>` serves the same Nordic-UART portal
   the hub does, advertising as `SENSOR-xxxxxx`, for that long after each
   wake (bench mode holds it open for the whole wait). A phone gets
-  `latest`, `config`, `set <json>` and `time <epoch>`; anything the node
-  does not implement is answered with the list of what it does. Off by
+  `latest`, `config`, `set <json>` and `time <utc_epoch>` (a node takes
+  the shared command's optional `tz_offset_min` and ignores it — no
+  screen, nothing that reasons about local time); anything the node does
+  not implement is answered with the list of what it does. Off by
   default: the window is awake time a battery node pays for.
 * **Web API** — the hub's `/api/config`, which reaches the node in the next
   ESP-NOW cfg push.
@@ -691,7 +751,8 @@ collector/   hub firmware (code.py shim -> hubmain.py + modules,
 node/        node firmware (code.py shim -> nodemain.py, node_sensors.py,
              node_portal.py, ...)
              (envproto.py, net_ble.py, calref.py, battery.py and
-             extrtc.py are identical copies in both; tests check that)
+             extrtc.py are identical copies in both; checked by
+             tools/test_timezone.py, which fails if one drifts)
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
