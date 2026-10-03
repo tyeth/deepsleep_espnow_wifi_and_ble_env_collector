@@ -74,6 +74,10 @@ import node_sensors
 supervisor.runtime.autoreload = False
 
 DEFAULTS = {
+    # "" -> ble-XXXX, the id the hub gives our advertisements. Leave it so:
+    # the advertisement cannot carry a name, and a WiFi POST under any
+    # other name lands on the hub as a second source (and escapes its
+    # same-reading check). Name the node in the hub's `zones` instead.
     "name": "",
     "interval_s": 120,
     "metrics": None,
@@ -98,21 +102,22 @@ for _path in ("/node_config.json", "/saves/node_config.json"):
         pass
 
 
-def _tail(b):
-    return "%02X%02X" % (b[-2], b[-1])
-
-
 def _mac_tail():
-    """Last two bytes of the BLE address -- the same id the hub derives
-    from the advertisement (net_blescan.src_for). The WiFi MAC is a
-    fallback only: on the CYW43439 the BD_ADDR is the WiFi MAC + 1."""
+    """Last two bytes of the printed BLE address -- the same id the hub
+    derives from the advertisement (net_blescan.src_for). _bleio's
+    address_bytes is least-significant byte first, hence [1], [0]. The
+    WiFi MAC (most-significant first, so [-2], [-1]) is a fallback only,
+    and NOT the same id: on the CYW43439 the BD_ADDR is the WiFi MAC + 1,
+    so a node named from it must be mapped in the hub's `zones` by hand."""
     try:
         import _bleio
-        return _tail(_bleio.adapter.address.address_bytes)
+        b = _bleio.adapter.address.address_bytes
+        return "%02X%02X" % (b[1], b[0])
     except Exception:
         try:
             import wifi
-            return _tail(wifi.radio.mac_address)
+            b = wifi.radio.mac_address
+            return "%02X%02X" % (b[-2], b[-1])
         except Exception:
             return "0000"
 

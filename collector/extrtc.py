@@ -58,6 +58,12 @@ imported when time.time() has nothing behind it.
 
 import time
 
+# Decided once, here, and used for both reading and setting the system
+# clock -- deciding the two separately (read through caps when time.time()
+# raises, set through caps only when `import rtc` fails) would let a build
+# whose `rtc` imports but has no time source write rtc.RTC() while the
+# clock everyone reads stayed unset.
+CAPS_CLOCK = False
 try:
     time.time()
 except (RuntimeError, NotImplementedError):
@@ -66,6 +72,7 @@ except (RuntimeError, NotImplementedError):
     # counter. Only reached on such a port, so an ESP32 node never loads it.
     import caps
     time = caps.time
+    CAPS_CLOCK = True
 
 # Same line the rest of the project draws between "a real time" and "a
 # board that has just booted with no clock" (envproto, datastore, webapp).
@@ -515,13 +522,14 @@ def sync(r, trust="chip"):
 
 def _set_system(epoch):
     """The system clock := epoch. `rtc.RTC()` wherever it exists, as it
-    always was; caps' offset clock on a port without one."""
-    try:
-        import rtc
-    except ImportError:
+    always was; caps' clock wherever time.time() had nothing behind it
+    (CAPS_CLOCK). caps.set_epoch() itself still uses rtc.RTC() if caps
+    found one that works."""
+    if CAPS_CLOCK:
         import caps
         caps.set_epoch(epoch)
         return
+    import rtc
     rtc.RTC().datetime = time.localtime(epoch)
 
 

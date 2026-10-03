@@ -77,6 +77,14 @@ def main():
     check("hub packet shape", pkt["k"] == "dat" and pkt["n"] == "ble-62AC"
           and pkt["sq"] == 42 and pkt["m"]["co2"] == 612 and pkt["vb"] == 3.87)
 
+    print("node id from the BLE address")
+    import net_blescan
+    # _bleio's address_bytes for the printed address 2C:CF:67:01:62:AC:
+    # least-significant byte first
+    lsb_first = bytes([0xAC, 0x62, 0x01, 0x67, 0xCF, 0x2C])
+    check("ble-XXXX is the END of the printed address, not the OUI",
+          net_blescan.AdvReceiver.src_for(lsb_first) == "ble-62AC")
+
     print("caps clock without an RTC")
     import caps
     caps.HAS_RTC = False           # force the offset path even on a host

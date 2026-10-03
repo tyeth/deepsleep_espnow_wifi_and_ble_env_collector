@@ -476,6 +476,7 @@ def main():
     caps.HAS_RTC = False
     caps._off_ns = None
     extrtc.time = caps._NoRtcTime()
+    extrtc.CAPS_CLOCK = True
     try:
         check("an unset caps clock is not a plausible time",
               caps.now() < extrtc.PLAUSIBLE_EPOCH)
@@ -496,6 +497,7 @@ def main():
         sys.modules["rtc"] = _FakeRTCModule
         caps.HAS_RTC = caps_has_rtc
         extrtc.time = time
+        extrtc.CAPS_CLOCK = False
 
     print("collector and node copies are identical")
     here = os.path.dirname(__file__)

@@ -64,9 +64,15 @@ class AdvReceiver:
     def src_for(addr):
         """Stable node id from the advertiser address: the node's name does
         not fit the 31-byte PDU next to the reading, so the hub's `zones`
-        config maps this id to a display name."""
+        config maps this id to a display name.
+
+        `address_bytes` is least-significant byte FIRST (CircuitPython
+        stores it reversed from how addresses are printed), so the two
+        bytes that differ between boards are [1] and [0] -- the last two
+        of the printed address. [-2:] would be the vendor (OUI) end, the
+        same on every CYW43439, and every Pico node would share one id."""
         b = bytes(addr)
-        return "ble-%02X%02X" % (b[-2], b[-1])
+        return "ble-%02X%02X" % (b[1], b[0])
 
     def poll(self):
         """Yield (src, packet_dict, rssi, raw_adv_bytes) for each NEW

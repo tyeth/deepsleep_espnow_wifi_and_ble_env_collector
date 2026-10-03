@@ -1541,6 +1541,7 @@ def _cfg_reply_for(src, ack_id=None, ack_crc=None):
 #                away -- the hub is the one with the clock to spare.
 _recent_crc = {}
 _recent_at = {}
+_recent_sq = {}     # only on a hub that scans for BLE nodes: see below
 _KEEP = 4
 CONFIRMED_KINDS = ("dat", "dsc", "cal")
 
@@ -1593,6 +1594,17 @@ def take_node_packet(mac, obj, crc, rssi=None):
         if at and at > envproto.PLAUSIBLE_EPOCH:
             # keep these small: full epochs are heap-allocated big ints here
             dup = _remember(_recent_at, src, at - _boot_epoch)
+    if not dup and kind == "dat" and mac is None and scanner is not None:
+        # A node_lite with wifi_fallback sends each reading twice: as a BLE
+        # advertisement and as a WiFi POST. The CRCs differ (advertisement
+        # bytes vs JSON) and the POST has no `at` until the node's clock
+        # has been set, so neither check above can see it. Same name and
+        # same sequence number is the same reading. Only where the BLE
+        # scanner runs -- an ESP32 hub's nodes (ESP-NOW, or POSTs that
+        # carry mac=None too) never reach this. Cost: the first reading
+        # after a node_lite restart can collide with one of the last
+        # _KEEP sequence numbers and be dropped.
+        dup = _remember(_recent_sq, src, msg_id)
     if dup:
         hub.dup_count += 1
         print("duplicate %s sq=%s from %s: re-confirming, not storing"
