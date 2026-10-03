@@ -9,7 +9,8 @@ Routes (all JSON unless noted):
   GET  /api/latest          latest values for every source + alert states
   GET  /api/battery         host + node battery concerns
   GET  /api/events          active out-of-spec + tail of events.csv
-  GET  /api/history         ?day=YYYY-MM-DD -> that day's CSV from SD
+  GET  /api/history         ?day=YYYY-MM-DD -> that day's CSV: what is on
+                            storage plus any rows still buffered in RAM
   GET  /api/config          effective config
   POST /api/config          JSON body merged into config, saved to /sd/config.json
   GET  /api/calibrate       pending/scheduled calibrations + last results
@@ -185,7 +186,7 @@ def _parse_json(body):
 class _Conn:
     """One client connection progressed incrementally by WebPortal.poll()."""
     __slots__ = ("sock", "req", "out", "file", "t", "done", "t0", "path",
-                 "sent", "tls", "keep", "left")
+                 "sent", "tls", "keep", "left", "tail")
 
     def __init__(self, sock):
         self.sock = sock
@@ -199,6 +200,7 @@ class _Conn:
         self.tls = False
         self.keep = False   # HTTP keep-alive: serve further requests on this connection
         self.left = None    # bytes still to send from `file` (None = to EOF)
+        self.tail = None    # bytes to send after `file` (RAM-buffered rows)
         self.done = False
 
 
@@ -257,7 +259,19 @@ class WebPortal:
                     return _json({"days": days})
                 if day not in days:
                     return _json({"err": "no such day", "days": days})
-                return ("file", "%s/%s.csv" % (h["data_dir"](), day))
+                # records queued in RAM (storage read-only, or no card) are
+                # part of the day: they are sent after the file, or on
+                # their own when nothing for that day is on storage yet.
+                # Always this head, even with nothing queued: the static
+                # file head caches for a year, and a day file changes --
+                # today grows, and a clock sync rewrites whole days
+                tail = h["pending_csv"](day) if "pending_csv" in h else b""
+                data_dir = h["data_dir"]()
+                fpath = None if data_dir is None else (
+                    "%s/%s.csv" % (data_dir, day))
+                if fpath is None and not tail:
+                    return _json({"err": "no such day", "days": days})
+                return ("filetail", fpath, tail)
             if self.app_root and "/.." not in path:
                 return ("file", _static(path))
         elif method == "POST":
@@ -600,6 +614,9 @@ class WebPortal:
             if resp[0] == "file":
                 c.out = memoryview(
                     self._file_head(c, resp[1], ka, inm, rng, gz_ok, br_ok))
+            elif resp[0] == "filetail":
+                # a day file plus the rows still in RAM (resp[2])
+                c.out = memoryview(self._file_tail_head(c, resp[1], resp[2], ka))
             elif resp[0] == 302:  # resp[1] carries the Location
                 c.out = memoryview(self._head(302, "text/html", 0, b"Location: %s\r\n" % resp[1].encode(), keep=ka))
             else:
@@ -612,6 +629,10 @@ class WebPortal:
         while time.monotonic() < deadline:
             if len(c.out) == 0:
                 if c.file is None:
+                    if c.tail:
+                        c.out = memoryview(c.tail)   # RAM rows, no file
+                        c.tail = None
+                        continue
                     self._finish(c)
                     return
                 n = c.file.readinto(buf)
@@ -621,6 +642,10 @@ class WebPortal:
                     c.file.close()
                     c.file = None
                     c.left = None
+                    if c.tail:
+                        c.out = memoryview(c.tail)   # ...then the RAM rows
+                        c.tail = None
+                        continue
                     self._finish(c)
                     return
                 if c.left is not None:
@@ -764,9 +789,39 @@ class WebPortal:
             return self._head(206, ctype, c.left, common, keep=ka)
         return self._head(200, ctype, c.left, common, keep=ka)
 
+    def _file_tail_head(self, c, path, tail, ka):
+        """Head for a day's history: the file on storage, then `tail`.
+
+        The hub buffers readings in RAM whenever it cannot write (a
+        computer holding CIRCUITPY, a card that is missing or full), and
+        those readings are history as much as the ones in the file -- so
+        the response is the file followed by the queued rows, as one CSV
+        with one Content-Length. The file part is capped at the size it had
+        when the request arrived: a flush landing mid-transfer writes the
+        very rows `tail` carries, and the client must not see them twice.
+
+        No ETag, no Range: this body changes with every reading, and
+        `no-store` is what keeps a browser from reusing a stale copy.
+        """
+        import os
+        size = 0
+        if path is not None:
+            try:
+                st = os.stat(path)
+                c.file = open(path, "rb")
+                size = st[6]
+            except OSError:
+                c.file = None  # nothing on storage yet: the RAM rows are all
+                size = 0
+        c.left = size if c.file is not None else None
+        c.tail = tail
+        return self._head(200, "text/csv", size + len(tail),
+                          b"Cache-Control: no-store\r\n", keep=ka)
+
     def _finish(self, c):
         """Response fully sent: close, or (keep-alive) log it and await the next request."""
         c.out = None
+        c.tail = None
         if c.keep:
             if HTTP_DEBUG:
                 print("%s %s %d B %d ms (keep-alive)" % ("HTTPS" if c.tls else "HTTP", c.path, c.sent,

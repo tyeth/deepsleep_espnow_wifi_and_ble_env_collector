@@ -47,6 +47,16 @@ by Chrome; state at `chrome://on-device-internals`. See
   card. Stored in the browser (IndexedDB), so old/disparate files remain
   analysable with the device offline. Duplicate rows are merged; data gaps
   (nodes asleep, hub powered off) are detected and shaded on charts.
+  A sync reports itself as it runs — which day of how many, bytes against
+  the total the hub announced (`#BEGIN <day> <bytes>` over BLE,
+  `Content-Length` over HTTP), and one bar across the whole run. That
+  matters most over BLE, where a single day can take a minute and the
+  alternative is a page that looks hung. Setting the clock can queue a
+  rewrite of pre-clock records into day files on the hub; the page
+  follows that job on the same line and bar (polling `/api/storage`, or
+  BLE `storage`), reports what moved and how fast when it finishes, and
+  makes a sync wait for it rather than fetch days the hub is still
+  rewriting. Tests: `node webapp/tests/history_sync.test.mjs`.
 * **Charts**: Plotly (pinned CDN version, cached by the service worker for
   offline use) with threshold lines per metric.
 * **Threshold testing**: editable thresholds (prefilled from the device
@@ -115,6 +125,39 @@ by Chrome; state at `chrome://on-device-internals`. See
   Tests: `node webapp/tests/sql_validator.test.mjs` (validator, reply
   parsing, prompt builder, canned queries) and
   `node webapp/tests/check_inline.mjs` (syntax check of the inline scripts).
+
+* **HTTPS cert sync** (*sync cert*): fetches `ssl.combined` + `ssl.key` from
+  `gundryconsultancy.com` and pushes them to the hub over HTTPS or BLE. That
+  host does not send CORS headers to every origin, so a refused direct fetch
+  (a `TypeError`, as distinct from a 404 or a timeout) retries through the
+  allorigins proxy, twice with a short backoff -- its outages are usually a
+  few seconds long, and other free public CORS proxies checked while fixing
+  this (corsproxy.io, thingproxy, codetabs, cors.sh, corsfix, everyorigin,
+  whateverorigin, cors.x2u.in) turned out to be dead, paywalled or
+  rate-limited, so chaining more of them wouldn't have added real
+  reliability. The proxy sees the private key, which is only tolerable
+  because it is already published at that URL. Both halves are validated --
+  leaf + intermediate, plus a PRIVATE KEY block -- before anything reaches
+  the hub, so an HTML error page returned with status 200 cannot clobber a
+  working certificate. When every attempt fails, the message links both
+  files so they can be downloaded by hand; *upload* then takes them
+  together or one at a time.
+
+  **Over BLE the push is chunked.** A certificate is ~5.5 KB and a Web
+  Bluetooth `writeValue` refuses anything over 512 bytes, so sending it as
+  one `cert {json}` command failed before a byte left the browser (issue
+  #25) — and the hub had no `cert` command to receive it with in any case.
+  `bleCertPush` now walks `cert begin` / `cert c|k <chunk>` / `cert end`,
+  waiting for the hub's acknowledgement of each piece before sending the
+  next (that handshake is also what keeps the hub's 512-byte receive buffer
+  from overflowing), and reports the bytes moving on the cert row. Chunks
+  split on line boundaries with the newlines written as `|`: the command
+  stream is newline-delimited, and the hub tokenises with `split()`, which
+  would eat the leading space out of `-----BEGIN PRIVATE KEY-----` if a
+  chunk edge landed there.
+  Tests: `node webapp/tests/cert_sync.test.mjs`, and
+  `python tools/test_cert_ble.py`, which feeds the chunks this page
+  produces through the hub's own parser.
 
   Before changing any of this, read
   [`docs/chrome-built-in-ai-reference.md`](../docs/chrome-built-in-ai-reference.md):

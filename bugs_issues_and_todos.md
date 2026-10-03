@@ -234,6 +234,104 @@ logging + `CIRCUITPY_DEBUG`, esp_log for wifi/dhcp/nimble/espnow).
 | 10 | BLE resident → every espnow send fails 0x3067 NO_MEM (RX unaffected; deinit/reinit no help) | heap_caps_get_free/largest for MALLOC_CAP_INTERNAL with vs. without nimble; find the espnow TX alloc that fails |
 | — | node S3 wedged unresponsive (no console, no Ctrl-C) after repeated fake-sleep + espnow cycles; needed 1200bps-touch → bootloader → hard reset | reproduce with dual-USB console attached |
 
+## 2026-09-11 bench: cert sync over BLE (issue #25), and three things in the way
+
+The devkits moved onto the **Windows box's** hub for this session: the two
+USB-UART bridges are here (C6 hub `COM13`, CH343; S3 node `COM14`, CP210x),
+while the native-USB/OTG ports stay on the Pi. Opening either port resets
+that board — the console is the reset line — so every run starts from boot.
+
+### Issue #25 was three failures stacked, not one
+
+The reported error (`writeValue` "Value can't exceed 512 bytes") is only
+the first one a browser can reach:
+
+1. the page sent the whole `cert {json}` — ~5.5 KB — as one command, and
+   Web Bluetooth caps a `writeValue` at 512 bytes;
+2. had it got out, `net_ble.poll()`'s garbage guard drops the receive
+   buffer once it passes 512 bytes with no newline in it, **in silence**;
+3. and had the line arrived whole, `_dispatch` had no `cert` command at
+   all — `/api/cert` only ever existed on the HTTP portal. The reply would
+   have been `unknown cmd`.
+
+So "cert sync over BLE" had never worked; the comment in the page saying it
+was "paced by net_ble" was aspirational. Fixed by a chunked, acknowledged
+upload (`cert begin` / `cert c|k <chunk>` / `cert end`) that the hub writes
+straight to `/certs/*.new`, so the certificate is never held in RAM whole.
+
+Bench-verified on the C6 devkit (`HUB-D754`, CP 10.3.0-alpha.4), against the
+real `gundryconsultancy.com` pair:
+
+* the old behaviour, on hardware: the 5,473-byte `cert {json}` command now
+  gets `{"err": "line too long (max 512 bytes)", "cmds": [...]}` rather than
+  the silence it used to get;
+* the new one: `cert begin` → `{"max": 392, "ok": true}`, 15 acknowledged
+  chunks, `cert end` → installed. **5,363 bytes in 19.4 s**, and the hub
+  logged `certstore: installed new certificate (5363 bytes)`;
+* read back off the board: `fullchain.pem` 3,655 bytes / adler32
+  `0xfca29728` and `key.pem` 1,708 bytes / `0xec072b03` — byte-for-byte
+  what the browser sent;
+* and after a restart: `HTTPS portal on port 443 as
+  192dot168dot4dot1.gundryconsultancy.com (cert from /certs/fullchain.pem)`,
+  so mbedTLS accepts what arrived. 22 KB of heap still free with AP, HTTP,
+  HTTPS and BLE all up.
+
+`days_left` reads `null` throughout because the bench hub's clock is
+unsynced — `days_left()` is documented to return None below the 2023 epoch
+guard, so that is correct, not a fault.
+
+### Windows caches an empty GATT table, per BLE address, and will not let go
+
+Every connection to the hub came back with **only GAP (0x1800) and GATT
+(0x1801)** — no Nordic UART service — while the advertisement plainly
+carried its UUID. Not the softAP and not our code: a bare `BLERadio()` +
+`UARTService()` typed into the REPL, with no AP and no ESP-NOW, behaved the
+same. What settles it is the address: set `_bleio.adapter.address` to one
+Windows has never seen and the UART service appears immediately.
+
+`use_cached_services=False` does not bypass it, nor does cycling the
+Bluetooth radio, nor removing
+`HKLM\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\<addr>`
+(which comes straight back). **Work round it on the bench by giving the
+board a fresh BLE address**, not by fighting the cache. Worth knowing before
+reading any "the hub isn't advertising its service" report from a Windows
+client as a firmware bug.
+
+### The hub does not boot from current `main` on the C6 devkit
+
+`import wifi` (code.py line 37) fails with `MemoryError: Failed to allocate
+Wifi memory`, preceded by `wifi:esf_buf_setup_static: alloc eb fail(10)` --
+issue 12's signature -- with `CIRCUITPY_BLE_WORKFLOW = false` already in
+`settings.toml`. The board had been running an older 62 KB `code.py`; both
+`main`'s 66.7 KB one and this branch's fail. What the bench measured:
+
+* it is **not import order**: hoisting `import wifi` to the first statement
+  of `code.py`, above `board`/`displayio`/`sdcardio`, fails identically;
+* it is **not exhaustion**: `gc.mem_free()` reads **242,576** bytes at the
+  moment it fails. `esp_wifi_init()` needs its `esf_buf` pool *contiguous*,
+  and the Python heap has already taken the room;
+* the Python heap is what grew: a `code.py` that does nothing but
+  `import wifi` leaves **277,632** free and succeeds (wifi costs ~64 KB);
+* and it is **not a simple size cliff** — a comment-stripped 48.7 KB
+  `code.py` still fails, though a 62 KB one used to boot. That is
+  placement, not arithmetic.
+* **What fixes it**: make `code.py` a one-line shim over a cross-compiled
+  main module (`import hubmain`, with `hubmain.mpy` built by `mpy-cross`).
+  The hub then boots with 39.6 KB free after BLE — AP up, HTTP up, BLE
+  portal advertising. `.mpy` skips the compiler's peak and stores bytecode
+  far more compactly (67 KB of source → 23 KB of `.mpy`).
+
+That last point is a change to how the collector ships, not to this
+feature, so it is a TODO below rather than part of the cert fix.
+
+### Do not hard reset a C6 straight after writing files over the raw REPL
+
+Doing that repeatedly left the flash filesystem with `'?'` directory
+entries and most modules simply gone (`ImportError: no module named
+'envproto'`), needing `storage.erase_filesystem()` and a full redeploy.
+`f.close()` is not enough and `storage.sync()` does not exist; a **soft
+reload (Ctrl-D)** commits, and only then is pulling EN safe.
+
 ## 2026-09-02 devkit bench: channel agility verified (and what got in the way)
 
 Same two devkits. The Pi moved to 192.168.1.191 (hostname `rpi-hil003b`),
@@ -394,8 +492,53 @@ loop), times 4 attempts — a confirmation attempt can stall the main loop for
 breaker would be the code answer if that ever has to change.
 
 ## TODOs
+* [ ] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`.** The
+      hub does not boot from `main` on the C6 devkit any more (see the
+      2026-09-11 bench notes): the compiled body of a 67 KB `code.py` takes
+      the contiguous internal RAM `esp_wifi_init()` wants, with 242 KB still
+      free. `import hubmain` + `mpy-cross -o hubmain.mpy code.py` boots it
+      with 39.6 KB free after BLE. Needs a build step and a CI job, so it is
+      its own change.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
+* [x] History that would not sync to a browser (issue 9's clock TODO,
+      host-side tests in `tools/test_datastore_sync.py` and
+      `webapp/tests/history_sync.test.mjs`): RAM-buffered readings are now
+      listed by `/api/history` and served after the day file (BLE `hist`
+      too), and records logged before the clock was set go to
+      `data/unsynced.csv` and are rewritten into real day files on sync
+      instead of becoming an uncorrectable 2000-01-01. Since every
+      unsynced boot restarts at 2000-01-01, rows carry a boot id (NVM
+      counter `nvm[1..3]`, file max as fallback); at sync this boot's rows
+      get the measured offset and earlier boots are stacked before it in
+      order, flagged `0x08` estimated, so nothing collides and the
+      browser's ts|src de-dup drops nothing. **Not yet run on the bench**
+      -- the interesting cases are a C6 hub with the drive held by a PC, a
+      hub booted with no NTP that a browser then syncs, and two or three
+      power cuts before that sync (check the flagged rows land before the
+      last boot and the counter reads 0 in `/api/storage` afterwards).
+      The rewrite used to run synchronously inside `POST /api/time` (and
+      at boot when the clock was already set): hundreds of KB of file I/O
+      before that reply, seconds of no other connection served and no
+      ESP-NOW packet read. It is now a job the main loop steps
+      (`store.relabel_step()`, ~25 ms or 200 rows a pass, plan pass then
+      move, byte offset checkpointed to the `.plan` every 16 KB), reported
+      under `relabel` in `/api/storage` / BLE `storage`, with the page
+      following it and holding a sync until it is done. **Not yet timed
+      on the bench**: `relabel.last` carries `elapsed_ms` (sync to last
+      row), `work_ms` (inside steps), `steps` and `rows_per_s`, and the
+      console prints the same line at completion -- so a run needs only
+      an unsynced hub with a big `unsynced.csv` (gen it, or let a hub log
+      overnight with no NTP), a browser clock sync, and a poll of
+      `/api/storage`. Worth checking alongside: that HTTP stays
+      responsive and ESP-NOW packets keep arriving while it runs (a node
+      on a 30 s interval), how much of the wall time is the loop's own
+      work (`elapsed_ms - work_ms`), and whether 25 ms is the right
+      budget on flash, where a step that opens a new day file pays a
+      4 KB erase.
+      `unsynced.csv` is also exempt from `_rotate_oldest`, so on flash an
+      unsynced hub fills the free space until `_drop_bounded` starts
+      dropping the oldest queued readings (announced, not silent).
 * [x] Channel agility on the bench (2026-09-02, below): hub on 6 then 11,
       node re-hunts and repins; a hop then a send on channel 1 still ACKs;
       `start_ap`/`stop_ap` beside a live ESPNow object is benign on the S3
@@ -413,6 +556,11 @@ breaker would be the code answer if that ever has to change.
       verified over BLE (2 min window, ref 568/spread 8, no FRC written).
       Node-side window still needs an end-to-end run (needs espnow TX +
       a trigger path: STA-WiFi HTTP, or a PSRAM hub) -- see README.
+* [ ] AI model download progress (the other half of issue 9's "download
+      progress" box). Data transfers now report bytes against the total --
+      `#BEGIN <day> <bytes>` over BLE, `Content-Length` over HTTP -- but
+      the Prompt API model download still only says "loading"; it exposes
+      a `downloadprogress` event that should drive the same bar.
 * [ ] QT Py S3 + 2.9" tri-color HIL rig bring-up (profile `tri_2in9`).
 * [ ] GitHub Pages deploy of `webapp/` + web-BLE against the S3 node/hub.
 * [ ] Adafruit IO upload of averaged subsets (future).
@@ -486,24 +634,44 @@ https hostname; CO2 calibration collapsed at the end. Pages (HTTPS) can call
 the hub over HTTPS (CORS) - needs the hub cert; plain-http hub is blocked.
 
 ### Open items
-* [ ] **Cert sync CORS fallback** (web app `certSync()`): the direct
-      `fetch("https://www.gundryconsultancy.com/ssl.combined")` only works if
-      that server sends CORS headers. Supplement with a CORS-fixer proxy
-      fallback, e.g. allorigins (`GET https://api.allorigins.win/get?url=<enc>`
-      -> JSON `{contents}`), used only when the direct fetch throws; verify the
-      PEM parses (`-----BEGIN CERTIFICATE-----` x2 + PRIVATE KEY) before
-      pushing to the hub, and keep the file-upload path as the last resort.
-      Note the proxy sees the private key in transit -- acceptable only because
-      the key is already published on that site; prefer fixing CORS on the
-      server. Suggested shape:
-      ```js
-      async function fetchViaCors(url){
-        const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-        if(!r.ok)throw new Error("proxy "+r.status);
-        return (await r.json()).contents;
-      }
-      // in certSync(): try direct fetch; on TypeError (CORS) -> fetchViaCors(url)
-      ```
+* [x] **Cert sync CORS fallback** (web app `certSync()`) - done, then
+      hardened. The direct `fetch` of `ssl.combined` / `ssl.key` is tried
+      first; a CORS refusal arrives as a `TypeError` with no status and
+      only that falls back to the allorigins proxy. A real answer (404,
+      timeout, abort) is reported as-is rather than retried through the
+      proxy.
+      allorigins alone was found to be intermittently down (5xx/timeouts
+      from Cloudflare in front of it), which made "sync cert" flaky even
+      though the code was correct -- confirmed with repeated direct
+      `curl` hits returning 200/520/522/500 back to back. The fetch is now
+      retried once more with a ~1.2s backoff before giving up, since these
+      outages are usually a few seconds long. Checked whether chaining
+      *other* free public CORS proxies would help more: corsproxy.io now
+      requires a paid API key, thingproxy.freeboard.io's domain no longer
+      resolves, and codetabs / cors.sh / corsfix / everyorigin /
+      whateverorigin / cors.x2u.in were each dead, paywalled or
+      immediately rate-limited when tried live -- none would have added
+      real reliability, so the fix stays a retry on the one proxy known to
+      work rather than a chain of others that don't right now. The
+      durable fix remains CORS headers on `gundryconsultancy.com` itself.
+      Whatever comes back is checked by `validateCertPair()` -- leaf +
+      intermediate and a PRIVATE KEY block -- before it is pushed, so a
+      proxy or captive-portal HTML error page with status 200 cannot
+      overwrite the hub's working certificate. The proxy still sees the
+      private key in transit; that is acceptable only because the key is
+      already published at `CERT_SRC`. File upload stays the last resort,
+      and now accepts the two halves one at a time.
+      Also: `sw.js`'s `CACHE` version wasn't bumped when this feature
+      first landed, so a browser with an already-installed service worker
+      could keep being served the pre-fallback cached shell instead of
+      picking up the fix -- bumped to `envhub-v14`. Separately, the
+      same-origin fetch handler matched navigations ignoring the query
+      string (so `?demo=1` etc. hit the cached shell offline) but wrote
+      the revalidated response back keyed *with* the query string, which
+      an ignoreSearch match never returns -- so a `?query` navigation
+      could stay pinned to whatever was precached at install time forever.
+      Now writes back under the same search-stripped key it matched on.
+      Tests: `node webapp/tests/cert_sync.test.mjs`.
 * HTTPS reliability on the C6 (retest e881526; then bisect tickets / HW crypto).
 * `node packet error: OverflowError overflow converting long int to machine
   word` in the collector's node packet parsing.
