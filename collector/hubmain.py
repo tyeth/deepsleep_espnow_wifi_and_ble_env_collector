@@ -1605,7 +1605,11 @@ def _flush_ble_held(force=False):
     if not _ble_held:
         return
     now = time.monotonic()
-    for key in [k for k, v in _ble_held.items() if force or v[0] <= now]:
+    # oldest first: dicts here keep no insertion order, and the deadline is
+    # the order they were heard in
+    due = sorted((v[0], k) for k, v in _ble_held.items()
+                 if force or v[0] <= now)
+    for _, key in due:
         _, obj, crc, rssi = _ble_held.pop(key)
         try:
             take_node_packet(None, obj, crc, rssi, ble=True, hold=False)
@@ -1645,6 +1649,11 @@ def take_node_packet(mac, obj, crc, rssi=None, ble=False, hold=True):
             return None
         if len(_ble_held) >= _BLE_HOLD_MAX:
             _flush_ble_held(force=True)
+        # An advertisement carries no `at`, so a stored row is stamped when
+        # it is stored -- up to _BLE_HOLD_S late for a held one. Stamp it
+        # now, when it was heard, if the clock is worth believing.
+        if not obj.get("at") and time.time() > envproto.PLAUSIBLE_EPOCH:
+            obj["at"] = int(time.time())
         _ble_held[(src, msg_id)] = (time.monotonic() + _BLE_HOLD_S,
                                     obj, crc, rssi)
         print("dat sq=%s from %s via BLE: held up to %ds for its WiFi POST"
@@ -2080,7 +2089,10 @@ while True:
                                     sensor_type="sen66")
                 tracker.update("local", m)
                 if hb.get("crit"):
-                    store.flush()  # about to brown out? save everything now
+                    # about to brown out? save everything now -- including
+                    # BLE readings still held for their WiFi POST
+                    _flush_ble_held(force=True)
+                    store.flush()
 
         # 3. averaged record at the user cadence (stretched on flash storage)
         if now_m - _last_record >= _record_interval():
@@ -2147,6 +2159,10 @@ while True:
                                             type(exc).__name__, exc))
         if _err_streak >= 20:
             print("persistent errors: flushing data, then resetting")
+            try:
+                _flush_ble_held(force=True)
+            except Exception:
+                pass
             try:
                 store.flush()
             except Exception:
