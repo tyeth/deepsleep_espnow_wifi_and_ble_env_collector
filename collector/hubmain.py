@@ -847,6 +847,8 @@ def h_latest():
         # nodes heard as BLE advertisements (net_blescan): no confirmation
         # exists on that path, so these count receptions, not deliveries
         mesh["ble_rx"] = scanner.rx_count
+        if scanner.old_count:     # a node on an older envadv layout
+            mesh["ble_old"] = scanner.old_count
         if scanner.last_error:
             mesh["ble_err"] = scanner.last_error
     # Where the hub's clock comes from. A page that knows there is a coin
@@ -1545,6 +1547,32 @@ _recent_sq = {}     # only on a hub that scans for BLE nodes: see below
 _KEEP = 4
 CONFIRMED_KINDS = ("dat", "dsc", "cal")
 
+# A node_lite with wifi_fallback sends every reading twice -- a BLE
+# advertisement and a WiFi POST -- and the two are not equal. The
+# advertisement is the poorer copy: 31 bytes hold no pm1/pm4/pm10 and no
+# node timestamp (`at`). The POST has everything. Whichever reaches the hub
+# second is a duplicate by (name, seq) (_recent_sq), so if the advertisement
+# won the race the POST's extra fields were thrown away.
+#
+# The datastore is append-only CSV, so "store the BLE copy, then merge the
+# POST into it" is not on offer, and storing both writes every reading
+# twice. What is left is to not decide yet: a BLE copy from a node that is
+# KNOWN to POST (it has POSTed a reading since this hub booted) is held for
+# up to _BLE_HOLD_S. Its POST arriving in that time replaces it; otherwise
+# the held copy is stored when the time runs out (_flush_ble_held, from
+# the main loop), so a POST that never comes costs a delay, not a reading.
+# 30 s covers node_lite's POST, which follows its advertisement's start
+# within the WiFi join (15 s) plus request (10 s) timeouts. A node that has
+# not POSTed yet -- its first reading after a hub restart, or a BLE-only
+# node -- is stored at once as before: holding every BLE node's readings to
+# wait for a POST that will never come would only delay the page.
+# Bounded: at most _BLE_HOLD_MAX copies (the scanner's own de-dup passes
+# one per node per reading); a full hold stores the lot rather than grow.
+_ble_held = {}      # (src, seq) -> (deadline, obj, crc, rssi)
+_posters = set()    # node names that have reached us by WiFi POST
+_BLE_HOLD_S = 30
+_BLE_HOLD_MAX = 16
+
 
 def _remember(store_dict, key, value, keep=_KEEP):
     """Record value under key; True if it was already there."""
@@ -1571,7 +1599,22 @@ def _confirmation_for(src, kind, msg_id, crc, ok):
                                     why=None if ok else "hub could not store")
 
 
-def take_node_packet(mac, obj, crc, rssi=None):
+def _flush_ble_held(force=False):
+    """Store the held BLE copies whose WiFi POST did not come in time (all
+    of them with force=True: before a reset, or when the hold is full)."""
+    if not _ble_held:
+        return
+    now = time.monotonic()
+    for key in [k for k, v in _ble_held.items() if force or v[0] <= now]:
+        _, obj, crc, rssi = _ble_held.pop(key)
+        try:
+            take_node_packet(None, obj, crc, rssi, ble=True, hold=False)
+        except Exception as exc:    # one bad copy must not keep the rest
+            print("held BLE reading %s sq=%s: %s: %s"
+                  % (key[0], key[1], type(exc).__name__, exc))
+
+
+def take_node_packet(mac, obj, crc, rssi=None, ble=False, hold=True):
     """Store a node packet, then tell the node what actually happened.
 
     The confirmation carries the message id and the CRC-16 of the bytes we
@@ -1580,6 +1623,11 @@ def take_node_packet(mac, obj, crc, rssi=None):
     storing raises (a full card, a MemoryError on this very tight board) the
     node gets ok=0 and keeps the reading in its stash.
 
+    ble=True: a reading heard as a BLE advertisement (net_blescan). It may
+    be held for its richer WiFi POST copy instead of stored now (see
+    _ble_held), in which case this returns None; hold=False is the flush of
+    such a copy and stores it.
+
     Returns the reply bytes (already transmitted when mac is not None; the
     HTTP fallback returns them in its response body).
     """
@@ -1587,6 +1635,26 @@ def take_node_packet(mac, obj, crc, rssi=None):
     src = obj.get("n", "node-%s" % (envproto.mac_str(mac)[-5:] if mac else "?"))
     msg_id = obj.get("sq", 0)
     ok = True
+
+    if ble and hold and kind == "dat" and src in _posters:
+        # Decided before any _remember() below, so that nothing about this
+        # copy is recorded until it is either superseded or stored.
+        if (msg_id in _recent_sq.get(src, ())
+                or (src, msg_id) in _ble_held):
+            hub.dup_count += 1        # its POST is already in (or held)
+            return None
+        if len(_ble_held) >= _BLE_HOLD_MAX:
+            _flush_ble_held(force=True)
+        _ble_held[(src, msg_id)] = (time.monotonic() + _BLE_HOLD_S,
+                                    obj, crc, rssi)
+        print("dat sq=%s from %s via BLE: held up to %ds for its WiFi POST"
+              % (msg_id, src, _BLE_HOLD_S))
+        return None
+    if not ble and kind == "dat" and mac is None and scanner is not None:
+        _posters.add(src)
+        if _ble_held.pop((src, msg_id), None) is not None:
+            print("dat sq=%s from %s: WiFi POST replaces the held BLE copy"
+                  % (msg_id, src))
 
     dup = _remember(_recent_crc, (src, kind), crc)
     if not dup and kind == "dat":
@@ -1603,7 +1671,8 @@ def take_node_packet(mac, obj, crc, rssi=None):
         # scanner runs -- an ESP32 hub's nodes (ESP-NOW, or POSTs that
         # carry mac=None too) never reach this. Cost: the first reading
         # after a node_lite restart can collide with one of the last
-        # _KEEP sequence numbers and be dropped.
+        # _KEEP sequence numbers and be dropped. Which copy is kept, where
+        # it matters, is _ble_held's business (above).
         dup = _remember(_recent_sq, src, msg_id)
     if dup:
         hub.dup_count += 1
@@ -1618,10 +1687,17 @@ def take_node_packet(mac, obj, crc, rssi=None):
             ok = False
             print("storing %s from %s failed: %s: %s"
                   % (kind, src, type(exc).__name__, exc))
-            # forget it, so the node's retry is treated as new
+            # forget it, so the node's retry is treated as new -- by every
+            # check that recorded it: a sequence number left in _recent_sq
+            # would drop the next copy of this same reading (its POST, or
+            # the advertisement still on air) as a duplicate of one that
+            # was never stored
             seen = _recent_crc.get((src, kind))
             if seen and crc in seen:
                 seen.remove(crc)
+            seen = _recent_sq.get(src)
+            if seen and msg_id in seen:
+                seen.remove(msg_id)
 
     reply = _confirmation_for(src, kind, msg_id, crc, ok)
     if mac is not None:
@@ -1733,8 +1809,20 @@ _mem("after BLE")
 # radio time for nothing -- and "ble_scan_nodes": true turns it on there.
 # Broadcast has no reply path: the reading is stored, nothing goes back to
 # the node (config and time reach such nodes over WiFi POST, if at all).
+#
+# Where ESP-NOW exists (an ESP32) the scanner may only use a BLE adapter the
+# EARLY block already brought up: AdvReceiver sets adapter.enabled, and
+# enabling BLE this late, beside a running softAP, is the ESP32-C6 hard
+# fault the early block's ordering exists to avoid (and BLE + softAP do not
+# coexist on the C6 alpha at all). So "ble_scan_nodes": true with
+# "ble_enabled": false is refused there, out loud, rather than tried.
 scanner = None
-if caps.HAS_BLE and config.get("ble_scan_nodes", not caps.HAS_ESPNOW):
+if (caps.HAS_BLE and config.get("ble_scan_nodes", not caps.HAS_ESPNOW)
+        and caps.HAS_ESPNOW and _ble_radio is None):
+    print("BLE node scan refused: on an ESP32 it needs BLE brought up at "
+          "boot (\"ble_enabled\": true, and that early start succeeding) -- "
+          "enabling the adapter now, after the softAP, is the C6 hard fault")
+elif caps.HAS_BLE and config.get("ble_scan_nodes", not caps.HAS_ESPNOW):
     try:
         import net_blescan
         scanner = net_blescan.AdvReceiver(
@@ -1931,7 +2019,9 @@ while True:
             print("storage: filesystem taken; logging to", store.root)
     if _reset_at[0] and now_m >= _reset_at[0]:
         # requested over HTTP/BLE: get the buffered data onto storage first
+        # -- including BLE readings still waiting for their WiFi POST
         try:
+            _flush_ble_held(force=True)
             store.flush()
         except Exception as exc:
             print("flush before reset failed:", exc)
@@ -1955,12 +2045,17 @@ while True:
         #     at most every few seconds (net_blescan). take_node_packet with
         #     mac=None stores and de-duplicates exactly like the ESP-NOW
         #     path and sends nothing back -- there is nowhere to send it.
+        #     ble=True: a node that also POSTs has its copy held a moment
+        #     for the richer POST (_ble_held); the flush stores the ones
+        #     whose POST did not come.
         if scanner is not None:
             for _src, obj, rssi, raw in scanner.poll():
                 try:
-                    take_node_packet(None, obj, envproto.crc16(raw), rssi)
+                    take_node_packet(None, obj, envproto.crc16(raw), rssi,
+                                     ble=True)
                 except Exception as exc:
                     print("BLE node packet error:", type(exc).__name__, exc)
+            _flush_ble_held()
         if hub.needs_reset and not _reset_at[0]:
             # the receiver is dead (corrupt ring buffer, CP issue 9816) and
             # cannot be rebuilt under the softAP: same path as an HTTP/BLE
