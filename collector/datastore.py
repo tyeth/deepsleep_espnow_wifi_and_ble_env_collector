@@ -458,7 +458,18 @@ class DataStore:
 
     def _day_of(self, ts):
         """The day file a timestamp belongs in -- UNSYNCED_DAY while the
-        clock is still the one the board booted with."""
+        clock is still the one the board booted with.
+
+        These are **UTC days**, because the clock is UTC and no timezone
+        offset is applied to a stored timestamp anywhere in this project.
+        That is deliberate and it matches the Analyzer, whose own dayOf()
+        is `toISOString().slice(0,10)`: hub day files and browser day keys
+        name the same 24 hours, so a sync never has to reconcile two
+        different ideas of where a day ends. (CircuitPython's
+        time.localtime() has no timezone of its own -- it is a plain
+        epoch-to-fields conversion -- so this is UTC precisely because the
+        clock is.)
+        """
         if ts < PLAUSIBLE_EPOCH:
             return UNSYNCED_DAY
         t = time.localtime(ts)

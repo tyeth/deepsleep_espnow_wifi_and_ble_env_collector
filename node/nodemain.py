@@ -1143,7 +1143,14 @@ def h_ble_config_set(body):
             "in RAM only and will be lost at reset"}
 
 
-def h_ble_time(epoch):
+def h_ble_time(epoch, tz_offset_min=None):
+    """Set this node's clock from a phone. UTC, like everywhere else.
+
+    `tz_offset_min` is accepted and ignored: the shared BLE dispatcher
+    passes it because the hub wants it (for its eInk clock and 04:00-local
+    scheduling), and a node has no screen and nothing that reasons about
+    local time. Its readings are UTC epochs and stay that way.
+    """
     apply_hub_time(int(epoch))
     return {"ok": True, "ts": int(time.time())}
 

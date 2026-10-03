@@ -363,6 +363,23 @@ for _root in ("/sd", "/saves", "/"):
         _deep_merge(config, _ov)
         break
 
+# Config migration. `config_rev` is absent from anything an older build
+# wrote, which is exactly the signal needed here: the saved override layer
+# beats the shipped file, and every config saved before the UTC change
+# carries "timezone_offset_h": 0 -- the old shipped default, which nobody
+# chose. Left in place it reads as a deliberate "pin me to UTC", silently
+# defeating the browser-learned offset on every upgraded hub. So drop that
+# one value, once. A non-zero offset is a real setting and is kept (it now
+# means display-only, which is what its owner wanted from it anyway).
+CONFIG_REV = 2                 # 2: clocks are UTC, the offset is display-only
+if config.get("config_rev", 1) < CONFIG_REV:
+    if config.get("timezone_offset_h") == 0:
+        del config["timezone_offset_h"]
+        print("config: dropped timezone_offset_h=0 left over from before the "
+              "clock became UTC; the timezone now comes from whichever "
+              "browser syncs the clock (set the key again to pin it)")
+    config["config_rev"] = CONFIG_REV
+
 # ---------------------------------------------------------------------------
 # WiFi (settings.toml may have auto-connected us already)
 # ---------------------------------------------------------------------------
@@ -373,7 +390,9 @@ elif HTTP_WANTED:
     ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
     pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
     if ssid:
-        ip = net_wifi.connect(ssid, pw or "", config.get("timezone_offset_h", 0))
+        # No timezone here: NTP sets the clock to UTC like everything else
+        # does. See net_wifi.connect() and _tz_offset() below.
+        ip = net_wifi.connect(ssid, pw or "")
 
 MAC = envproto.mac_str(wifi.radio.mac_address)
 print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
@@ -381,13 +400,35 @@ print("collector MAC (nodes self-discover it over ESP-NOW):", MAC)
 # boot log that names the reset reason is the only way to spot them here.
 print("reset reason:", microcontroller.cpu.reset_reason)
 
-# hub time service: synced by NTP (net_wifi.connect above), by a battery-
-# backed RTC if one is fitted (below, once the I2C bus exists), or by a
-# browser via POST /api/time / BLE "time <epoch>"; pushed to nodes in
-# every cfg reply.
+# ---------------------------------------------------------------------------
+# Time service.
+#
+# THE CLOCK IS UTC. Every stored timestamp -- CSV rows, ESP-NOW packets,
+# the API, what goes on the RTC chip, what is pushed to nodes -- is a true
+# Unix epoch, and `time.time()` is that epoch with nothing added to it.
+# Synced by NTP (net_wifi.connect above), by a battery-backed RTC if one is
+# fitted (below, once the I2C bus exists), or by a browser via
+# POST /api/time / BLE "time <epoch> [tz_offset_min]".
+#
+# The timezone offset is a SEPARATE, presentation-only quantity. It is used
+# in exactly two places -- the eInk clock line, and scheduling a
+# calibration for "04:00 local" -- and never to shift a timestamp anyone
+# stores or transmits.
+# ---------------------------------------------------------------------------
 ext_rtc = None                 # set at the I2C bring-up further down
 TIME_SYNCED = time.localtime()[0] >= 2025
 print("clock:", "synced" if TIME_SYNCED else "UNSYNCED (waiting for RTC/NTP/browser)")
+
+
+def _tz_offset():
+    """(seconds east of UTC, where that came from) -- see calref.offset_s.
+
+    Kept as a one-liner here because it reads from the live `config`,
+    which the handlers below mutate; the resolution itself lives in
+    calref, where a host test can reach it.
+    """
+    return calref.offset_s(config)
+
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
@@ -580,8 +621,12 @@ def h_latest():
     # Where the hub's clock comes from. A page that knows there is a coin
     # cell can stop treating "the hub might be at 2000-01-01" as the
     # default case, and a flat cell is worth showing before it is the
-    # reason a week of history is labelled wrong.
+    # reason a week of history is labelled wrong. `ts` above and
+    # `clock.now` are UTC; tz_offset_min is what the eInk adds to them and
+    # tz_source says who decided that -- "utc" means nobody has yet.
     clock = extrtc.status(ext_rtc)
+    tz_s, clock["tz_source"] = _tz_offset()
+    clock["tz_offset_min"] = tz_s // 60
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
             "mesh": mesh, "clock": clock}
 
@@ -615,6 +660,20 @@ def h_config_get():
     return config
 
 
+def _persist_config():
+    """Write config.json where the store keeps it. True if it landed."""
+    if store.root is None:
+        return False
+    try:
+        with open(store.root.rstrip("/") + "/config.json", "w") as f:
+            json.dump(config, f)
+        os.sync()
+        return True
+    except OSError as exc:
+        print("config save failed:", exc)
+        return False
+
+
 def h_config_set(body):
     if not isinstance(body, dict):
         return {"err": "expected object"}
@@ -623,15 +682,7 @@ def h_config_set(body):
     store.flush_interval_s = config.get("sd_flush_interval_s", 600)
     store.flush_max_pending = config.get("sd_flush_max_pending", 24)
     batt_mon.unplugged_v = config.get("host_vcc_unplugged_v", 4.35)
-    saved = False
-    if store.root is not None:
-        try:
-            with open(store.root.rstrip("/") + "/config.json", "w") as f:
-                json.dump(config, f)
-            os.sync()
-            saved = True
-        except OSError as exc:
-            print("config save failed:", exc)
+    saved = _persist_config()
     _display_dirty[0] = True
     return {"ok": True, "saved_to_sd": saved, "config": config}
 
@@ -712,7 +763,10 @@ def h_calibrate(src, step, opts=None):
             return {"err": "hub clock not synced: sync it (browser / BLE "
                            "'time') to schedule, or use when='now'"}
         if when in ("4am", "next", ""):
-            at = calref.next_local_time(now, config.get("timezone_offset_h", 0),
+            # calref works in hours and takes a UTC epoch, which is what
+            # `now` is; _tz_offset() is the one place that decides whose
+            # idea of local we are using (override, browser, or UTC).
+            at = calref.next_local_time(now, _tz_offset()[0] / 3600.0,
                                         hour=config.get("cal_hour_local", 4))
         else:
             try:
@@ -1033,8 +1087,16 @@ def h_storage(body=None):
     return state
 
 
-def h_time_set(epoch):
+def h_time_set(epoch, tz_offset_min=None):
     """Set the hub clock (browser time via web page / BLE).
+
+    `epoch` is UTC, and stays UTC: it is written to the clock unmodified.
+    `tz_offset_min` is the browser's own offset from UTC in minutes
+    (`-new Date().getTimezoneOffset()`), which is a different thing and is
+    only remembered so the eInk can say a local time and a calibration can
+    be scheduled for 04:00 local. Minutes rather than hours because not
+    every zone is a whole number of them. Optional: an older page, or a
+    `time <epoch>` typed at the BLE console, just does not teach us one.
 
     Everything logged with the boot clock is moved onto the real timeline
     from here: records still queued in RAM are shifted now (instant), and
@@ -1060,6 +1122,12 @@ def h_time_set(epoch):
         return {"err": "epoch (seconds) required"}
     if epoch < envproto.PLAUSIBLE_EPOCH:
         return {"err": "implausible epoch"}
+    # Setting the clock and queueing the relabel come FIRST, and nothing
+    # optional runs before them. They are the work this request exists to
+    # do; the timezone is a nicety, and a nicety that threw -- an `inf`
+    # in the JSON reaching int(), a config write failing on a full card --
+    # used to mean the clock was never set, the history never relabelled
+    # and the page never answered.
     delta = epoch - int(time.time())
     rtc.RTC().datetime = time.localtime(epoch)
     adjusted = queued = 0
@@ -1070,18 +1138,43 @@ def h_time_set(epoch):
     now = int(time.time())
     print("clock set by client: %+ds (%d pending adjusted, %d bytes of "
           "stored records queued for relabel)" % (delta, adjusted, queued))
+
+    # Now the timezone, if the client offered one. Persisted only when it
+    # CHANGES: a sync happens on every page connect and a flash write per
+    # connect is wear for nothing, whereas a zone changes twice a year.
+    tz_learned = tz_saved = None
+    try:
+        mins, changed = calref.learn_tz(config, tz_offset_min)
+        if changed:
+            tz_learned = mins
+            tz_saved = _persist_config()
+            _display_dirty[0] = True
+            print("clock: timezone learned from the client: %+d min%s%s"
+                  % (mins,
+                     "" if config.get("timezone_offset_h") is None
+                     else " (the config override still wins)",
+                     "" if tz_saved else " (NOT saved: no writable storage)"))
+    except Exception as exc:
+        print("clock: could not learn the timezone (%s: %s)"
+              % (type(exc).__name__, exc))
     # Push it out to the coin cell as well, so the NEXT power cut costs
-    # nothing. "system": the client's time is the authoritative one here,
-    # whatever the chip currently thinks. Failing must not fail the sync
-    # -- the time is already on the system clock and the history has
-    # already been relabelled around it, so a chip that would not take the
-    # write is a thing to say on the console, not an error to report back.
+    # nothing. UTC, like everything else -- the chip is storing an epoch,
+    # not a wall clock, so it never needs touching when the zone changes
+    # or summer time starts. "system": the client's time is the
+    # authoritative one here, whatever the chip currently thinks. Failing
+    # must not fail the sync -- the time is already on the system clock
+    # and the history has already been relabelled around it, so a chip
+    # that would not take the write is a thing to say on the console, not
+    # an error to report back.
     if ext_rtc is not None:
         try:
             print("clock:", extrtc.sync(ext_rtc, "system"))
         except Exception as exc:
             print("extrtc: could not carry the time to the RTC:", exc)
+    tz_s, tz_src = _tz_offset()
     return {"ok": True, "delta_s": delta, "adjusted": adjusted, "now": now,
+            "tz_offset_min": tz_s // 60, "tz_source": tz_src,
+            "tz_learned": tz_learned, "tz_saved": tz_saved,
             "relabel": store.relabel_status()}
 
 
@@ -1490,6 +1583,7 @@ def refresh_display(now_epoch):
             status_line=_status_line(),
             now=now_epoch,
             storage_mode=store.mode,
+            tz_offset_s=_tz_offset()[0],
         )
         # NEVER set root_group = None (re-shows the console splash, whose
         # supervisor auto-refresh starves user refreshes)

@@ -545,14 +545,28 @@ breaker would be the code answer if that ever has to change.
         12.5 pF, which should be ~20–30 ppm fast (a couple of seconds a
         day). If a node ever has to hold time for months without a hub,
         that wants a config knob.
-* [ ] **NTP writes local time, `/api/time` writes UTC.** `net_wifi.connect`
-      applies `timezone_offset_h` to what it puts on the clock; the webapp
-      POSTs a plain UTC epoch. Pre-existing, and harmless while the clock
-      is volatile — but the RTC makes it stick: with a non-zero offset the
-      two paths now rewrite the coin cell by the offset each time, and
-      `/api/latest`'s `clock.drift_s` will show it. Pick one (UTC on the
-      clock, offset applied at display time, is the one that does not lie
-      to the day-file names) and fix both ends together.
+* [x] **NTP wrote local time, `/api/time` wrote UTC** — fixed by making
+      **every clock UTC**. `net_wifi.connect` no longer takes a timezone
+      at all (`adafruit_ntp(tz_offset=0)`), so `time.time()` is a true
+      epoch everywhere it is written down: CSV rows, ESP-NOW packets, the
+      API, the RTC chip, what the hub pushes to nodes. Day files are
+      therefore UTC days, which is what the Analyzer's own `dayOf()`
+      already used.
+      The offset survives as a **presentation-only** value with exactly
+      two consumers — the eInk clock line and 04:00-local calibration
+      scheduling — resolved in one place (`calref.offset_s`): config
+      override, else the last browser's offset (`tz_offset_min_learned`,
+      sent with every clock sync and persisted only when it changes),
+      else UTC. `collector/config.json` ships the override switched off
+      as `_timezone_offset_h__comment`, since JSON has no comments.
+      `tools/test_timezone.py` covers the precedence, the fractional
+      zones (India, Nepal, Chatham) and the UTC↔04:00-local round trip.
+      **Upgrade note:** a hub that was running non-zero
+      `timezone_offset_h` *with* NTP has existing rows labelled local and
+      new ones in UTC — a one-off step at the upgrade. The shipped
+      default (0/unset) is unaffected. Not benched; nothing here needs
+      hardware, but the eInk clock line and a real NTP sync are worth an
+      eyeball on the next bench run.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,
