@@ -31,8 +31,10 @@ CIRCUITPY_BLE_WORKFLOW = false
 # ---------------------------------------------------------------------------
 # Home WiFi (OPTIONAL -- the hub runs its own AP and does not need this).
 #
-# Set these and CircuitPython auto-connects before code.py runs, which is
-# what gets the hub an NTP clock. LEAVE THEM COMMENTED OUT unless you are
+# Set these and CircuitPython auto-connects before code.py runs; the hub
+# then asks NTP for the time (UTC) at boot and writes it to the RTC chip if
+# one is fitted. Without them the clock comes from the RTC or from a
+# browser's "Sync clock". LEAVE THEM COMMENTED OUT unless you are
 # filling in real credentials: a settings.toml shipping a placeholder SSID
 # costs a failed association and its timeout on every single boot.
 # ---------------------------------------------------------------------------

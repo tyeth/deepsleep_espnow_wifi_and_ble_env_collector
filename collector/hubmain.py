@@ -50,12 +50,77 @@ import envproto  # tiny; needed for the early AP SSID
 # workflow (which boots before user code) alongside our early AP.
 # Full evidence in bugs_issues_and_todos.md. ESP-NOW is light; it waits.
 # ---------------------------------------------------------------------------
+# The keys this block reads, mirrored into NVM whenever they were saved
+# somewhere it cannot look yet. A hub with a card keeps its config overrides
+# on /sd -- and the card is not mounted until well after the radios are up,
+# so without the mirror an "ap_enabled": false saved from the web UI would
+# be honoured by everything except the one place that decides it.
+#   nvm[16]      0xEC when nvm[17:19] (little-endian) is the length of a
+#                JSON object at nvm[19:]
+# (nvm[0:4] belong to boot.py and datastore -- see datastore.py.)
+EARLY_KEYS = ("ap_enabled", "ap_ssid", "ap_password", "ap_channel",
+              "ble_enabled", "ble_name", "display_enabled",
+              "wifi_tx_power_dbm")
+_EARLY_NVM_AT = 16
+_EARLY_NVM_MAGIC = 0xEC
+_EARLY_NVM_MAX = 512    # a 32-char SSID + 63-char password is ~270 bytes
+
+
 def _early_cfg():
     try:
         with open("/config.json") as f:
-            return json.load(f)
+            cfg = json.load(f)
     except (OSError, ValueError):
-        return {}
+        cfg = {}
+    try:
+        nvm = microcontroller.nvm
+        if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+            n = nvm[_EARLY_NVM_AT + 1] | (nvm[_EARLY_NVM_AT + 2] << 8)
+            at = _EARLY_NVM_AT + 3
+            cfg.update(json.loads(bytes(nvm[at:at + n]).decode()))
+    except (TypeError, IndexError, ValueError, UnicodeError):
+        pass   # no NVM, or a torn write: the shipped file alone is fine
+    return cfg
+
+
+def _mirror_early(saved):
+    """Keep the NVM copy of EARLY_KEYS in step with the saved overrides.
+
+    `saved` is the override layer that lives off the flash root (/sd or
+    /saves), or None when there is none -- then the mirror is cleared, so
+    a hand edit of /config.json is never outvoted by a stale copy. Writes
+    only on a change: NVM is flash, and this runs every boot.
+    """
+    try:
+        nvm = microcontroller.nvm
+        if nvm is None:
+            return
+        if saved is None:
+            if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+                nvm[_EARLY_NVM_AT] = 0
+            return
+        blob = json.dumps(dict((k, saved[k]) for k in EARLY_KEYS
+                               if k in saved)).encode()
+        n = len(blob)
+        if n > _EARLY_NVM_MAX:
+            # Clear rather than keep the last good copy: an old SSID and
+            # password that the page no longer shows are worse than the
+            # shipped defaults, which at least match /config.json.
+            print("config: radio settings too long to mirror (%d bytes); "
+                  "the next boot uses /config.json's" % n)
+            if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+                nvm[_EARLY_NVM_AT] = 0
+            return
+        head = bytes((_EARLY_NVM_MAGIC, n & 0xFF, n >> 8))
+        end = _EARLY_NVM_AT + 3 + n
+        if bytes(nvm[_EARLY_NVM_AT:end]) == head + blob:
+            return
+        # One slice assignment, so one commit of the NVM page -- a reset
+        # lands either side of it, never between a header and its body.
+        nvm[_EARLY_NVM_AT:end] = head + blob
+        print("config: radio settings mirrored to NVM for the next boot")
+    except (TypeError, IndexError, ValueError, AttributeError) as exc:
+        print("config: could not mirror radio settings to NVM:", exc)
 
 _ecfg = _early_cfg()
 AP_SSID = (os.getenv("ENVHUB_AP_SSID")
@@ -396,6 +461,18 @@ for _root in ("/sd", "/saves", "/"):
     if _ov:
         _deep_merge(config, _ov)
         break
+# The early block above could only read /config.json (plus the NVM mirror
+# of what was saved last time). If the layer that won here lives anywhere
+# else, mirror its radio keys for the next boot -- a card edited on a PC,
+# or one swapped for another hub's, otherwise never reaches them.
+# A slot whose card did not mount THIS boot proves nothing about where the
+# settings live, so the mirror is left alone rather than cleared by a
+# single bad mount.
+if _ov and _root != "/":
+    _mirror_early(_ov)
+elif sd_mounted or SD_CS is None:
+    _mirror_early(None)
+del _ov
 
 # Config migration. `config_rev` is absent from anything an older build
 # wrote, which is exactly the signal needed here: the saved override layer
@@ -420,6 +497,11 @@ if config.get("config_rev", 1) < CONFIG_REV:
 ip = None
 if wifi.radio.connected:
     ip = str(wifi.radio.ipv4_address)
+    # Auto-connected from settings.toml, so connect() below never runs --
+    # and NTP has to be asked for here or not at all. (HTTP_WANTED counts
+    # that SSID, so net_wifi is imported whenever this can happen.)
+    if HTTP_WANTED:
+        net_wifi.sync_ntp()
 elif HTTP_WANTED:
     ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
     pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
@@ -440,7 +522,7 @@ print("reset reason:", microcontroller.cpu.reset_reason)
 # THE CLOCK IS UTC. Every stored timestamp -- CSV rows, ESP-NOW packets,
 # the API, what goes on the RTC chip, what is pushed to nodes -- is a true
 # Unix epoch, and `time.time()` is that epoch with nothing added to it.
-# Synced by NTP (net_wifi.connect above), by a battery-backed RTC if one is
+# Synced by NTP (net_wifi above), by a battery-backed RTC if one is
 # fitted (below, once the I2C bus exists), or by a browser via
 # POST /api/time / BLE "time <epoch> [tz_offset_min]".
 #
@@ -663,6 +745,10 @@ def h_latest():
     # `clock.now` are UTC; tz_offset_min is what the eInk adds to them and
     # tz_source says who decided that -- "utc" means nobody has yet.
     clock = extrtc.status(ext_rtc)
+    # What config asked for, beside what was found: "auto" with a chip in
+    # `rtc` is the page's cue to offer saving that chip by name, which is
+    # the reliable setting (two chips share 0x51 -- see extrtc).
+    clock["rtc_config"] = config.get("rtc", "auto")
     tz_s, clock["tz_source"] = _tz_offset()
     clock["tz_offset_min"] = tz_s // 60
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
@@ -706,10 +792,13 @@ def _persist_config():
         with open(store.root.rstrip("/") + "/config.json", "w") as f:
             json.dump(config, f)
         os.sync()
-        return True
     except OSError as exc:
         print("config save failed:", exc)
         return False
+    # "/" means the override IS /config.json, which the early block reads
+    # for itself; anywhere else it needs the NVM copy (see EARLY_KEYS).
+    _mirror_early(config if store.root.rstrip("/") else None)
+    return True
 
 
 def h_config_set(body):
@@ -1655,6 +1744,11 @@ try:
         "display_enabled=%s" % DISPLAY_WANTED,
         "ap_enabled=%s ble_enabled=%s" % (config.get("ap_enabled"),
                                           config.get("ble_enabled")),
+        # ESP-NOW is the one transport that is never configurable -- the
+        # early block starts it unconditionally -- which is exactly why it
+        # belongs here: "is collection actually on?" should be answerable
+        # without reading the source to find out that it always is.
+        "espnow=%s channel=%s" % (hub.enabled, _radio_channel()),
         "storage=%s root=%s" % (store.mode, store.root),
         "clock_synced=%s rtc=%s" % (TIME_SYNCED,
                                     ext_rtc.chip if ext_rtc else None),

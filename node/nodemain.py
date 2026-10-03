@@ -87,7 +87,14 @@ MEM_CAL_TGT = 9      # uint16 LE target ppm; bit15 = dry, bit14 = ASC mode
                      # (MEM_CAL_DURM below is in 15-minute units: 48 h ASC fits)
 MEM_CAL_AT = 11      # uint32 LE epoch the window starts
 MEM_CAL_DURM = 15    # uint8 window minutes
-STASH_START = 16
+MEM_RTC = 16         # "rtc": "auto" result, so a wake does not rescan the
+                     # bus: 0 not looked yet, n = extrtc.CHIPS[n - 1],
+                     # RTC_NONE = nothing found (re-checked every
+                     # RTC_RECHECK boots, so a missed chip is not lost
+                     # for good). Any reset clears it and looks again.
+RTC_NONE = 0xFF
+RTC_RECHECK = 64
+STASH_START = 17
 # stashed reading: ts(I) tc*100(h) rh*100(H) co2(H) pm25*10(H) voc(H)
 #                  nox(H) vb_mv(H) -- 18 bytes
 _STASH_FMT = "<IhHHHHHH"
@@ -103,7 +110,7 @@ _NOVAL = 0xFFFF
 # read back, so a later cold boot cannot resurrect a stale stash. NVM[0:8] is
 # the pinned collector, so the mirror starts after it.
 BENCH_NVM_AT = 8
-BENCH_NVM_MAGIC = 0xE5
+BENCH_NVM_MAGIC = 0xE6   # bumped when the sleep_memory layout moves
 BENCH_MIRROR = STASH_START + 8 * _STASH_REC
 
 
@@ -431,7 +438,30 @@ else:
 # battery until the cell died, and an RTC is an optional part whose
 # drivers are third-party.
 try:
-    ext_rtc = extrtc.attach(i2c, config.get("rtc", "auto"))
+    _rtc_want = config.get("rtc", "auto")
+    _rtc_auto = _rtc_want in (None, True) or str(_rtc_want).lower() == "auto"
+    if _rtc_auto:
+        _rtc_want = "auto"
+        # Detection is an I2C scan plus a read of every candidate that
+        # answers, on every wake, on battery -- for an answer that does not
+        # change between wakes. Remember it in sleep memory instead.
+        _seen = alarm.sleep_memory[MEM_RTC]
+        if 1 <= _seen <= len(extrtc.CHIPS):
+            _rtc_want = extrtc.CHIPS[_seen - 1]
+            print("extrtc: %s, found on an earlier wake" % _rtc_want)
+        elif (_seen == RTC_NONE
+              and alarm.sleep_memory[MEM_BOOTS] % RTC_RECHECK):
+            _rtc_want = "off"
+    ext_rtc = extrtc.attach(i2c, _rtc_want)
+    if _rtc_auto and _rtc_want == "auto":
+        alarm.sleep_memory[MEM_RTC] = (
+            extrtc.CHIPS.index(ext_rtc.chip) + 1 if ext_rtc is not None
+            else RTC_NONE)
+    elif _rtc_auto and _rtc_want != "off" and ext_rtc is None:
+        # The remembered chip would not even build (attach() reports that
+        # and returns None rather than raising): forget it and detect again
+        # next wake, instead of retrying a chip that has gone.
+        alarm.sleep_memory[MEM_RTC] = 0
     if ext_rtc is not None:
         # Default "chip" trust: nothing has told this node the time yet,
         # and the coin cell keeps it far better than the ESP32's own
@@ -448,6 +478,7 @@ try:
 except Exception as exc:
     print("extrtc: giving up on the RTC (%s: %s)" % (type(exc).__name__, exc))
     ext_rtc = None
+    alarm.sleep_memory[MEM_RTC] = 0   # whatever was remembered: look again
 
 if sensor is None:
     print("no sensor found; retrying in %ds" % interval)

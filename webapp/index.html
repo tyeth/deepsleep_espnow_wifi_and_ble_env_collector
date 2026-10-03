@@ -111,6 +111,11 @@ a{color:var(--acc)}
   <button id="btn-fs-pc" class="sec" title="a computer gets the CIRCUITPY drive for drag-and-drop; the hub cannot log while it does">PC drive</button>
   <span class="mut" id="storage-note"></span>
  </div>
+ <div class="row" id="clock-row" hidden>
+  <span>clock:</span>
+  <span class="mut" id="clock-note"></span>
+  <button id="btn-rtc-pin" class="sec" hidden></button>
+ </div>
  <div class="row">
   <button id="btn-sync" disabled>Sync days from device</button>
   <!-- a BLE day can take a minute at ~20 bytes a notification, so the bar
@@ -628,7 +633,7 @@ async function httpConnect(){
   const r=await fetch(base+"/api/latest",{signal:AbortSignal.timeout(6000)});
   if(!r.ok)throw new Error("HTTP "+r.status);
   httpBase=base;chip("chip-http","http: on",true);
-  try{calFillSources(await r.clone().json());}catch(e){}
+  try{const latest=await r.clone().json();calFillSources(latest);clockShow(latest);}catch(e){}
   try{storageShow(await storageStatus());}catch(e){}
   $("btn-sync").disabled=false;
   setStatus("conn-note","connected");
@@ -804,10 +809,82 @@ async function syncClock(auto){
     (r.relabelled?`, ${r.relabelled} stored records relabelled`:"")+
     fmtRelabelQueued(r.relabel)+")");
    if(r.relabel)watchRelabel(r.relabel);
+   // drift and "NOT set" are stale now. HTTP only: BLE replies are lines
+   // matched to commands in order, and an unawaited one could take another
+   // command's reply (BLE users see it on their next connect)
+   if(httpBase)clockRefresh();
   }
   else setStatus("conn-note",auto?"":"clock sync: "+(r.err||"failed"),
    false,!auto);
  }catch(e){setStatus("conn-note",auto?"":"clock sync failed: "+e,false,!auto);}
+}
+
+/* --- where the hub's clock comes from, and saving an auto-detected RTC.
+   "rtc": "auto" makes the hub guess at every boot from what answers at
+   0x51/0x68, and two different chips answer at 0x51; naming the chip it
+   found is the reliable setting, so once one is found the page offers to
+   save it. An older hub sends no `clock` and the row stays hidden. --- */
+const RTC_OFF=["off","none","no","false","disabled"];
+function clockShow(latest){
+ const c=latest&&latest.clock;
+ const b=$("btn-rtc-pin");
+ if(!c){$("clock-row").hidden=true;return "";}
+ $("clock-row").hidden=false;
+ const cfg=c.rtc_config===undefined||c.rtc_config===null||c.rtc_config===true
+  ?"auto":c.rtc_config===false?"off":String(c.rtc_config).toLowerCase();
+ const auto=cfg==="auto",off=RTC_OFF.includes(cfg);
+ let msg,pin=null,bad=false;
+ if(c.rtc){
+  msg=`RTC ${c.rtc.toUpperCase()}`+(typeof c.addr==="number"?` at 0x${c.addr.toString(16).toUpperCase()}`:"")
+   +(auto?" (auto-detected)":" (from config)");
+  if(c.lost_power)msg+=", lost power - the next clock sync sets it";
+  else if(typeof c.drift_s==="number")
+   msg+=`, ${c.drift_s>=0?"+":""}${c.drift_s}s from the hub clock`;
+  if(auto)pin=c.rtc;
+ }
+ else if(off)msg="no RTC (off in config)";
+ else if(auto)msg="no RTC found at the last boot - the time is lost at every power cut";
+ else{msg=`config names RTC "${c.rtc_config}" but it did not answer`;pin="auto";bad=true;}
+ if(!c.synced){msg+="; hub clock NOT set";bad=true;}
+ setStatus("clock-note",msg,false,bad);
+ b.hidden=!pin;
+ if(pin){
+  b.dataset.rtc=pin;
+  b.textContent=pin==="auto"?"Detect RTC at boot":`Save RTC as ${pin.toUpperCase()}`;
+  b.title=pin==="auto"
+   ?'set "rtc": "auto" in the hub config: it scans for a chip at every boot'
+   :`write "rtc": "${pin}" to the hub config: it builds that chip at boot`
+    +" instead of guessing from whatever answers at its address";
+ }
+ return msg;
+}
+async function hubLatest(){
+ if(httpBase)return(await fetch(httpBase+"/api/latest")).json();
+ if(bleIO)return bleJSON("latest");
+ return null;
+}
+async function clockRefresh(){try{return clockShow(await hubLatest());}catch(e){return "";}}
+async function rtcPin(){
+ const rtc=$("btn-rtc-pin").dataset.rtc;
+ if(!rtc)return;
+ setStatus("clock-note","saving...",true);
+ try{
+  let r;
+  if(httpBase)r=await(await fetch(httpBase+"/api/config",{method:"POST",
+   body:JSON.stringify({rtc})})).json();
+  else if(bleIO)r=await bleJSON("set "+JSON.stringify({rtc}));
+  else{setStatus("clock-note","connect first",false,true);return;}
+  if(!r||!r.ok){setStatus("clock-note","save failed: "+((r&&r.err)||"no reply"),
+   false,true);return;}
+  const msg=await clockRefresh();
+  // "rtc" is only read at boot, so a save is all there is to it --
+  // saved_to_sd means any storage, despite the name
+  setStatus("clock-note",(msg?msg+" - ":"")+(r.saved_to_sd
+   ?"saved; the hub uses it from its next boot"
+   :"NOT saved: the hub could not write its config (a computer holds the "
+    +"drive?), so nothing changes at the next boot"),
+   false,!r.saved_to_sd);
+ }catch(e){setStatus("clock-note","save failed: "+e,false,true);}
 }
 
 /* --- the hub's clock relabel, watched --- */
@@ -904,7 +981,7 @@ async function bleConnect(){
    setStatus("conn-note","BLE disconnected",false,true);});
   chip("chip-ble","ble: on",true);$("btn-sync").disabled=false;
   setStatus("conn-note","BLE connected");
-  try{calFillSources(await bleJSON("latest"));}catch(e){}
+  try{const latest=await bleJSON("latest");calFillSources(latest);clockShow(latest);}catch(e){}
   // a relabel the hub queued at boot (NTP got there first): follow it, so
   // a sync waits for it rather than reading half-rewritten days. An
   // older hub answers `storage` with an error JSON: no relabel, nothing.
@@ -1584,6 +1661,7 @@ if(isSecureContext && "serviceWorker" in navigator){
 $("btn-http").onclick=httpConnect;
 $("btn-ble").onclick=bleConnect;
 $("btn-time").onclick=()=>syncClock(false);
+$("btn-rtc-pin").onclick=rtcPin;
 $("btn-fs-mcu").onclick=()=>storageSet("mcu");
 $("btn-fs-pc").onclick=()=>storageSet("pc");
 $("btn-cal1").onclick=calStep1;$("btn-cal2").onclick=calStep2;
