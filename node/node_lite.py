@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 """
 node_lite - the sensor node for boards WITHOUT ESP-NOW or deep sleep:
-Raspberry Pi Pico W (RP2040, ~30-40 KB of heap) and Pico 2 W (RP2350) on
+Raspberry Pi Pico W (RP2040, a heap of ~16.5 KB on the current firmware
+-- see "Budget" below) and Pico 2 W (RP2350) on
 CircuitPython's Zephyr port. node/code.py picks this over nodemain (the
 ESP32 node) when `espnow` or `alarm` is missing, imports it -- which sets
 everything up -- and then calls run(), which never returns.
@@ -33,18 +34,30 @@ What it does NOT do, honestly:
     reopen that question without settling it -- adafruit_ble frozen into
     the Pico W image costs ~10 KB instead (tyeth/circuitpython#23), and a
     real softAP exists from tyeth/circuitpython#22 -- but the Pico W's
-    firmware also grew ~10 KB for TCP, and none of it has been measured
-    together. Configure by editing node_config.json on CIRCUITPY (or over
+    firmware has grown since (TCP, then the CircuitPython-11 rebase) to
+    ~16.5 KB of heap, and none of it has been measured together. Configure by editing node_config.json on CIRCUITPY (or over
     the hub's WiFi POST cfg reply).
-  * keep a clock across power cuts. There is no `rtc` on these boards
-    (caps keeps an uptime-based clock, set by the hub's cfg reply), and
-    no extrtc either: a reading broadcast as an advertisement carries no
+  * keep a clock across power cuts. The Pico 2 W has no `rtc` (caps keeps
+    an uptime-based clock, set by the hub's cfg reply); the Pico W has one
+    since the CircuitPython-11 rebase, but it is the SoC's counter and
+    forgets on power-off just the same. No extrtc either: a reading broadcast as an advertisement carries no
     timestamp -- the hub stamps it on receipt -- so a coin cell would buy
     this node nothing for the ~5 KB of heap extrtc costs.
 
+Budget, and the risk in it. tools/board_budget.py puts node_lite + caps +
+envadv + node_sensors + net_bleadv at ~19 KB of heap once loaded (.mpy x
+1.2), before a sensor driver (adafruit_scd4x + bus_device ~9 KB). The Pico
+W firmware rebased onto CircuitPython 11 (ci/pico2w-ble-assets @
+393be068ab) uses 253,516 B of the RP2040's 264 KB statically, which leaves
+~16.5 KB -- so as built this node does NOT fit a Pico W, and code.py will
+say so rather than crash. The firmware is where that is won back:
+CONFIG_BT_MAX_CONN=1 in the Pico W board .conf returns ~2.9 KB per
+connection dropped (~11.6 KB from 5), and a node that only advertises uses
+none. Nothing here has been measured on that firmware yet.
+
 Deploy as .mpy (tools/build_mpy.sh / tools/build_bundle.sh): compiling this
-file from source on a 30-40 KB heap is exactly the kind of peak that fails
-at boot.
+file from source on a heap this size is exactly the kind of peak that
+fails at boot.
 """
 
 import gc

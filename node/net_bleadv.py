@@ -5,7 +5,8 @@ net_bleadv - broadcast a reading as a BLE advertisement (node side).
 
 Raw `_bleio`, no adafruit_ble: on a Pico W the adafruit_ble import chain
 is most of the board (~22 KB from `.mpy`; ~10 KB where the firmware has it
-frozen, tyeth/circuitpython#23 -- still a third of the heap, for a
+frozen -- tyeth/circuitpython#23, 20 adafruit_ble modules frozen in the
+CircuitPython-11 rebase -- which is still most of a ~16.5 KB heap, for a
 broadcast that needs none of it). The hub's matching receiver is
 collector/net_blescan.py; the byte layout is envadv.py.
 

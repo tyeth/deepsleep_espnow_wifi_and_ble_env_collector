@@ -15,13 +15,18 @@ running CircuitPython's Zephyr port (`ports/zephyr-cp`,
 `sys.platform == "Zephyr"`) several of those do not, and two of the gaps
 do not announce themselves:
 
-  * `rtc` is absent, and with it the time source behind `time.time()` and
-    zero-argument `time.localtime()`: both raise
-    `RuntimeError: RTC is not supported on this board` (confirmed on a
-    Pico 2 W). `time.localtime(secs)` and `time.mktime()` are pure
+  * On the Pico 2 W `rtc` is absent, and with it the time source behind
+    `time.time()` and zero-argument `time.localtime()`: both raise
+    `RuntimeError: RTC is not supported on this board` (confirmed on the
+    board). `time.localtime(secs)` and `time.mktime()` are pure
     conversions and keep working, so `now()` below keeps its own epoch
     offset against `time.monotonic_ns()`, and `caps.time` is a stand-in
-    for the `time` module whose `time()` and `localtime()` read it.
+    for the `time` module whose `time()` and `localtime()` read it. The
+    Pico W is different since the fork was rebased onto CircuitPython 11
+    (ci/pico2w-ble-assets @ 393be068ab): upstream gave it an `rtc` module
+    from its devicetree RTC node, which the Pico 2 W's devicetree lacks.
+    So this is probed, never assumed per board: where `rtc` imports AND
+    time.time() works, caps simply uses them.
   * `wifi.radio.start_ap()` on zephyr-cp depends on the firmware. Before
     tyeth/circuitpython#22 it was an empty stub: it returned without error
     and `wifi.radio.ap_active` stayed False, so code that trusted the call

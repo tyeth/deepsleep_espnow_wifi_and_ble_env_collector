@@ -49,7 +49,7 @@ Interface, for callers:
     extrtc.sync(r)                  # boot: the chip is the better clock
     extrtc.sync(r, "system")        # after NTP / a browser / a hub reply
 
-On a port with no `rtc` at all (the Pico boards on CircuitPython's Zephyr
+On a port with no `rtc` at all (the Pico 2 W on CircuitPython's Zephyr
 port, where `time.time()` raises) "the system clock" is caps' offset
 clock instead, and this chip is what lets such a board know the time
 after a power cut. Nothing changes for a board with an RTC: caps is only

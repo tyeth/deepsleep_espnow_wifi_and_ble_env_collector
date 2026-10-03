@@ -53,7 +53,9 @@ node_lite is imported (which sets it up) and then run(). A MemoryError
 from the import means the node does not fit this board's heap -- said
 plainly, with the REPL left reachable, rather than as a traceback from
 somewhere inside a driver. Deploy `.mpy` there above all: compiling
-source on a 30-40 KB heap is the peak that fails first.
+source on a Pico W's heap (~16.5 KB on the CircuitPython-11 rebase of
+its firmware -- node_lite.py's "Budget" note) is the peak that fails
+first.
 """
 
 try:

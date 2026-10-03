@@ -31,8 +31,8 @@ reload appears to succeed, so only a hard reset tells you the truth.
 
 **The one check that has to live here**, because it has to run before
 hubmain's bytecode is loaded: is there room for the hub at all? A
-Raspberry Pi Pico W (RP2040, ~30-40 KB of heap after its firmware) would
-load hubmain for a while and then die with a MemoryError somewhere
+Raspberry Pi Pico W (RP2040, ~16.5 KB of heap after its current firmware)
+would load hubmain for a while and then die with a MemoryError somewhere
 unhelpful -- so below `_HUB_MIN_FREE` this file says why and idles with the
 REPL reachable. The Pico W runs node/ instead. Capability, not board id;
 every other gate (no ESP-NOW, no RTC, no user SPI, AP *or* station) is a
@@ -41,12 +41,13 @@ every other gate (no ESP-NOW, no RTC, no user SPI, AP *or* station) is a
 Why the floor is only 40 KB, when the hub needs far more than that: on the
 Zephyr port `gc.mem_free()` reports the heap's *current* size, not what it
 can grow to. A Pico 2 W reads ~70 KB at a bare REPL yet allocates ~208 KB
-before MemoryError (measured; see pico_w_zephyr.md), so a gate at the
-hub's real need (PR #11 used 128 KB) would refuse the one Pico that can
-run it. 40 KB sits under the smallest number a board that can run the hub
-reports, and over everything a Pico W can report. Every ESP32 is far above
-it (the C6 has ~277 KB here), so on them this is one comparison and then
-exactly the line it always was.
+before MemoryError (measured on the firmware before the CircuitPython-11
+rebase, which costs it ~31 KB more static RAM; see pico_w_zephyr.md), so a
+gate at the hub's real need (PR #11 used 128 KB) would refuse the one Pico
+that can run it. 40 KB sits under the smallest number a board that can
+run the hub reports, and over everything a Pico W can report. Every ESP32
+is far above it (the C6 has ~277 KB here), so on them this is one
+comparison and then exactly the line it always was.
 """
 
 import gc

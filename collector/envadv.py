@@ -5,19 +5,22 @@ envadv - one sensor reading packed into a BLE *legacy advertisement*.
 
 This exact file is deployed to BOTH the collector and the nodes (a copy
 lives in collector/ and node/ -- keep them identical). It is deliberately
-tiny and JSON-free: a Raspberry Pi Pico W node has ~30-40 KB of heap in
-total and this is its whole transport.
+tiny and JSON-free: a Raspberry Pi Pico W node has tens of KB of heap at
+most (~16.5 KB by the ELF arithmetic on the CircuitPython-11 rebase of the
+firmware) and this is its whole transport.
 
 Why a broadcast and not a connection. The reason this was first written
 down -- "the controller allows one BLE connection" -- turned out to be
 Zephyr's default CONFIG_BT_MAX_CONN=1, not a CYW43439 limit; the
-tyeth/circuitpython firmware now builds with 4 (tyeth/circuitpython#19),
-though more than one at a time has not yet been run on this controller.
+firmware now builds with 5 (upstream zephyr-cp prj.conf, after the fork's
+own 4 in tyeth/circuitpython#19), though more than one at a time has not
+yet been run on this controller -- and each one costs a Pico W ~2.9 KB of
+static RAM it can ill afford.
 What still holds: a node that only advertises needs no connection at
 either end, no pairing, and no adafruit_ble on a board whose heap is
 counted in tens of KB, and the hub can scan for it while advertising its
-own UART service (a combination still to be run on hardware). So this stays the transport for now, and a
-connection-based one (with ESP-NOW's message-id + CRC-16 confirmation
+own UART service (a combination still to be run on hardware). So this
+stays the transport for now, and a connection-based one (with ESP-NOW's message-id + CRC-16 confirmation
 back) is the open alternative. The price of broadcast is that it is
 fire-and-forget: there is no delivery confirmation and no cfg push back
 to the node over this path; the node repeats the same advertisement for
