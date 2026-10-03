@@ -492,13 +492,16 @@ loop), times 4 attempts — a confirmation attempt can stall the main loop for
 breaker would be the code answer if that ever has to change.
 
 ## TODOs
-* [ ] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`.** The
-      hub does not boot from `main` on the C6 devkit any more (see the
-      2026-09-11 bench notes): the compiled body of a 67 KB `code.py` takes
-      the contiguous internal RAM `esp_wifi_init()` wants, with 242 KB still
-      free. `import hubmain` + `mpy-cross -o hubmain.mpy code.py` boots it
-      with 39.6 KB free after BLE. Needs a build step and a CI job, so it is
-      its own change.
+* [x] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`**
+      (2026-09-11). The hub had stopped booting on the C6 devkit: the
+      compiled body of a 67 KB `code.py` takes the contiguous internal RAM
+      `esp_wifi_init()` wants, with 242 KB still free. `collector/code.py`
+      is now `import hubmain`, the body is `collector/hubmain.py`, and
+      `tools/build_bundle.sh` cross-compiles it. Bench: clean hard reset,
+      AP + HTTPS + BLE all up, 22 KB free after BLE.
+      **The `.mpy` is load-bearing** — `hubmain.py` copied to the board as
+      source fails exactly as the old `code.py` did, and a soft reload
+      hides it (it boots; only a hard reset does not).
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,

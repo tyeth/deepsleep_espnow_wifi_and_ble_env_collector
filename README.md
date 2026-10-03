@@ -533,6 +533,28 @@ practical ones you need before touching the boards.
   before you flash: code, modules, `lib/`, `certs/`, `www/`.
 * **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
   a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
+* **On the C6 the hub's `hubmain.mpy` is not optional.** `collector/code.py`
+  is a one-line `import hubmain`, because the *compiled body of code.py* is
+  resident before its first statement runs and a 67 KB one denies
+  `esp_wifi_init()` the **contiguous** internal RAM its `esf_buf` pool needs
+  — the hub died at `import wifi` with `MemoryError: Failed to allocate Wifi
+  memory` and `wifi:esf_buf_setup_static: alloc eb fail(10)` **with 242 KB
+  of heap still free**. Not import order (hoisting `import wifi` to line 1
+  fails the same), not a size cliff (a comment-stripped 48.7 KB code.py also
+  fails). Copying `hubmain.py` to the board as source and letting the board
+  compile it fails identically, so:
+
+  ```sh
+  mpy-cross -o hubmain.mpy collector/hubmain.py
+  ```
+
+  and deploy `hubmain.mpy` — **not** `hubmain.py` — alongside the one-line
+  `code.py`. A **soft reload (Ctrl-D) boots the source version fine**, so it
+  looks like it works; only a hard reset tells the truth. Note that
+  `code.py` itself must stay **source**: CircuitPython looks for
+  `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`, so any
+  build step that byte-compiles the whole directory has to copy this one
+  through untouched.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The
