@@ -492,13 +492,97 @@ loop), times 4 attempts — a confirmation attempt can stall the main loop for
 breaker would be the code answer if that ever has to change.
 
 ## TODOs
-* [ ] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`.** The
-      hub does not boot from `main` on the C6 devkit any more (see the
-      2026-09-11 bench notes): the compiled body of a 67 KB `code.py` takes
-      the contiguous internal RAM `esp_wifi_init()` wants, with 242 KB still
-      free. `import hubmain` + `mpy-cross -o hubmain.mpy code.py` boots it
-      with 39.6 KB free after BLE. Needs a build step and a CI job, so it is
-      its own change.
+* [x] **Ship `code.py` as a shim over a cross-compiled `hubmain.mpy`**
+      (2026-09-11). The hub had stopped booting on the C6 devkit: the
+      compiled body of a 67 KB `code.py` takes the contiguous internal RAM
+      `esp_wifi_init()` wants, with 242 KB still free. `collector/code.py`
+      is now `import hubmain`, the body is `collector/hubmain.py`, and
+      `tools/build_mpy.sh` cross-compiles it. Bench: clean hard reset,
+      AP + HTTPS + BLE all up, 22 KB free after BLE.
+      **The `.mpy` is load-bearing** — `hubmain.py` copied to the board as
+      source fails exactly as the old `code.py` did, and a soft reload
+      hides it (it boots; only a hard reset does not).
+* [x] **Same shim for the node** (`node/code.py` → `import nodemain`, body
+      in `node/nodemain.py`). Not a fix for an observed failure: the node
+      runs on the S3 bench board and has never shown the fault. But its
+      body was 46.9 KB — under the comment-stripped 48.7 KB that failed on
+      the hub, over the 62 KB that used to boot — which is the band where
+      placement, not size, decides, and a node has no console to tell you
+      about it. Wanted anyway to run a node on a C6.
+      **Still to bench:** hard-reset a node built this way and confirm a
+      full wake → report → deep-sleep cycle, including that
+      `alarm.sleep_memory` survives the sleep (a soft reload wipes it, so
+      Ctrl-D proves nothing here either).
+* [x] **Battery-backed RTC on both boards** (`extrtc.py`, identical copy
+      in `collector/` and `node/`; `"rtc"` config key, default `"auto"`).
+      Closes the one gap the ESP32's own clock cannot: it survives a soft
+      reload and a deep sleep, not a power cut. With a coin cell the hub
+      boots knowing the time — no 2000-01-01 day file and no retro-label
+      job — and a node timestamps its stash from the first wake with no
+      hub in range. `sync()` is the single place the two clocks meet, so
+      NTP and browser syncs are also what *sets* a new RTC.
+      PCF85063A is driven directly (no Adafruit CP library exists for it);
+      PCF8563 / DS3231 / PCF8523 / DS1307 work through theirs if
+      installed. `tools/test_extrtc.py` covers the register map, the
+      shared-address detection and all four `sync()` cases against a
+      simulated bus.
+      **Still to bench** (nothing here has touched real hardware yet):
+      * a PCF85063A on the hub's STEMMA bus — detect, `sync()` both
+        directions, then **pull the power** and confirm the boot log says
+        `system clock set from pcf85063a` and no relabel job is queued;
+      * the same on a node, across a deep sleep *and* across a cell
+        change, checking stash timestamps land in the right day;
+      * whether `"auto"` actually picks the right chip on a board that
+        has one, or whether we end up telling people to name it. The
+        0x51/0x68 collisions are a hardware fact; the validation is a
+        good guess, not a proof, and the bench is where that gets
+        settled. (DS3231 vs DS1307 is already known to be undecidable —
+        identical registers at an identical address — so that one must
+        be named.)
+      * the coin-cell draw over a week, if it turns out to matter.
+      * how far the PCF85063A actually runs off: `extrtc.py` leaves
+        `CAP_SEL` at the power-on 7 pF and most breakout crystals are
+        12.5 pF, which should be ~20–30 ppm fast (a couple of seconds a
+        day). If a node ever has to hold time for months without a hub,
+        that wants a config knob.
+* [x] **NTP wrote local time, `/api/time` wrote UTC** — fixed by making
+      **every clock UTC**. `net_wifi.connect` no longer takes a timezone
+      at all (`adafruit_ntp(tz_offset=0)`), so `time.time()` is a true
+      epoch everywhere it is written down: CSV rows, ESP-NOW packets, the
+      API, the RTC chip, what the hub pushes to nodes. Day files are
+      therefore UTC days, which is what the Analyzer's own `dayOf()`
+      already used.
+      The offset survives as a **presentation-only** value with exactly
+      two consumers — the eInk clock line and 04:00-local calibration
+      scheduling — resolved in one place (`calref.offset_s`): config
+      override, else the last browser's offset (`tz_offset_min_learned`,
+      sent with every clock sync and persisted only when it changes),
+      else UTC. `collector/config.json` ships the override switched off
+      as `_timezone_offset_h__comment`, since JSON has no comments.
+      `tools/test_timezone.py` covers the precedence, the fractional
+      zones (India, Nepal, Chatham) and the UTC↔04:00-local round trip.
+      **Upgrade note:** a hub that was running non-zero
+      `timezone_offset_h` *with* NTP has existing rows labelled local and
+      new ones in UTC — a one-off step at the upgrade. The shipped
+      default (0/unset) is unaffected. Not benched; nothing here needs
+      hardware, but the eInk clock line and a real NTP sync are worth an
+      eyeball on the next bench run.
+* [x] **"The S3 hub logs nothing and the SD never mounts"** — both
+      diagnosed on the bench 2026-09-13, and **neither was what it looked
+      like**. The SD is fine: a 16 GB FAT card that mounts first time
+      (`storage: sd /sd`). The hub had never logged to a *day file* only
+      because it had never had a clock — every row was in
+      `data/unsynced.csv`, which is correct behaviour, not a fault. The
+      "no data anywhere" reading was an artefact of listing `/sd` while
+      the card was **unmounted**, which shows the flash decoy directory
+      holding `placeholder.txt` instead. Delete that decoy; it fools you
+      exactly once per person.
+      What *was* real: the hub died at boot with `espidf.MemoryError` out
+      of the SEN66 driver, and later at `MemoryError` in the SD mount and
+      the MAX17048 — none of which were caught, because
+      `MemoryError` is not an `OSError`/`ValueError`/`RuntimeError`. Those
+      two handlers now include it, so a tight board degrades (no card, no
+      local sensor) instead of not booting at all.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,

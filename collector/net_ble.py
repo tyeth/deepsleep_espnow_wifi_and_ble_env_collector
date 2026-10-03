@@ -258,7 +258,12 @@ class BleUartPortal:
                             opts["duration_s"] = int(wl)
                     self._send(h["calibrate"](src, step, opts))
             elif cmd == "time" and len(parts) > 1:
-                self._send(h["time_set"](parts[1]))
+                # "time <utc_epoch> [tz_offset_min]" -- the second word is
+                # the CLIENT's offset from UTC, not a correction to the
+                # epoch. Optional, so a human typing `time 1789305045` at
+                # the console still works and simply teaches no timezone.
+                self._send(h["time_set"](
+                    parts[1], parts[2].strip() if len(parts) > 2 else None))
             elif cmd == "cert":
                 # A certificate is ~5.5 KB: too big for a writeValue (512),
                 # for the RX buffer (512) and for the hub's heap. So it goes
@@ -299,7 +304,8 @@ class BleUartPortal:
         "config_get": "config", "config_set": "set <json>",
         "list_days": "days", "history_lines": "hist <day>",
         "cal_status": "cal", "calibrate": "cal <src> 1 | cal <src> 2 "
-        "[4am|now] [dur_s] [dry|asc]", "time_set": "time <epoch>",
+        "[4am|now] [dur_s] [dry|asc]",
+        "time_set": "time <utc_epoch> [tz_offset_min]",
         "storage": "storage",
         "cert": "cert | cert begin | cert c|k <chunk> | cert end",
     }

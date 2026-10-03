@@ -1,22 +1,61 @@
-# Copy to settings.toml on the CIRCUITPY drive and fill in.
-# CircuitPython auto-connects when CIRCUITPY_WIFI_SSID is set.
-CIRCUITPY_WIFI_SSID = "your-ssid"
-CIRCUITPY_WIFI_PASSWORD = "your-password"
+# CircuitPython supervisor settings. Read BEFORE boot.py and code.py run,
+# which is the whole point of the first setting below.
+#
+# Copy to settings.toml on the CIRCUITPY drive and edit.
 
-# Optional: keep the USB drive name obvious
-# CIRCUITPY_WEB_API_PASSWORD = ""
-
-# CircuitPython's own BLE workflow advertises as CIRCUITPY{mac} from the same
-# adapter as our portal, with its file-transfer GATT: leave it on and clients
-# can be handed the wrong service set, and the adapter name reverts to
-# CIRCUITPYxxxx whenever it re-advertises. The hub also turns it off at
-# runtime, but this stops it ever starting.
+# ---------------------------------------------------------------------------
+# REQUIRED. Turn off CircuitPython's BUILT-IN BLE workflow (the BLE
+# file/serial service that advertises as CIRCUITPYxxxx for editing code over
+# BLE).
+#
+# It defaults to true and it starts before code.py, so by the time the hub's
+# `import wifi` runs there is already a BLE stack resident holding internal
+# RAM. On the C6 that is enough to make esp_wifi_init() fail to get its
+# contiguous esf_buf pool:
+#
+#     W (5397) wifi:esf_buf_setup_static: alloc eb fail(10)
+#     MemoryError: Failed to allocate Wifi memory
+#
+# It also competes with our own portal: the adapter name reverts to
+# CIRCUITPYxxxx whenever it re-advertises, and a client can be handed the
+# wrong service set from its cache.
+#
+# NOTE this is NOT the same switch as config.json's "ble_enabled", which only
+# gates our own net_ble portal and the early BLE bring-up in hubmain. Turning
+# app BLE off does nothing about the workflow -- only this setting does, and
+# the hub's own runtime `supervisor.runtime.ble_workflow = False` runs far
+# too late to undo the memory it has already taken.
+# ---------------------------------------------------------------------------
 CIRCUITPY_BLE_WORKFLOW = false
 
-# Who may write the filesystem on a board with USB mass storage (S3/S2;
-# the C6 has no drive so this is moot). "mcu" -- the default in boot.py --
-# means the hub can log its readings and NO drive appears on a computer;
-# "pc" gives the drive back and the hub logs nothing. Hold the BOOT button
-# at power-up to force "pc" for one boot when you need to copy files on.
-# The web page and POST /api/storage can switch it at runtime.
+# ---------------------------------------------------------------------------
+# Home WiFi (OPTIONAL -- the hub runs its own AP and does not need this).
+#
+# Set these and CircuitPython auto-connects before code.py runs, which is
+# what gets the hub an NTP clock. LEAVE THEM COMMENTED OUT unless you are
+# filling in real credentials: a settings.toml shipping a placeholder SSID
+# costs a failed association and its timeout on every single boot.
+# ---------------------------------------------------------------------------
+# CIRCUITPY_WIFI_SSID = "your-ssid"
+# CIRCUITPY_WIFI_PASSWORD = "your-password"
+
+# Optional: password for CircuitPython's own web workflow API.
+# CIRCUITPY_WEB_API_PASSWORD = ""
+
+# ---------------------------------------------------------------------------
+# Who may write the filesystem on a board with USB mass storage (S3/S2; the
+# C6 has no drive so this is moot). "mcu" -- the default in boot.py -- means
+# the hub can log its readings and NO drive appears on a computer; "pc"
+# gives the drive back and the hub logs nothing. Hold the BOOT button at
+# power-up to force "pc" for one boot when you need to copy files on. The
+# web page and POST /api/storage can switch it at runtime.
+# ---------------------------------------------------------------------------
 # ENVHUB_USB_DRIVE = "pc"
+
+# ---------------------------------------------------------------------------
+# Optional overrides for the hub's own AP, if you would rather not put them
+# in config.json. Blank/absent means BASE{mac-hex} with no password.
+# ---------------------------------------------------------------------------
+# ENVHUB_AP_SSID = "BASE1234"
+# ENVHUB_AP_PASSWORD = ""
+# ENVHUB_BLE_NAME = "HUB-1234"

@@ -208,14 +208,182 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 * **Config push**: every check-in's `cfg` reply carries interval, enabled
   metrics, ASC-off policy, pending calibration, and the current epoch.
 
+## Radios: pick one on a board without PSRAM
+
+`config.json` ships **`ap_enabled: true`, `ble_enabled: false`**, and that
+is a memory budget rather than a preference. Measured on the bench
+(2026-09-13, Feather ESP32-S3 **No PSRAM**, everything shipped as `.mpy`):
+with the early block bringing up BLE *and* ESP-NOW *and* the softAP, the
+very next import — `datastore` — dies with
+
+```
+MemoryError: memory allocation failed, allocating 158 bytes
+```
+
+The radios themselves all came up fine (`early BLE advertising as
+HUB-7DD4`, `early ESP-NOW up`, `early AP up: BASE217DD4 @ 192.168.4.1`);
+what runs out is the GC heap that has to hold the rest of the hub. This is
+the same wall the C6 hits (see `bugs_issues_and_todos.md`) and it applies
+to **any** no-PSRAM board, S3 included.
+
+### The measured matrix, with frozen libraries
+
+Every combination tried on the bench hub (Feather ESP32-S3 **No PSRAM**,
+firmware with this project's 22 libraries **frozen**, application as
+`.mpy`, 2026-09-13). "ESP-NOW" is always on — the early block starts it
+unconditionally, so even the display-only row is still collecting from
+nodes.
+
+| display | AP | BLE | result |
+|---|---|---|---|
+| ✅ | — | — | **runs**, 22.3 KB free steady, eInk refreshing |
+| — | ✅ | — | **runs**, 33.5 KB free, HTTP portal on `:80` |
+| ✅ | ✅ | — | ✗ `MemoryError` — dashboard built with 14.5 KB, then died |
+| ✅ | — | ✅ | ✗ **hard fault** → safe mode |
+| — | ✅ | ✅ | ✗ **hard fault** → safe mode |
+| ✅ | ✅ | ✅ | ✗ **hard fault** → safe mode |
+
+**Exactly one of {display, AP, BLE} at a time on a no-PSRAM board.** Any
+second one is a hard fault or an OOM, and no amount of freezing changes
+that: with BLE + ESP-NOW + softAP all up the radios have already taken the
+heap before the first application import runs.
+
+What freezing *did* buy, same board and application: the failure moved
+from `import datastore` (line 189) to `import net_espnow` (line 194) — so
+`datastore` and `extrtc` now fit where they did not — and display-only
+went from dying in `battery.py` to running with the SD mounted and the
+eInk refreshing (40,256 bytes free at the dashboard build against 15,936).
+Real, and not enough for two radios.
+
+**If you want the dashboard and a portal at once, that wants PSRAM.**
+
+`.mpy` everywhere buys the compiler peak back (294 KB of source → 80 KB of
+bytecode); freezing buys the resident bytecode. Neither buys the radios.
+
 ## Time service & clocks
 
-* The hub's clock syncs from **NTP** (when home WiFi is up) or from a
-  **browser**: the Analyzer auto-POSTs `/api/time` on connect and has a
-  "Sync clock" button (BLE: `time <epoch>`).
+**Every clock in this project holds UTC.** The system RTC, the coin-cell
+RTC, `time.time()`, CSV rows, ESP-NOW packets, the API, what the hub
+pushes to nodes — all true Unix epochs, with nothing added. The timezone
+offset is a **separate, presentation-only** quantity used in exactly two
+places (the eInk clock line, and scheduling a calibration for 04:00
+local), and it never moves a stored timestamp.
+
+* The hub's clock syncs from a **battery-backed RTC** if one is fitted
+  (see below), from **NTP** (when home WiFi is up), or from a **browser**:
+  the Analyzer auto-POSTs `/api/time` on connect and has a "Sync clock"
+  button (BLE: `time <utc_epoch> [tz_offset_min]`).
 * Every ESP-NOW/HTTP `cfg` reply carries the epoch when the hub is
-  synced; nodes set their RTC from it (the ESP32 RTC keeps ticking
-  through deep sleep).
+  synced; nodes set their clock from it (the ESP32's own RTC keeps ticking
+  through deep sleep). Nodes have no timezone setting and need none —
+  they have no screen and nothing that reasons about local time.
+
+### Timezone: the browser's by default, config to override
+
+* **By default there is no setting.** The Analyzer sends its own offset
+  (`-new Date().getTimezoneOffset()`, in minutes) alongside the epoch on
+  every clock sync, and the hub remembers it across reboots
+  (`tz_offset_min_learned`, written to `config.json` only when it
+  *changes*). A phone standing in front of the hub knows the local time
+  better than a config file written months ago in another country — and
+  it knows whether summer time is in force, which nothing else here does.
+* **To pin it instead**, rename `_timezone_offset_h__comment` in
+  `collector/config.json` to `timezone_offset_h` and give it a number:
+  hours east of UTC, fractional allowed (`5.5` India, `5.75` Nepal,
+  `-3.5` Newfoundland). JSON has no comments, so an `_`-prefixed key is
+  how the field ships switched off. An override always wins over the
+  browser, including an override of `0` — that is a choice, not an
+  absence.
+* **With neither**, the hub runs on UTC and its eInk says UTC. That is
+  the NTP-only, no-browser case: the clock is right, it just is not local.
+* `GET /api/latest` reports `clock.tz_offset_min` and `clock.tz_source`
+  (`"config"` / `"browser"` / `"utc"`), so you can see which of the three
+  you are in.
+* **Day files are UTC days**, the same 24 hours the Analyzer's own day
+  keys name, so a history sync never has to reconcile two ideas of where
+  a day ends.
+
+> **Upgrade notes.** This used to be inconsistent: NTP put *local* time on
+> the clock (`adafruit_ntp(tz_offset=...)`) while a browser put UTC on it,
+> so a hub told different stories about when a reading happened depending
+> on which source reached it first. With the shipped default (`0`, or
+> unset) nothing changes. If you were running a **non-zero**
+> `timezone_offset_h` **and** NTP:
+>
+> * existing rows are labelled local and new ones will be UTC — a one-off
+>   step of that many hours at the upgrade;
+> * a **coin-cell RTC written by the old firmware holds a local epoch**.
+>   On the first boot after upgrading, with no NTP and no browser yet, the
+>   hub adopts it as UTC and is wrong by the offset until the next sync.
+>   `/api/latest` → `clock.drift_s` shows exactly that gap. One clock sync
+>   corrects the chip permanently;
+> * `Date:` response headers and the TLS certificate-expiry margin were
+>   both off by the offset too, and are now right.
+>
+> One migration runs automatically: a `config.json` saved by an older
+> build carries `"timezone_offset_h": 0` — the old shipped default, which
+> nobody chose — and that saved copy *overrides* the file in `collector/`.
+> Left alone it would read as "pin me to UTC" and silently defeat the
+> browser-learned offset, so the hub drops exactly that value once (it
+> says so on the console) and stamps `config_rev` so it never does it
+> again. A non-zero offset you actually set is kept.
+
+### Battery-backed RTC (optional, both boards) — `extrtc.py`
+
+The ESP32's own clock survives a soft reload and a deep sleep, and **not a
+power cut**. A coin cell is what closes that gap: the hub stops booting at
+2000-01-01 (and stops having to retro-label everything it logged before a
+browser turned up), and a node timestamps its stash correctly on the very
+first wake, with or without a hub in range.
+
+* **Wiring:** any I2C RTC on the STEMMA QT / Qwiic bus, alongside the
+  sensor. Nothing else changes.
+* **Config:** `"rtc"` in `collector/config.json` and `node_config.json` —
+  `"auto"` (the default), `"off"`, or a chip name. It is read at boot, so
+  a change needs a reset.
+* **Chips:** `pcf85063a` (**tested first**; driven directly by
+  `extrtc.py`, no library needed — Adafruit has no CircuitPython driver
+  for it), plus `pcf8563`, `ds3231`, `pcf8523` and `ds1307` via their
+  Adafruit libraries, `circup install`ed only if you have one. Another
+  chip is one row in `extrtc._CANDIDATES` if its driver exposes
+  `.datetime`.
+* **Name the chip if you can.** Two of the supported chips answer at 0x51
+  and three at 0x68 — the address does not identify the part. `"auto"`
+  builds each candidate and takes the first that is *keeping a time worth
+  believing*, not merely one whose registers parse: one chip's registers
+  read through another's map produce well-formed dates more often than is
+  comfortable (a PCF8563 with an alarm set reads, through the PCF85063A
+  map, as a flawless 2089 — which is exactly the bug this rule exists to
+  stop). A chip holding no such time but raising its own lost-power flag
+  is taken as a fallback, because that is a brand-new coin cell and
+  refusing it would be permanent.
+  **DS3231 and DS1307 cannot be told apart at all** — identical registers,
+  identical address — so a DS1307 in `"auto"` is claimed as a DS3231 and
+  its halted-oscillator flag never read. Name that one.
+* **Which clock wins** depends on what has just happened, because the two
+  are not equally good. NTP, a browser `/api/time` and a hub `cfg` reply
+  are authoritative and get written through to the chip — that is also
+  how a new RTC first gets set. Everything else (i.e. boot) trusts the
+  **chip**: the ESP32's own clock runs from an internal RC oscillator on
+  a devkit and drifts minutes a day, so a node out of hub range that
+  "helpfully" wrote its own time to the coin cell every wake would end
+  the week with two equally wrong clocks. Neither direction ever copies a
+  time from a source that reports lost power, reads as an impossible
+  date, or predates `PLAUSIBLE_EPOCH` (2023-11).
+* **Status:** `GET /api/latest` (and BLE `latest`) carry a `clock` object:
+  `synced`, the chip name and address, `lost_power` where the chip can say,
+  and its `drift_s` against the system clock — a flat cell is worth seeing
+  before it is the reason a week of history is labelled wrong.
+* **Accuracy caveat:** `extrtc.py` leaves the PCF85063A's `CAP_SEL` at its
+  power-on 7 pF. Most breakout crystals are 12.5 pF, which runs the chip
+  fast by roughly 20–30 ppm — a couple of seconds a day. Fine against a
+  hub that resyncs; worth a knob if a standalone node ever has to hold
+  time for months.
+* **Tests:** `python tools/test_extrtc.py` — 97 checks against a simulated
+  bus, covering the PCF85063A register map (BCD both ways and the
+  non-BCD rejection, the OS flag, the STOP-bit sequence, 12-hour mode),
+  detection across the shared addresses including the PCF8563-as-2089
+  case, the library-backed 0x68 path, and every `sync()` direction.
 * Data logged under a wrong clock is **retro-labelled on sync**, wherever
   it is by then:
   * pending (unwritten) records are shifted in RAM, as are a node's
@@ -344,8 +512,8 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
   `latest`, `battery`, `events`, `config`, `days`, `hist <day>` (streams a
   day's CSV between `#BEGIN <day> <bytes>` and `#END` — the byte count is
   what lets the page show a progress bar on a transfer that can take a
-  minute), `set <json>`, `cal <src> <1|2>`,
-  `time <epoch>`, `storage`, and `cert` — which is a short conversation
+  minute), `set <json>`, `cal <src> <1|2>`, `time <utc_epoch>
+  [tz_offset_min]`, `storage`, and `cert` — which is a short conversation
   rather than one command, because a certificate is ~5.5 KB and nothing on
   this path will take that in one piece (Web Bluetooth refuses a
   `writeValue` over 512 bytes, the hub's receive buffer is 512, and the hub
@@ -440,8 +608,10 @@ the self-configuring default:
 * **BLE** — `"ble_config_s": <seconds>` serves the same Nordic-UART portal
   the hub does, advertising as `SENSOR-xxxxxx`, for that long after each
   wake (bench mode holds it open for the whole wait). A phone gets
-  `latest`, `config`, `set <json>` and `time <epoch>`; anything the node
-  does not implement is answered with the list of what it does. Off by
+  `latest`, `config`, `set <json>` and `time <utc_epoch>` (a node takes
+  the shared command's optional `tz_offset_min` and ignores it — no
+  screen, nothing that reasons about local time); anything the node does
+  not implement is answered with the list of what it does. Off by
   default: the window is awake time a battery node pays for.
 * **Web API** — the hub's `/api/config`, which reaches the node in the next
   ESP-NOW cfg push.
@@ -533,6 +703,77 @@ practical ones you need before touching the boards.
   before you flash: code, modules, `lib/`, `certs/`, `www/`.
 * **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
   a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
+* **On the C6 the hub's `hubmain.mpy` is not optional.** `collector/code.py`
+  is a one-line `import hubmain`, because the *compiled body of code.py* is
+  resident before its first statement runs and a 67 KB one denies
+  `esp_wifi_init()` the **contiguous** internal RAM its `esf_buf` pool needs
+  — the hub died at `import wifi` with `MemoryError: Failed to allocate Wifi
+  memory` and `wifi:esf_buf_setup_static: alloc eb fail(10)` **with 242 KB
+  of heap still free**. Not import order (hoisting `import wifi` to line 1
+  fails the same), not a size cliff (a comment-stripped 48.7 KB code.py also
+  fails). Copying `hubmain.py` to the board as source and letting the board
+  compile it fails identically, so:
+
+  ```sh
+  mpy-cross -o hubmain.mpy collector/hubmain.py
+  ```
+
+  and deploy `hubmain.mpy` — **not** `hubmain.py` — alongside the one-line
+  `code.py`. A **soft reload (Ctrl-D) boots the source version fine**, so it
+  looks like it works; only a hard reset tells the truth. Note that
+  `code.py` itself must stay **source**: CircuitPython looks for
+  `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`, so any
+  build step that byte-compiles the whole directory has to copy this one
+  through untouched.
+* **The node is built the same way**, `node/code.py` → `import nodemain`:
+
+  ```sh
+  mpy-cross -o nodemain.mpy node/nodemain.py
+  ```
+
+  Its body was 46.9 KB — under the 48.7 KB that failed on the hub and over
+  the 62 KB that used to boot, i.e. inside the band where placement decides
+  it, so this is the same fix applied *before* a failure rather than after
+  one. It has not been seen to fail on the S3 bench node; what it buys is a
+  node that will run on a C6. Same trap as above (test with a **hard
+  reset**), plus one of its own: the node's unsent readings, message-id
+  counter and discovered channel live in `alarm.sleep_memory`, which a soft
+  reload wipes — so after a hard reset expect the first wake to re-discover
+  its collector.
+* **A `.py` left beside a `.mpy` is the one that runs.** Measured on the
+  bench: within a directory CircuitPython prefers the source, so the
+  cross-compile step buys nothing until the `.py` is **deleted**.
+  `tools/build_mpy.sh` produces the bytecode; removing the sources is a
+  separate, deliberate step, and skipping it looks exactly like success.
+* **Frozen wins over `lib/` — but not over `/`.** Read `sys.path` on the
+  board rather than assuming the order. On the ESP32 builds it is
+
+  ```
+  ['', '/', '.frozen', '/lib']
+  ```
+
+  so a stale copy in **`lib/` does not shadow** a frozen module, while a
+  module dropped in the **flash root does** — `/` is searched before
+  `.frozen`. On this project only the hub's own modules live in `/`, and
+  none of them shares a name with a frozen library, so there is nothing
+  there to clear; the thing to avoid is dropping a library copy into `/`.
+  Deleting `lib/` is worth doing for flash and for removing the ambiguity,
+  and **not** for RAM: measured on the bench hub, removing all 91 files
+  freed **346 KB of flash and zero RAM** — `display + AP` failed
+  identically before and after (13,232 vs 14,544 bytes free at the
+  dashboard build, i.e. noise).
+  Cross-compiling removes the on-device *compiler* peak — that is what
+  makes a large `code.py` bootable on the C6 — but the resident bytecode
+  is much the same size either way. A frozen module executes in place from
+  flash and never occupies heap. The project's libraries are frozen into
+  the ESP32 builds for the 13 boards it targets
+  ([tyeth/circuitpython#30](https://github.com/tyeth/circuitpython/pull/30)).
+  Measured on the S3 No PSRAM bench hub, same board, same application,
+  display on: `adafruit_ble` costs **5,728 bytes** to import frozen
+  against 30.6 KB of bytecode, and at the dashboard build the hub has
+  **40,256 bytes free instead of 15,936** — enough that the SD now mounts,
+  the fuel gauge initialises and the eInk refreshes, where before it died
+  in `battery.py`.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The
@@ -591,8 +832,13 @@ practical ones you need before touching the boards.
 ## Repo layout
 
 ```
-collector/   hub firmware (code.py + modules, config.json, lib/ via circup)
-node/        node firmware (code.py, node_sensors.py, node_portal.py, ...)
+collector/   hub firmware (code.py shim -> hubmain.py + modules,
+             config.json, lib/ via circup)
+node/        node firmware (code.py shim -> nodemain.py, node_sensors.py,
+             node_portal.py, ...)
+             (envproto.py, net_ble.py, calref.py, battery.py and
+             extrtc.py are identical copies in both; checked by
+             tools/test_timezone.py, which fails if one drifts)
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
@@ -626,8 +872,9 @@ sleep_memory still carries the stash/seq/channel).
 Hard-won ESP32-C6 (CP 10.3.0-alpha.4) findings (details + upstream-issue
 drafts in `bugs_issues_and_todos.md`):
 * `wifi.radio.start_ap()` / BLE init **hard-fault the core unless done at
-  the very top of code.py, before the heavy imports** ("EARLY RADIO
-  BRING-UP" block). Late BLE alongside the AP hard-faults 2/2.
+  the very top of the main module, before the heavy imports** ("EARLY
+  RADIO BRING-UP" block in `hubmain.py`). Late BLE alongside the AP
+  hard-faults 2/2.
 * The wifi stack **corrupts the shared SPI lock flag** (bus reads LOCKED,
   no owner) → every eInk refresh fails "Refresh too soon"; worked around
   by clearing the stale lock before each refresh. A failed `sdcardio`
@@ -639,7 +886,8 @@ drafts in `bugs_issues_and_todos.md`):
   flight — wedges the panel until a clean power-on.
 * mpremote: `fs cp` to a NEW file fails against CP 10.3-alpha (existing
   files OK — create once via exec, then mpremote); auto-reload is
-  disabled in code.py so multi-file deploys don't half-restart.
+  disabled in `hubmain.py` / `nodemain.py` so multi-file deploys don't
+  half-restart.
 * Device files: `/learn_demo.py` (exact learn example) + ruler bmp kept
   on the C6 for panel sanity checks.
 

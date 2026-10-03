@@ -18,7 +18,10 @@ Routes (all JSON unless noted):
                              "duration_s","target_ppm","dry",
                              "mode":"frc"|"asc"} reference cal
   POST /api/ingest          node data over WiFi (fallback transport for nodes)
-  POST /api/time            {"epoch": ...} browser clock sync
+  POST /api/time            {"epoch": <utc>, "tz_offset_min": <east of
+                             UTC, optional>} browser clock sync. The clock
+                             is set to UTC; the offset is only remembered
+                             so the eInk can show a local time.
   GET  /api/storage         who owns the filesystem (MCU logs / PC drive)
   POST /api/storage         {"owner":"mcu"|"pc","now":true} set it
 
@@ -88,8 +91,26 @@ _EAGAIN = 11
 HTTP_DEBUG = True  # print one line per request (path, bytes, ms) -- bring-up aid
 
 
-def connect(ssid, password, tz_offset_h=0):
-    """Connect WiFi + best-effort NTP sync. Returns ip string or None."""
+# True once NTP has set the system clock this run. The hub reads it to
+# decide which way its RTC sync should go: a clock NTP has just set beats
+# the coin cell, and a clock nobody has set does not.
+ntp_synced = False
+
+
+def connect(ssid, password):
+    """Connect WiFi + best-effort NTP sync. Returns ip string or None.
+
+    There is deliberately no timezone parameter. The device clock holds
+    **UTC**, always, so that `time.time()` is a true epoch everywhere it
+    is written down -- CSV rows, ESP-NOW packets, the API, the RTC chip.
+    This used to take a `tz_offset_h` and hand it to adafruit_ntp, which
+    put *local* time on the clock; a browser syncing the same hub put UTC
+    on it, so the same hub told two different stories depending on which
+    one got there first. The offset is a presentation value now and lives
+    in hubmain (`_tz_offset`), applied to the eInk clock and to "04:00
+    local" calibration scheduling, and nowhere near a stored timestamp.
+    """
+    global ntp_synced
     try:
         wifi.radio.connect(ssid, password, timeout=15)
     except (ConnectionError, ValueError, OSError) as exc:
@@ -102,9 +123,12 @@ def connect(ssid, password, tz_offset_h=0):
         import rtc
         import adafruit_ntp
         pool = socketpool.SocketPool(wifi.radio)
-        ntp = adafruit_ntp.NTP(pool, tz_offset=tz_offset_h, cache_seconds=3600)
+        # tz_offset=0 is adafruit_ntp's default; passed explicitly because
+        # it is the whole point of the paragraph above.
+        ntp = adafruit_ntp.NTP(pool, tz_offset=0, cache_seconds=3600)
         rtc.RTC().datetime = ntp.datetime
-        print("NTP synced")
+        ntp_synced = True
+        print("NTP synced (UTC)")
     except Exception as exc:  # NTP failure must never kill startup
         print("NTP failed:", exc)
     return ip
@@ -285,7 +309,11 @@ class WebPortal:
             if path == "/api/cert":
                 return _json(self.install_cert(data.get("cert", ""), data.get("key", "")))
             if path == "/api/time":
-                return _json(h["time_set"](data.get("epoch")))
+                # tz_offset_min is the CLIENT's offset from UTC, not a
+                # correction to the epoch: the epoch is already UTC and
+                # stays that way. Optional -- an older page omits it.
+                return _json(h["time_set"](data.get("epoch"),
+                                           data.get("tz_offset_min")))
             if path == "/api/storage":
                 # {"owner": "mcu"|"pc", "now": true} -- who may write the
                 # filesystem; "now" ejects a mounted drive immediately
@@ -386,7 +414,7 @@ class WebPortal:
         if not self.tls_expiry:
             return None
         now = time.time()
-        if now < 1700000000:  # clock not synced yet (no RTC battery)
+        if now < 1700000000:  # clock not synced yet (no NTP, no RTC, no page)
             return None
         days = (self.tls_expiry - now) / 86400
         if days < 0:
