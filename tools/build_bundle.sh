@@ -41,6 +41,7 @@ if [ -z "${MPY_CROSS:-}" ]; then
         fi
     fi
     chmod +x "$MPY_CROSS"
+    [ -x "$MPY_CROSS" ] || { echo "no mpy-cross at $MPY_CROSS" >&2; exit 2; }
 fi
 echo "mpy-cross: $("$MPY_CROSS" --version)"
 
