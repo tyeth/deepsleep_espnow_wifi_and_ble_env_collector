@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: 2026 Adafruit Industries
 # SPDX-License-Identifier: MIT
 """
-code.py - start the node. The node itself is nodemain.
+code.py - start the node. The node itself is nodemain (or, on a board
+without ESP-NOW and deep sleep, node_lite); nodegate, which this imports,
+picks which -- see the end of this text.
 
-Why this file is one line: the same reason `collector/code.py` is. On the
-ESP32-C6 the *compiled body of code.py* is resident before its first
-statement runs, and a large one denies `esp_wifi_init()` the contiguous
-internal RAM its `esf_buf` pool needs -- the hub died at `import wifi` with
+Why this file is one line: the same reason `collector/code.py` is. On the ESP32-C6 the *compiled body of code.py* is resident before its
+first statement runs, and a large one denies `esp_wifi_init()` the
+contiguous internal RAM its `esf_buf` pool needs -- the hub died at
+`import wifi` with
 
     W (4103) wifi:esf_buf_setup_static: alloc eb fail(10)
     MemoryError: Failed to allocate Wifi memory
@@ -23,9 +25,11 @@ So the body lives in `nodemain.py`, ships cross-compiled as `nodemain.mpy`
 (no compiler peak on the device, and far more compact bytecode), and this
 file costs nothing:
 
+    mpy-cross -o nodegate.mpy node/nodegate.py
     mpy-cross -o nodemain.mpy node/nodemain.py
 
-Deploy `nodemain.mpy` -- **not** `nodemain.py` -- alongside this file.
+Deploy `nodegate.mpy` and `nodemain.mpy` -- **not** the `.py` -- alongside
+this file.
 `code.py` itself must stay **source**: CircuitPython looks for
 `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`.
 
@@ -35,6 +39,12 @@ readings, its message-id counter and its discovered channel in
 also what hides the memory fault (the source version boots fine under
 Ctrl-D; only a hard reset tells the truth). Hard-reset to test, and expect
 the first wake afterwards to re-discover its collector.
+
+**Which node** -- nodemain (ESP32: ESP-NOW, deep sleep) or node_lite (the
+Raspberry Pi Pico W / Pico 2 W: an awake loop broadcasting BLE
+advertisements), and the plain-words refusal when node_lite does not fit
+the heap -- is decided in `nodegate.py`, not here, for the reason above:
+those lines grew this file, and this file is compiled on the device.
 """
 
-import nodemain  # noqa: F401
+import nodegate  # noqa: F401

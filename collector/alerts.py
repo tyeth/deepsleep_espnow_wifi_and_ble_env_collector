@@ -10,7 +10,11 @@ Threshold dicts (from config.json) support upper bounds ("warn"/"bad") and
 optional lower bounds ("lo_warn"/"lo_bad") for range metrics like temp/rh.
 """
 
-import time
+import caps
+
+# The time module -- or, on a port with no RTC (the Pico 2 W), caps'
+# stand-in whose time() works there. Same object as `import time` on ESP32.
+time = caps.time
 
 OK = 0
 WARN = 1
