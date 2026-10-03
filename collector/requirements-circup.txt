@@ -8,3 +8,11 @@ adafruit_ntp
 adafruit_ble
 adafruit_max1704x
 adafruit_lc709203f
+
+# Battery-backed RTC (optional; only if one is fitted, and only the one
+# that matches the chip). PCF85063A needs nothing -- extrtc.py drives it
+# directly, because Adafruit has no CircuitPython library for it.
+# adafruit_pcf8563
+# adafruit_ds3231
+# adafruit_pcf8523
+# adafruit_ds1307

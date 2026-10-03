@@ -18,3 +18,11 @@ adafruit_ble
 #   circup install sensirion_i2c_sen5x
 # (node_sensors.py falls back to a minimal built-in SEN5x driver without it)
 adafruit_httpserver
+
+# Battery-backed RTC (optional; only if one is fitted, and only the one
+# that matches the chip). PCF85063A needs nothing -- extrtc.py drives it
+# directly, because Adafruit has no CircuitPython library for it.
+# adafruit_pcf8563
+# adafruit_ds3231
+# adafruit_pcf8523
+# adafruit_ds1307

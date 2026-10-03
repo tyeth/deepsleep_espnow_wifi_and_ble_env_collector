@@ -210,12 +210,70 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 
 ## Time service & clocks
 
-* The hub's clock syncs from **NTP** (when home WiFi is up) or from a
-  **browser**: the Analyzer auto-POSTs `/api/time` on connect and has a
-  "Sync clock" button (BLE: `time <epoch>`).
+* The hub's clock syncs from a **battery-backed RTC** if one is fitted
+  (see below), from **NTP** (when home WiFi is up), or from a **browser**:
+  the Analyzer auto-POSTs `/api/time` on connect and has a "Sync clock"
+  button (BLE: `time <epoch>`).
 * Every ESP-NOW/HTTP `cfg` reply carries the epoch when the hub is
-  synced; nodes set their RTC from it (the ESP32 RTC keeps ticking
+  synced; nodes set their clock from it (the ESP32's own RTC keeps ticking
   through deep sleep).
+
+### Battery-backed RTC (optional, both boards) — `extrtc.py`
+
+The ESP32's own clock survives a soft reload and a deep sleep, and **not a
+power cut**. A coin cell is what closes that gap: the hub stops booting at
+2000-01-01 (and stops having to retro-label everything it logged before a
+browser turned up), and a node timestamps its stash correctly on the very
+first wake, with or without a hub in range.
+
+* **Wiring:** any I2C RTC on the STEMMA QT / Qwiic bus, alongside the
+  sensor. Nothing else changes.
+* **Config:** `"rtc"` in `collector/config.json` and `node_config.json` —
+  `"auto"` (the default), `"off"`, or a chip name. It is read at boot, so
+  a change needs a reset.
+* **Chips:** `pcf85063a` (**tested first**; driven directly by
+  `extrtc.py`, no library needed — Adafruit has no CircuitPython driver
+  for it), plus `pcf8563`, `ds3231`, `pcf8523` and `ds1307` via their
+  Adafruit libraries, `circup install`ed only if you have one. Another
+  chip is one row in `extrtc._CANDIDATES` if its driver exposes
+  `.datetime`.
+* **Name the chip if you can.** Two of the supported chips answer at 0x51
+  and three at 0x68 — the address does not identify the part. `"auto"`
+  builds each candidate and takes the first that is *keeping a time worth
+  believing*, not merely one whose registers parse: one chip's registers
+  read through another's map produce well-formed dates more often than is
+  comfortable (a PCF8563 with an alarm set reads, through the PCF85063A
+  map, as a flawless 2089 — which is exactly the bug this rule exists to
+  stop). A chip holding no such time but raising its own lost-power flag
+  is taken as a fallback, because that is a brand-new coin cell and
+  refusing it would be permanent.
+  **DS3231 and DS1307 cannot be told apart at all** — identical registers,
+  identical address — so a DS1307 in `"auto"` is claimed as a DS3231 and
+  its halted-oscillator flag never read. Name that one.
+* **Which clock wins** depends on what has just happened, because the two
+  are not equally good. NTP, a browser `/api/time` and a hub `cfg` reply
+  are authoritative and get written through to the chip — that is also
+  how a new RTC first gets set. Everything else (i.e. boot) trusts the
+  **chip**: the ESP32's own clock runs from an internal RC oscillator on
+  a devkit and drifts minutes a day, so a node out of hub range that
+  "helpfully" wrote its own time to the coin cell every wake would end
+  the week with two equally wrong clocks. Neither direction ever copies a
+  time from a source that reports lost power, reads as an impossible
+  date, or predates `PLAUSIBLE_EPOCH` (2023-11).
+* **Status:** `GET /api/latest` (and BLE `latest`) carry a `clock` object:
+  `synced`, the chip name and address, `lost_power` where the chip can say,
+  and its `drift_s` against the system clock — a flat cell is worth seeing
+  before it is the reason a week of history is labelled wrong.
+* **Accuracy caveat:** `extrtc.py` leaves the PCF85063A's `CAP_SEL` at its
+  power-on 7 pF. Most breakout crystals are 12.5 pF, which runs the chip
+  fast by roughly 20–30 ppm — a couple of seconds a day. Fine against a
+  hub that resyncs; worth a knob if a standalone node ever has to hold
+  time for months.
+* **Tests:** `python tools/test_extrtc.py` — 97 checks against a simulated
+  bus, covering the PCF85063A register map (BCD both ways and the
+  non-BCD rejection, the OS flag, the STOP-bit sequence, 12-hour mode),
+  detection across the shared addresses including the PCF8563-as-2089
+  case, the library-backed 0x68 path, and every `sync()` direction.
 * Data logged under a wrong clock is **retro-labelled on sync**, wherever
   it is by then:
   * pending (unwritten) records are shifted in RAM, as are a node's
@@ -632,6 +690,8 @@ collector/   hub firmware (code.py shim -> hubmain.py + modules,
              config.json, lib/ via circup)
 node/        node firmware (code.py shim -> nodemain.py, node_sensors.py,
              node_portal.py, ...)
+             (envproto.py, net_ble.py, calref.py, battery.py and
+             extrtc.py are identical copies in both; tests check that)
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
