@@ -110,11 +110,14 @@ def main():
     mc.nvm[17] = 3          # length no longer matches the JSON
     check("a torn mirror falls back to the shipped file",
           hub["_early_cfg"]() == json.loads(files["/config.json"]))
+    hub["_mirror_early"](dict(saved, ap_ssid="s" * 32, ap_password="p" * 63))
+    check("the longest real SSID + password fits",
+          hub["_early_cfg"]().get("ap_password") == "p" * 63)
     hub["_mirror_early"](saved)                     # a good mirror again
-    hub["_mirror_early"](dict(saved, ap_enabled=True, ap_ssid="x" * 300))
-    cfg = hub["_early_cfg"]()
-    check("an oversized one is refused, not truncated: the last good "
-          "mirror stands", cfg["ap_enabled"] is False and "ap_ssid" not in cfg)
+    hub["_mirror_early"](dict(saved, ap_enabled=True, ap_ssid="x" * 600))
+    check("an oversized one clears the mirror rather than leave an old SSID "
+          "and password in charge",
+          hub["_early_cfg"]() == json.loads(files["/config.json"]))
     mc.nvm = None
     hub["_mirror_early"](saved)
     check("a board with no NVM just reads the file",

@@ -55,14 +55,15 @@ import envproto  # tiny; needed for the early AP SSID
 # on /sd -- and the card is not mounted until well after the radios are up,
 # so without the mirror an "ap_enabled": false saved from the web UI would
 # be honoured by everything except the one place that decides it.
-#   nvm[16]      0xEC when nvm[17] is the length of a JSON object at nvm[18:]
+#   nvm[16]      0xEC when nvm[17:19] (little-endian) is the length of a
+#                JSON object at nvm[19:]
 # (nvm[0:4] belong to boot.py and datastore -- see datastore.py.)
 EARLY_KEYS = ("ap_enabled", "ap_ssid", "ap_password", "ap_channel",
               "ble_enabled", "ble_name", "display_enabled",
               "wifi_tx_power_dbm")
 _EARLY_NVM_AT = 16
 _EARLY_NVM_MAGIC = 0xEC
-_EARLY_NVM_MAX = 255
+_EARLY_NVM_MAX = 512    # a 32-char SSID + 63-char password is ~270 bytes
 
 
 def _early_cfg():
@@ -74,8 +75,8 @@ def _early_cfg():
     try:
         nvm = microcontroller.nvm
         if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
-            n = nvm[_EARLY_NVM_AT + 1]
-            at = _EARLY_NVM_AT + 2
+            n = nvm[_EARLY_NVM_AT + 1] | (nvm[_EARLY_NVM_AT + 2] << 8)
+            at = _EARLY_NVM_AT + 3
             cfg.update(json.loads(bytes(nvm[at:at + n]).decode()))
     except (TypeError, IndexError, ValueError, UnicodeError):
         pass   # no NVM, or a torn write: the shipped file alone is fine
@@ -100,20 +101,23 @@ def _mirror_early(saved):
             return
         blob = json.dumps(dict((k, saved[k]) for k in EARLY_KEYS
                                if k in saved)).encode()
-        if len(blob) > _EARLY_NVM_MAX:
+        n = len(blob)
+        if n > _EARLY_NVM_MAX:
+            # Clear rather than keep the last good copy: an old SSID and
+            # password that the page no longer shows are worse than the
+            # shipped defaults, which at least match /config.json.
             print("config: radio settings too long to mirror (%d bytes); "
-                  "they apply once the card is read, not at boot"
-                  % len(blob))
+                  "the next boot uses /config.json's" % n)
+            if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+                nvm[_EARLY_NVM_AT] = 0
             return
-        at = _EARLY_NVM_AT + 2
-        if (nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC
-                and nvm[_EARLY_NVM_AT + 1] == len(blob)
-                and bytes(nvm[at:at + len(blob)]) == blob):
+        head = bytes((_EARLY_NVM_MAGIC, n & 0xFF, n >> 8))
+        end = _EARLY_NVM_AT + 3 + n
+        if bytes(nvm[_EARLY_NVM_AT:end]) == head + blob:
             return
-        nvm[_EARLY_NVM_AT] = 0           # invalid while the body changes
-        nvm[at:at + len(blob)] = blob
-        nvm[_EARLY_NVM_AT + 1] = len(blob)
-        nvm[_EARLY_NVM_AT] = _EARLY_NVM_MAGIC
+        # One slice assignment, so one commit of the NVM page -- a reset
+        # lands either side of it, never between a header and its body.
+        nvm[_EARLY_NVM_AT:end] = head + blob
         print("config: radio settings mirrored to NVM for the next boot")
     except (TypeError, IndexError, ValueError, AttributeError) as exc:
         print("config: could not mirror radio settings to NVM:", exc)
@@ -461,7 +465,13 @@ for _root in ("/sd", "/saves", "/"):
 # of what was saved last time). If the layer that won here lives anywhere
 # else, mirror its radio keys for the next boot -- a card edited on a PC,
 # or one swapped for another hub's, otherwise never reaches them.
-_mirror_early(_ov if _ov and _root != "/" else None)
+# A slot whose card did not mount THIS boot proves nothing about where the
+# settings live, so the mirror is left alone rather than cleared by a
+# single bad mount.
+if _ov and _root != "/":
+    _mirror_early(_ov)
+elif sd_mounted or SD_CS is None:
+    _mirror_early(None)
 del _ov
 
 # Config migration. `config_rev` is absent from anything an older build
