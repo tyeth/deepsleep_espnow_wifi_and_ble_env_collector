@@ -5,8 +5,12 @@ board_budget.py - will this tree even import on that board, and roughly how
 much heap will it take? No hardware, no CircuitPython: CPython's `ast`
 plus mpy-cross.
 
+    python tools/board_budget.py            (= collector/hubgate.py node/nodegate.py~nodemain)
     python tools/board_budget.py collector/hubmain.py node/node_lite.py node/nodemain.py
     python tools/board_budget.py --board-toml path/to/circuitpython.toml node/node_lite.py
+
+An entry may end in ~mod[,mod...]: those imports are not followed (the
+branch of a gate this board never takes).
     MPY_CROSS=~/circuitpython/mpy-cross/build/mpy-cross python tools/board_budget.py ...
 
 For each entry module it walks the import graph inside its tree and reports
@@ -203,10 +207,12 @@ def imports_of(path):
     return v.found
 
 
-def walk(entry):
+def walk(entry, skip=()):
     """{module: (worst_kind, [(importer, lineno, kind)])} for every import
     reachable from entry inside its directory. A local module reached only
-    through guarded/conditional/deferred imports inherits that kind."""
+    through guarded/conditional/deferred imports inherits that kind.
+    Modules named in `skip` are not followed or counted: the branch of a
+    gate (nodegate's nodemain) that this board never takes."""
     tree_dir = os.path.dirname(os.path.abspath(entry))
     rank = {"hard": 0, "conditional": 1, "deferred": 2, "guarded": 3}
     seen = {}
@@ -220,6 +226,8 @@ def walk(entry):
         if not os.path.exists(path):
             continue
         for name, kind, lineno in imports_of(path):
+            if name in skip:
+                continue
             k = kind if rank[kind] >= rank[path_kind] else path_kind
             rec = seen.setdefault(name, ["guarded", []])
             if rank[k] < rank[rec[0]]:
@@ -245,7 +253,12 @@ def find_mpy_cross():
 def mpy_size(mpy_cross, path):
     import tempfile
     out = os.path.join(tempfile.gettempdir(), "_bb_%s.mpy" % os.path.basename(path))
-    r = subprocess.run([mpy_cross, "-o", out, path], capture_output=True, text=True)
+    # compile by bare file name from its own directory, as build_mpy.sh
+    # does: the .mpy carries the source name it was given, and a full
+    # (Windows) path inflated every module by ~100 B that no board holds
+    r = subprocess.run([mpy_cross, "-o", out, os.path.basename(path)],
+                       cwd=os.path.dirname(path) or ".",
+                       capture_output=True, text=True)
     if r.returncode != 0:
         return None, r.stderr.strip()
     n = os.path.getsize(out)
@@ -271,9 +284,13 @@ def lib_size(tree_dir, name):
 
 
 def report(entry, true, false, mpy_cross):
-    tree_dir, local, seen = walk(entry)
+    # "node/nodegate.py~nodemain": walk from nodegate, leaving out nodemain
+    entry, _, skip = entry.partition("~")
+    skip = set(s for s in skip.split(",") if s)
+    tree_dir, local, seen = walk(entry, skip)
     print("=" * 72)
-    print(entry)
+    print(entry + ("   (not following: %s)" % ", ".join(sorted(skip))
+                   if skip else ""))
     hard, soft, libs = [], [], []
     for name, (worst, uses) in sorted(seen.items()):
         if name in local or name in CORE or name in true:
@@ -331,12 +348,14 @@ def main():
         i = args.index("--board-toml")
         true, false = load_board_toml(args[i + 1])
         del args[i:i + 2]
-    # defaults: what is meant to load on the Pico boards. nodemain is the
-    # ESP32 node (espnow + alarm) and fails here by design -- pass it
+    # defaults: what is meant to load on the Pico boards, from the module
+    # each code.py imports -- so the gates themselves (hubgate, nodegate)
+    # are in the import graph and in the heap sum. nodegate's nodemain
+    # branch is the ESP32 node (espnow + alarm), never taken on a Pico, so
+    # "~nodemain" leaves it out of node_lite's sum; pass node/nodemain.py
     # explicitly to see exactly which imports would stop it. The code.py
-    # files work as entries too: they reach hubmain / nodemain / node_lite
-    # through their (conditional) imports.
-    entries = args or ["collector/hubmain.py", "node/node_lite.py"]
+    # files work as entries too (they reach the same graph).
+    entries = args or ["collector/hubgate.py", "node/nodegate.py~nodemain"]
     mpy_cross = find_mpy_cross()
     if not mpy_cross:
         print("(no mpy-cross found: set MPY_CROSS for size estimates)")

@@ -713,7 +713,8 @@ practical ones you need before touching the boards.
 * **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
   a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
 * **On the C6 the hub's `hubmain.mpy` is not optional.** `collector/code.py`
-  is a one-line `import hubmain`, because the *compiled body of code.py* is
+  is a one-line `import hubgate` (a free-heap check, then `import hubmain`),
+  because the *compiled body of code.py* is
   resident before its first statement runs and a 67 KB one denies
   `esp_wifi_init()` the **contiguous** internal RAM its `esf_buf` pool needs
   — the hub died at `import wifi` with `MemoryError: Failed to allocate Wifi
@@ -724,19 +725,22 @@ practical ones you need before touching the boards.
   compile it fails identically, so:
 
   ```sh
+  mpy-cross -o hubgate.mpy collector/hubgate.py
   mpy-cross -o hubmain.mpy collector/hubmain.py
   ```
 
-  and deploy `hubmain.mpy` — **not** `hubmain.py` — alongside the one-line
+  and deploy `hubgate.mpy` and `hubmain.mpy` — **not** the `.py` — alongside the one-line
   `code.py`. A **soft reload (Ctrl-D) boots the source version fine**, so it
   looks like it works; only a hard reset tells the truth. Note that
   `code.py` itself must stay **source**: CircuitPython looks for
   `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`, so any
   build step that byte-compiles the whole directory has to copy this one
   through untouched.
-* **The node is built the same way**, `node/code.py` → `import nodemain`:
+* **The node is built the same way**, `node/code.py` → `import nodegate`
+  → `import nodemain` (or `node_lite` on a board without ESP-NOW):
 
   ```sh
+  mpy-cross -o nodegate.mpy node/nodegate.py
   mpy-cross -o nodemain.mpy node/nodemain.py
   ```
 
@@ -841,10 +845,11 @@ practical ones you need before touching the boards.
 ## Repo layout
 
 ```
-collector/   hub firmware (code.py shim -> hubmain.py + modules,
-             config.json, lib/ via circup); net_blescan.py receives
+collector/   hub firmware (code.py shim -> hubgate.py -> hubmain.py +
+             modules, config.json, lib/ via circup); net_blescan.py receives
              BLE-advertised node readings where there is no ESP-NOW
-node/        node firmware (code.py picks nodemain.py -- ESP32: ESP-NOW +
+node/        node firmware (code.py shim -> nodegate.py, which picks
+             nodemain.py -- ESP32: ESP-NOW +
              deep sleep -- or node_lite.py -- Pico W / Pico 2 W: awake
              loop, BLE advertisements via net_bleadv.py; node_sensors.py,
              node_portal.py, ...)
