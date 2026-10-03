@@ -13,7 +13,12 @@ downloaded from RENEW_URL_BASE/ssl.combined + ssl.key.
 
 import binascii
 import os
-import time
+
+import caps
+
+# The time module -- or, on a port with no RTC (the Pico 2 W), caps'
+# stand-in whose time() works there. Same object as `import time` on ESP32.
+time = caps.time
 
 HOST = "192dot168dot4dot1.gundryconsultancy.com"
 RENEW_URL_BASE = "https://www.gundryconsultancy.com/"

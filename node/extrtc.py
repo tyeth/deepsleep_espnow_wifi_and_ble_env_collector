@@ -48,9 +48,24 @@ Interface, for callers:
     r.lost_power                    # True / False / None (chip cannot say)
     extrtc.sync(r)                  # boot: the chip is the better clock
     extrtc.sync(r, "system")        # after NTP / a browser / a hub reply
+
+On a port with no `rtc` at all (the Pico boards on CircuitPython's Zephyr
+port, where `time.time()` raises) "the system clock" is caps' offset
+clock instead, and this chip is what lets such a board know the time
+after a power cut. Nothing changes for a board with an RTC: caps is only
+imported when time.time() has nothing behind it.
 """
 
 import time
+
+try:
+    time.time()
+except (RuntimeError, NotImplementedError):
+    # "RTC is not supported on this board": read and set the wall clock
+    # through caps (see caps.py), which keeps it against the monotonic
+    # counter. Only reached on such a port, so an ESP32 node never loads it.
+    import caps
+    time = caps.time
 
 # Same line the rest of the project draws between "a real time" and "a
 # board that has just booted with no clock" (envproto, datastore, webapp).
@@ -467,7 +482,6 @@ def sync(r, trust="chip"):
     """
     if r is None:
         return "no rtc"
-    import rtc
 
     sys_epoch = int(time.time())
     sys_ok = sys_epoch >= PLAUSIBLE_EPOCH
@@ -490,13 +504,25 @@ def sync(r, trust="chip"):
         delta = chip_epoch - sys_epoch
         if abs(delta) <= SYNC_SLOP_S:
             return "agree (%+ds)" % delta
-        rtc.RTC().datetime = time.localtime(chip_epoch)
+        _set_system(chip_epoch)
         return "system clock set from %s (%+ds)" % (r.chip, delta)
     if sys_ok:
         if r.write_epoch(sys_epoch):
             return "rtc set from system clock (it had none)"
         return "rtc write failed"
     return "rtc has no time yet"
+
+
+def _set_system(epoch):
+    """The system clock := epoch. `rtc.RTC()` wherever it exists, as it
+    always was; caps' offset clock on a port without one."""
+    try:
+        import rtc
+    except ImportError:
+        import caps
+        caps.set_epoch(epoch)
+        return
+    rtc.RTC().datetime = time.localtime(epoch)
 
 
 def status(r):

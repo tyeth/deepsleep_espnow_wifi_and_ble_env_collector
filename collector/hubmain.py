@@ -12,6 +12,10 @@ Hardware:
   * 3.52" quad-color eInk over FPC: constructor MUST be 384x184 (driver
     whitelist); the panel shows 384x180 of that buffer.
   * Sensirion SEN66 on I2C (STEMMA QT).
+  * Also: Raspberry Pi Pico 2 W on CircuitPython's Zephyr port -- no
+    ESP-NOW, no RTC, no user SPI (so no eInk / SD), AP *or* station but
+    not both. Every gate for that is a `caps` probe defaulting to the
+    ESP32 path; what runs there and why is in pico_w_zephyr.md.
 
 Responsibilities: sample local SEN66, receive remote nodes over ESP-NOW
 (+ WiFi POST fallback), push config/calibration back to nodes, batch data to
@@ -30,7 +34,8 @@ import board
 import digitalio
 import displayio
 import microcontroller
-import rtc
+# (no `import rtc` here: the Pico boards have none. Setting the clock goes
+# through caps.set_epoch(), which is that same rtc call wherever rtc exists.)
 import sdcardio
 import storage
 import supervisor
@@ -206,8 +211,28 @@ try:
             print("wifi tx_power not applied:", exc)
     _espnow_obj = _espnow_mod.ESPNow()
     print("early ESP-NOW up")
+except ImportError:
+    # Not a failure: the port has no espnow at all (the Pico boards on
+    # zephyr-cp). net_espnow is not even imported below; nodes reach this
+    # hub as BLE advertisements (net_blescan) and/or WiFi POST /api/ingest.
+    print("ESP-NOW not available on this port: nodes reach this hub over "
+          "BLE advertisements and/or WiFi POST /api/ingest")
 except Exception as exc:
     print("early ESP-NOW failed:", type(exc).__name__, exc)
+
+# The two facts about the Zephyr port's WiFi that this block has to act on
+# before `caps` can be imported (no imports above the radios -- see the top
+# of this block). Both are spelled out in caps.py (AP_VERIFY, APSTA):
+#   * start_ap() was a silent no-op stub before tyeth/circuitpython#22, so
+#     there the AP is believed only once wifi.radio.ap_active says so;
+#   * the AIROC driver runs the AP and the station on one interface, and
+#     AP+STA returns -EBUSY. With home-WiFi credentials in settings.toml the
+#     station wins: the portal is then served on the LAN address, and the
+#     setup AP comes up later (net_captive) only if that join fails.
+# On ESP32 neither applies and this block behaves exactly as it always has.
+import sys as _sys
+_ZEPHYR = _sys.platform == "Zephyr"
+_STA_SSID = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
 
 ap_started = False
 # The softAP's channel is also the ESP-NOW channel (one radio, one home
@@ -215,7 +240,12 @@ ap_started = False
 # sit away from a busy channel -- and so the bench can prove that nodes
 # find a hub that is not on channel 1.
 AP_CHANNEL = int(_ecfg.get("ap_channel", 1) or 1)
-if _ecfg.get("ap_enabled", True):
+if _ecfg.get("ap_enabled", True) and _ZEPHYR and _STA_SSID:
+    print("softAP deferred: this port cannot run an AP beside a station "
+          "(AIROC: one interface, -EBUSY), and settings.toml names a "
+          "network -- joining %s first; the setup AP starts only if that "
+          "fails" % _STA_SSID)
+elif _ecfg.get("ap_enabled", True):
     try:
         wifi.radio.enabled = True
         if AP_PASSWORD and len(AP_PASSWORD) >= 8:
@@ -229,6 +259,13 @@ if _ecfg.get("ap_enabled", True):
             wifi.radio.start_dhcp_ap()
         except (AttributeError, RuntimeError) as exc:
             print("start_dhcp_ap:", exc)
+        if _ZEPHYR and not wifi.radio.ap_active:
+            # trust the radio, not the call: zephyr-cp firmware before
+            # tyeth/circuitpython#22 returns from a stub that started
+            # nothing, and the hub would "serve" a portal on an AP that is
+            # not there (caps.AP_VERIFY)
+            raise RuntimeError("start_ap() returned but no AP is active "
+                               "(zephyr-cp firmware without softAP?)")
         ap_started = True
         print("early AP up: %s @ %s" % (AP_SSID, wifi.radio.ipv4_address_ap))
     except Exception as exc:
@@ -246,7 +283,23 @@ HTTP_WANTED = (_ecfg.get("ap_enabled", True)
 # pulls in adafruit_display_text and adafruit_bitmap_font, tens of KB of
 # flash and heap for a panel that is not there.
 DISPLAY_WANTED = _ecfg.get("display_enabled", True)
+if DISPLAY_WANTED and _ZEPHYR:
+    # zephyr-cp: board.SPI is the CYW43439 radio's own PIO bus and a
+    # custom-pin busio.SPI raises -- there is nothing to hang an eInk (or an
+    # SD card) on, so do not pay for the display modules (caps.PIN_BUSIO)
+    print("no user SPI bus on this port: eInk dashboard skipped; the web "
+          "page and the BLE UART are the display")
+    DISPLAY_WANTED = False
 del _ecfg
+
+# First import after the radios are up, and deliberately not before: the
+# probes, the RTC-less clock and the port limits (caps.py). From here on the
+# hub reads the wall clock through `caps.time`, which on every ESP32 is the
+# time module itself and on a board without an RTC is a stand-in whose
+# time()/localtime() work (caps.py says why that is needed at all).
+import caps
+time = caps.time
+print("platform:", caps.summary())
 
 import alerts
 import battery
@@ -256,7 +309,8 @@ import extrtc
 if DISPLAY_WANTED:
     import display_hw
     import display_ui
-import net_espnow
+if caps.HAS_ESPNOW:
+    import net_espnow
 import sensors_local
 if HTTP_WANTED:
     import net_captive
@@ -313,6 +367,11 @@ displayio.release_displays()
 def _make_spi():
     # Feathers/QT Py expose board.SPI(); bare devkits (bring-up bench) don't,
     # so fall back to busio on free GPIOs (C6: SCK=IO6 MOSI=IO7 MISO=IO2).
+    # zephyr-cp (Pico 2 W) has neither: board.SPI() there hands back the
+    # CYW43439 radio's own PIO bus, and custom-pin busio raises. No bus at
+    # all is the honest answer; the display and the SD card are skipped.
+    if not caps.PIN_BUSIO:
+        return None
     if hasattr(board, "SPI"):
         return board.SPI()
     import busio
@@ -323,7 +382,7 @@ spi = _make_spi()
 
 # SRAM on the FeatherWing is unused -- hold its CS deselected so it never
 # answers on the shared bus.
-if SRAM_CS is not None:
+if SRAM_CS is not None and spi is not None:
     _sram_cs = digitalio.DigitalInOut(SRAM_CS)
     _sram_cs.switch_to_output(value=True)
 
@@ -421,7 +480,9 @@ if display is not None:
             break
 
 sd_mounted = False
-if SD_CS is not None:
+if spi is None:
+    print("no user SPI bus on this port: no SD card; flash buffering")
+elif SD_CS is not None:
     try:
         _sd = sdcardio.SDCard(spi, SD_CS)
         storage.mount(storage.VfsFat(_sd), "/sd")
@@ -491,6 +552,12 @@ if config.get("config_rev", 1) < CONFIG_REV:
               "browser syncs the clock (set the key again to pin it)")
     config["config_rev"] = CONFIG_REV
 
+# Firmware with a raised socket ceiling (zephyr-cp CONFIG_NET_MAX_CONTEXTS)
+# cannot be detected from Python: say so in config.json, and the portal
+# allows that many connections less its two listeners and the captive DNS.
+if config.get("max_sockets"):
+    caps.MAX_SOCKETS = int(config["max_sockets"])
+
 # ---------------------------------------------------------------------------
 # WiFi (settings.toml may have auto-connected us already)
 # ---------------------------------------------------------------------------
@@ -530,6 +597,12 @@ print("reset reason:", microcontroller.cpu.reset_reason)
 # in exactly two places -- the eInk clock line, and scheduling a
 # calibration for "04:00 local" -- and never to shift a timestamp anyone
 # stores or transmits.
+#
+# On a port with no RTC at all (the Pico 2 W) `time` here is caps.time, and
+# "the system clock" is caps' offset against the monotonic counter: it
+# reads 2000-01-01 + uptime until one of the same three sources sets it,
+# and an RTC chip on the I2C bus sets it at boot exactly as it would set
+# rtc.RTC() on an ESP32 (extrtc.sync goes through caps there).
 # ---------------------------------------------------------------------------
 ext_rtc = None                 # set at the I2C bring-up further down
 TIME_SYNCED = time.localtime()[0] >= 2025
@@ -548,14 +621,40 @@ def _tz_offset():
 
 # Radio subsystems were started in the EARLY block (BLE -> ESP-NOW -> AP,
 # the only ordering that coexists on the C6); wire the wrappers here.
-hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
+if caps.HAS_ESPNOW:
+    hub = net_espnow.EspNowHub(existing=_espnow_obj, ap_active=ap_started)
+else:
+    class _NoHub:
+        """EspNowHub's counters and calls for a port with no espnow at all
+        (the Pico 2 W): never receives, never sends. Nodes reach such a hub
+        as BLE advertisements (net_blescan, below) or over WiFi POST
+        /api/ingest, and the status page and main loop need not know the
+        difference."""
+        enabled = False
+        ap_active = False
+        needs_reset = False
+        rx_count = conf_count = dup_count = bad_count = 0
+        last_error = None
+
+        def poll(self):
+            return ()
+
+        def send(self, mac, data):
+            return False
+    hub = _NoHub()
 print("bring-up: ESP-NOW wrapper (enabled=%s)" % hub.enabled)
 _mem("after espnow")
 if HTTP_WANTED:
     captive = net_captive.CaptivePortal(
         ssid=AP_SSID,
         password=AP_PASSWORD,
-        enabled=config.get("ap_enabled", True),
+        # Where the AP cannot run beside the station (caps.APSTA: the Pico
+        # 2 W), a joined station means no setup AP -- trying would only
+        # earn an -EBUSY. A station that did NOT join leaves the AP as the
+        # way in, started here, late, which is fine on that port (the
+        # early-start rule is a C6 hard-fault workaround).
+        enabled=config.get("ap_enabled", True)
+        and (caps.APSTA or not wifi.radio.connected),
         already_active=ap_started,
         channel=AP_CHANNEL,
     )
@@ -589,6 +688,12 @@ try:
         i2c = board.STEMMA_I2C()
     elif hasattr(board, "I2C"):
         i2c = board.I2C()
+    elif not caps.PIN_BUSIO:
+        # zephyr-cp: devicetree buses only, by number -- board.I2C0 on the
+        # Pico 2 W (SDA GP4, SCL GP5); custom-pin busio.I2C would raise
+        i2c = caps.i2c()
+        if i2c is None:
+            raise RuntimeError("no I2C bus on this board")
     else:  # bare devkit: SDA=IO19 SCL=IO20
         import busio
         i2c = busio.I2C(board.IO20, board.IO19)
@@ -1256,7 +1361,7 @@ def h_time_set(epoch, tz_offset_min=None):
     # used to mean the clock was never set, the history never relabelled
     # and the page never answered.
     delta = epoch - int(time.time())
-    rtc.RTC().datetime = time.localtime(epoch)
+    caps.set_epoch(epoch)     # rtc.RTC().datetime where there is one
     adjusted = queued = 0
     if abs(delta) > 5:
         adjusted = store.adjust_pending(delta)
