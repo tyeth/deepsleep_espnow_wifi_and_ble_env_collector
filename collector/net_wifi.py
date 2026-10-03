@@ -110,7 +110,6 @@ def connect(ssid, password):
     in hubmain (`_tz_offset`), applied to the eInk clock and to "04:00
     local" calibration scheduling, and nowhere near a stored timestamp.
     """
-    global ntp_synced
     try:
         wifi.radio.connect(ssid, password, timeout=15)
     except (ConnectionError, ValueError, OSError) as exc:
@@ -119,6 +118,21 @@ def connect(ssid, password):
     ip = str(wifi.radio.ipv4_address)
     print("WiFi up:", ip, "channel", wifi.radio.ap_info.channel
           if wifi.radio.ap_info else "?")
+    sync_ntp()
+    return ip
+
+
+def sync_ntp():
+    """Best-effort NTP: set the system clock to UTC. True if it did.
+
+    Separate from connect() because connect() is not the only way onto a
+    network: with CIRCUITPY_WIFI_SSID in settings.toml, CircuitPython has
+    already joined before code.py runs, the hub never calls connect(), and
+    -- while this lived inside it -- never asked NTP either. A coin cell
+    still holding a stale time was then trusted over a network that could
+    have corrected it.
+    """
+    global ntp_synced
     try:
         import rtc
         import adafruit_ntp
@@ -131,7 +145,7 @@ def connect(ssid, password):
         print("NTP synced (UTC)")
     except Exception as exc:  # NTP failure must never kill startup
         print("NTP failed:", exc)
-    return ip
+    return ntp_synced
 
 
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")

@@ -420,6 +420,11 @@ if config.get("config_rev", 1) < CONFIG_REV:
 ip = None
 if wifi.radio.connected:
     ip = str(wifi.radio.ipv4_address)
+    # Auto-connected from settings.toml, so connect() below never runs --
+    # and NTP has to be asked for here or not at all. (HTTP_WANTED counts
+    # that SSID, so net_wifi is imported whenever this can happen.)
+    if HTTP_WANTED:
+        net_wifi.sync_ntp()
 elif HTTP_WANTED:
     ssid = os.getenv("CIRCUITPY_WIFI_SSID") or os.getenv("WIFI_SSID")
     pw = os.getenv("CIRCUITPY_WIFI_PASSWORD") or os.getenv("WIFI_PASSWORD")
@@ -440,7 +445,7 @@ print("reset reason:", microcontroller.cpu.reset_reason)
 # THE CLOCK IS UTC. Every stored timestamp -- CSV rows, ESP-NOW packets,
 # the API, what goes on the RTC chip, what is pushed to nodes -- is a true
 # Unix epoch, and `time.time()` is that epoch with nothing added to it.
-# Synced by NTP (net_wifi.connect above), by a battery-backed RTC if one is
+# Synced by NTP (net_wifi above), by a battery-backed RTC if one is
 # fitted (below, once the I2C bus exists), or by a browser via
 # POST /api/time / BLE "time <epoch> [tz_offset_min]".
 #
@@ -1655,6 +1660,11 @@ try:
         "display_enabled=%s" % DISPLAY_WANTED,
         "ap_enabled=%s ble_enabled=%s" % (config.get("ap_enabled"),
                                           config.get("ble_enabled")),
+        # ESP-NOW is the one transport that is never configurable -- the
+        # early block starts it unconditionally -- which is exactly why it
+        # belongs here: "is collection actually on?" should be answerable
+        # without reading the source to find out that it always is.
+        "espnow=%s channel=%s" % (hub.enabled, _radio_channel()),
         "storage=%s root=%s" % (store.mode, store.root),
         "clock_synced=%s rtc=%s" % (TIME_SYNCED,
                                     ext_rtc.chip if ext_rtc else None),
