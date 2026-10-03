@@ -843,6 +843,12 @@ def h_latest():
         mesh["dropped"] = store.dropped_lines
     if hub.last_error:
         mesh["err"] = hub.last_error
+    if scanner is not None:
+        # nodes heard as BLE advertisements (net_blescan): no confirmation
+        # exists on that path, so these count receptions, not deliveries
+        mesh["ble_rx"] = scanner.rx_count
+        if scanner.last_error:
+            mesh["ble_err"] = scanner.last_error
     # Where the hub's clock comes from. A page that knows there is a coin
     # cell can stop treating "the hub might be at 2000-01-01" as the
     # default case, and a flat cell is worth showing before it is the
@@ -1708,6 +1714,29 @@ else:
     ble = _NoBle()
 _mem("after BLE")
 
+# Nodes on boards without ESP-NOW (Pico W / Pico 2 W running node_lite)
+# broadcast each reading as a BLE advertisement; a hub with no ESP-NOW of
+# its own scans for them. Off by default wherever ESP-NOW exists -- an ESP32
+# hub's nodes all speak ESP-NOW, and a periodic scan would cost it heap and
+# radio time for nothing -- and "ble_scan_nodes": true turns it on there.
+# Broadcast has no reply path: the reading is stored, nothing goes back to
+# the node (config and time reach such nodes over WiFi POST, if at all).
+scanner = None
+if caps.HAS_BLE and config.get("ble_scan_nodes", not caps.HAS_ESPNOW):
+    try:
+        import net_blescan
+        scanner = net_blescan.AdvReceiver(
+            scan_s=config.get("ble_scan_s", 1.0),
+            every_s=config.get("ble_scan_every_s", 5.0))
+        if not scanner.ok:
+            scanner = None
+    except Exception as exc:
+        print("BLE node scanning unavailable: %s: %s"
+              % (type(exc).__name__, exc))
+        scanner = None
+    print("bring-up: BLE node scan", "on" if scanner else "off")
+    _mem("after BLE scan")
+
 # ---------------------------------------------------------------------------
 # Trend tracking: keep per-source averaged snapshots; compare now vs the
 # oldest snapshot inside trend_window_s.
@@ -1910,6 +1939,16 @@ while True:
                           % (obj.get("k"), envproto.mac_str(mac)))
             except Exception as exc:  # one bad packet must not kill the loop
                 print("node packet error:", type(exc).__name__, exc)
+        # 1b. nodes broadcasting over BLE advertisements: a short timed scan
+        #     at most every few seconds (net_blescan). take_node_packet with
+        #     mac=None stores and de-duplicates exactly like the ESP-NOW
+        #     path and sends nothing back -- there is nowhere to send it.
+        if scanner is not None:
+            for _src, obj, rssi, raw in scanner.poll():
+                try:
+                    take_node_packet(None, obj, envproto.crc16(raw), rssi)
+                except Exception as exc:
+                    print("BLE node packet error:", type(exc).__name__, exc)
         if hub.needs_reset and not _reset_at[0]:
             # the receiver is dead (corrupt ring buffer, CP issue 9816) and
             # cannot be rebuilt under the softAP: same path as an HTTP/BLE
