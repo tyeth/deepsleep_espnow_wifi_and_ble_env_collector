@@ -31,7 +31,7 @@ reload appears to succeed, so only a hard reset tells you the truth.
 
 **The one check that has to live here**, because it has to run before
 hubmain's bytecode is loaded: is there room for the hub at all? A
-Raspberry Pi Pico W (RP2040, ~16.5 KB of heap after its current firmware)
+Raspberry Pi Pico W (RP2040, ~19.6 KB of heap after its current firmware)
 would load hubmain for a while and then die with a MemoryError somewhere
 unhelpful -- so below `_HUB_MIN_FREE` this file says why and idles with the
 REPL reachable. The Pico W runs node/ instead. Capability, not board id;

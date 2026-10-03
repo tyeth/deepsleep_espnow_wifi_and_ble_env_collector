@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 """
 node_lite - the sensor node for boards WITHOUT ESP-NOW or deep sleep:
-Raspberry Pi Pico W (RP2040, a heap of ~16.5 KB on the current firmware
+Raspberry Pi Pico W (RP2040, a heap of ~19.6 KB on the current firmware
 -- see "Budget" below) and Pico 2 W (RP2350) on
 CircuitPython's Zephyr port. node/code.py picks this over nodemain (the
 ESP32 node) when `espnow` or `alarm` is missing, imports it -- which sets
@@ -35,7 +35,7 @@ What it does NOT do, honestly:
     the Pico W image costs ~10 KB instead (tyeth/circuitpython#23), and a
     real softAP exists from tyeth/circuitpython#22 -- but the Pico W's
     firmware has grown since (TCP, then the CircuitPython-11 rebase) to
-    ~16.5 KB of heap, and none of it has been measured together. Configure by editing node_config.json on CIRCUITPY (or over
+    ~19.6 KB of heap, and none of it has been measured together. Configure by editing node_config.json on CIRCUITPY (or over
     the hub's WiFi POST cfg reply).
   * keep a clock across power cuts. The Pico 2 W has no `rtc` (caps keeps
     an uptime-based clock, set by the hub's cfg reply); the Pico W has one
@@ -47,13 +47,16 @@ What it does NOT do, honestly:
 Budget, and the risk in it. tools/board_budget.py puts node_lite + caps +
 envadv + node_sensors + net_bleadv at ~19 KB of heap once loaded (.mpy x
 1.2), before a sensor driver (adafruit_scd4x + bus_device ~9 KB). The Pico
-W firmware rebased onto CircuitPython 11 (ci/pico2w-ble-assets @
-393be068ab) uses 253,516 B of the RP2040's 264 KB statically, which leaves
-~16.5 KB -- so as built this node does NOT fit a Pico W, and code.py will
-say so rather than crash. The firmware is where that is won back:
-CONFIG_BT_MAX_CONN=1 in the Pico W board .conf returns ~2.9 KB per
-connection dropped (~11.6 KB from 5), and a node that only advertises uses
-none. Nothing here has been measured on that firmware yet.
+W firmware rebased onto CircuitPython 11 with CONFIG_BT_MAX_CONN=2
+(ci/pico2w-ble-assets @ 3501030d6c, CI run 37127295820) uses 250,224 B of
+the RP2040's 264 KB statically, which leaves ~19.6 KB -- room for node_lite
+itself with nothing to spare, and NOT for node_lite plus a sensor driver,
+so as built this node does not fit a Pico W and code.py will say so rather
+than crash. Connections are not where the rest is: going 5 -> 2 gave back
+3,292 B (~1.1 KB each), so 1 would add only ~1.1 KB more. The heap was
+~42 KB on the 20260909 prerelease; the ~22 KB that went with the rebase is
+not yet accounted for (compare the two builds' memory maps). Nothing here
+has been measured on a board yet.
 
 Deploy as .mpy (tools/build_mpy.sh / tools/build_bundle.sh): compiling this
 file from source on a heap this size is exactly the kind of peak that

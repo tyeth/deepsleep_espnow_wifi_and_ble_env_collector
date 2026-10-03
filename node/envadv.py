@@ -6,16 +6,16 @@ envadv - one sensor reading packed into a BLE *legacy advertisement*.
 This exact file is deployed to BOTH the collector and the nodes (a copy
 lives in collector/ and node/ -- keep them identical). It is deliberately
 tiny and JSON-free: a Raspberry Pi Pico W node has tens of KB of heap at
-most (~16.5 KB by the ELF arithmetic on the CircuitPython-11 rebase of the
+most (~19.6 KB by the ELF arithmetic on the CircuitPython-11 rebase of the
 firmware) and this is its whole transport.
 
 Why a broadcast and not a connection. The reason this was first written
 down -- "the controller allows one BLE connection" -- turned out to be
-Zephyr's default CONFIG_BT_MAX_CONN=1, not a CYW43439 limit; the
-firmware now builds with 5 (upstream zephyr-cp prj.conf, after the fork's
-own 4 in tyeth/circuitpython#19), though more than one at a time has not
-yet been run on this controller -- and each one costs a Pico W ~2.9 KB of
-static RAM it can ill afford.
+Zephyr's default CONFIG_BT_MAX_CONN=1, not a CYW43439 limit; upstream
+zephyr-cp's prj.conf now sets 5 (the Pico 2 W builds with that), and the
+Pico W board .conf brings it back to 2, though more than one at a time has
+not yet been run on this controller -- and each one costs a Pico W ~1.1 KB
+of static RAM it can ill afford.
 What still holds: a node that only advertises needs no connection at
 either end, no pairing, and no adafruit_ble on a board whose heap is
 counted in tens of KB, and the hub can scan for it while advertising its

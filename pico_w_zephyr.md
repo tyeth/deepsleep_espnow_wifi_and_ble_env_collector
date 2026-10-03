@@ -8,6 +8,10 @@ rebased onto upstream CircuitPython `main` 35210c2e (after 11.0.0-alpha.1)
 at `393be068ab`. Both boards build green in CI —
 [Pico 2 W run 37126091753](https://github.com/tyeth/circuitpython/actions/runs/37126091753),
 [Pico W run 37126093209](https://github.com/tyeth/circuitpython/actions/runs/37126093209).
+The Pico W was then rebuilt with `CONFIG_BT_MAX_CONN=2` in its board
+`.conf` at `3501030d6c` —
+[Pico W run 37127295820](https://github.com/tyeth/circuitpython/actions/runs/37127295820),
+the one to flash.
 There is no prerelease of it yet. TODO(fw-11): link the prerelease UF2s
 here once they exist. Upstream 11.0.0-alpha.1 itself still builds both
 boards with `_bleio = false`, so it cannot run the BLE parts of this.
@@ -34,7 +38,7 @@ the node under CPython with stub modules shaped like the port (`sys.platform
 | | Pico W (RP2040) | Pico 2 W (RP2350) |
 |---|---|---|
 | role | **node** (`node_lite`) — *if it fits, see RAM* | **hub** (`hubmain`), or a node |
-| heap (rebased firmware) | **~16.5 KB** by the ELF (264 KB − 253,516 B) | ~270 KB by the ELF; budget **~180 KB** (see RAM) |
+| heap (rebased firmware) | **~19.6 KB** by the ELF (264 KB − 250,224 B) | ~270 KB by the ELF; budget **~180 KB** (see RAM) |
 | node → hub transport | BLE advertisement broadcast | receives BLE advertisements; WiFi `POST /api/ingest` |
 | phone / browser access | none (no RAM for the BLE UART portal) | BLE UART (web-BLE) + HTTP portal on home WiFi, **or** on its own setup AP — not both |
 | clock | `rtc` module (SoC counter, from upstream) | **no `rtc`**: `caps` keeps an offset clock; an RTC chip on I2C sets it |
@@ -54,7 +58,7 @@ neither, and the code says so at boot instead of dying at `import`.
 | `rtc` | **Pico W: true** (new with the CircuitPython-11 rebase — upstream reads the board's devicetree RTC node). **Pico 2 W: false** (no such node) | on the Pico 2 W `time.time()` and zero-arg `time.localtime()` **raise** `RuntimeError: RTC is not supported on this board` (*measured*); `time.localtime(secs)` / `time.mktime()` still work. `caps` probes `rtc` + a working `time.time()` and only then trusts them, so each board gets the right clock without a board table |
 | `wifi` | station **and** softAP + DHCPv4 server | softAP was an empty stub before tyeth/circuitpython#22 (it returned, and `ap_active` stayed False); it is real now (192.168.4.1/24, DHCP auto-started, *measured*: a C6 joined in 7 s). **AP and station cannot run together**: AIROC uses one `net_if`, AP+STA returns `-EBUSY` (*measured*). `max_connections` is not honoured |
 | `busio` | devicetree buses only | `busio.SPI(...)` / `busio.I2C(scl, sda)` raise `NotImplementedError("Use device tree to define ...")` (*measured*). `board.SPI` is the CYW43439 radio's own PIO bus — never a display or SD bus. Sensors on `board.I2C0` (SDA **GP4**, SCL **GP5**) or `board.I2C1` (GP6/GP7), which are callables (*measured*) |
-| `_bleio` | true | legacy advertising only (`CONFIG_BT_EXT_ADV=n`; no extended advertising on the controller). **`CONFIG_BT_MAX_CONN=5`** (upstream `prj.conf`; was Zephyr's default 1 when PR #11 was written), `BT_MAX_PAIRED=3`. More than one connection at once has **not** been run. `start_scan(timeout=)` was **ignored** before tyeth/circuitpython#20 (see below). Reception works (*measured*: 925 reports from 20 devices in one scan) |
+| `_bleio` | true | legacy advertising only (`CONFIG_BT_EXT_ADV=n`; no extended advertising on the controller). **`CONFIG_BT_MAX_CONN=5`** on the Pico 2 W (upstream `prj.conf`; was Zephyr's default 1 when PR #11 was written), **2** on the Pico W (its board `.conf`, for RAM), `BT_MAX_PAIRED=3`. More than one connection at once has **not** been run. `start_scan(timeout=)` was **ignored** before tyeth/circuitpython#20 (see below). Reception works (*measured*: 925 reports from 20 devices in one scan) |
 | `socketpool`, `ssl` | true | `CONFIG_NET_TCP` was **off** until tyeth/circuitpython#21 — before it no `SOCK_STREAM` socket ever worked, and the error read "Out of sockets". TLS 1.2 with an RSA-2048 cert works since (*measured*: `200 OK` in 2.0 s). `CONFIG_NET_MAX_CONTEXTS=6` sockets in total |
 | frozen modules | Pico W: 20 `adafruit_ble` modules | cheaper than `.mpy` from CIRCUITPY (*measured* on the first version: 10,384 B frozen vs 21,792 B) — still most of a Pico W |
 | `storage`, `supervisor`, `nvm` | true | `boot.py`, the filesystem handover and the hub's NVM radio mirror work as on the S3 |
@@ -82,7 +86,7 @@ moved five premises; this branch carries all five.
    `overruns` (printed once). In a room with *no* advertisements at all the
    unfixed firmware can still block between reports — only #20 cures that.
 2. **`BT_MAX_CONN=1` was Zephyr's default**, not the controller; it is 5
-   now. The broadcast transport stays (no connection, no `adafruit_ble` on
+   now on the Pico 2 W and 2 on the Pico W. The broadcast transport stays (no connection, no `adafruit_ble` on
    a node), but it is no longer forced: a connection with ESP-NOW's
    message-id + CRC-16 confirmation is the open alternative. The docstrings
    (`envadv`, `net_bleadv`) say this instead of the old reason.
@@ -107,11 +111,12 @@ Static RAM from the rebased firmware's builds, and what that leaves:
 
 | | total | firmware static | left by the ELF | budget used |
 |---|---|---|---|---|
-| Pico W | 270,336 B | **253,516 B (93.78 %)** | **~16.8 KB** | 16,820 B |
+| Pico W (`BT_MAX_CONN=2`) | 270,336 B | **250,224 B (92.56 %)** | **~19.6 KB** | 20,112 B |
 | Pico 2 W | 532,480 B | 260,680 B (48.96 %) | ~271.8 KB | ~181,000 B |
 
 (Pre-rebase, for comparison: Pico W 228,044 B static → 42,292 B; with TCP
-238,996 B → ~31 KB. Pico 2 W 229,144 B → 303,336 B.)
+238,996 B → ~31 KB. Pico 2 W 229,144 B → 303,336 B. The Pico W's first
+rebased build, at upstream's 5 connections, was 253,516 B → 16,820 B.)
 
 **The ELF number is not the heap.** *Measured* on the pre-rebase Pico 2 W:
 `gc.mem_free()` at a bare REPL read ~70,700 B (the *initial* heap — it
@@ -140,23 +145,25 @@ Two consequences in the code:
 
 `node_lite` + `caps` + `envadv` + `node_sensors` + `net_bleadv` (+ the
 guarded `battery`/`envproto`) come to ~15.8 KB of `.mpy`, **~19 KB
-loaded** — about 2 KB over the rebased Pico W's whole ~16.8 KB, before a
-sensor driver (`adafruit_scd4x` + `bus_device` ~9 KB) or the supervisor's
-own allocations. **As built, the Pico W node does not fit.** `node/code.py`
-catches the `MemoryError` from loading it and says so, with the REPL left
-up.
+loaded** — just inside the rebased Pico W's whole ~19.6 KB, and nowhere
+near it once a sensor driver (`adafruit_scd4x` + `bus_device` ~9 KB) and
+the supervisor's own allocations arrive. **As built, the Pico W node does
+not fit.** `node/code.py` catches the `MemoryError` from loading it and
+says so, with the REPL left up.
 
-The firmware is where that is won back. Each `CONFIG_BT_MAX_CONN`
-connection costs the Pico W ~2.9 KB of static RAM, and a node that only
-advertises uses none: **`CONFIG_BT_MAX_CONN=1` in the Pico W board `.conf`
-gives back ~11.6 KB** (5 → 1), taking the heap to ~28 KB — enough for
-`node_lite` with an SCD4x, not much more. Beyond that: drop `node_sensors`
-drivers the board does not need, or freeze `node_lite`'s modules.
-TODO(fw-11): measure `gc.mem_free()` and a cumulative-allocation run on a
-flashed Pico W before believing any of this.
+Connections are not where it is won back. The Pico W already builds with
+`CONFIG_BT_MAX_CONN=2`, and going from upstream's 5 to 2 gave back
+**3,292 B — ~1.1 KB a connection** (measured from the two builds'
+static RAM), so 1 would add ~1.1 KB more. The bigger loss is the ~22 KB
+between the 20260909 prerelease (42,292 B) and the rebase, which is not
+yet accounted for: comparing the two builds' memory maps (`zephyr.map`,
+largest `.bss`/`.noinit` symbols) is the next step. Short of that: drop
+`node_sensors` drivers the board does not need, or freeze `node_lite`'s
+modules. TODO(fw-11): measure `gc.mem_free()` and a cumulative-allocation
+run on a flashed Pico W before believing any of this.
 
 The BLE UART portal on a Pico W stays out of reach: frozen `adafruit_ble`
-is ~10 KB of a ~16.8 KB heap.
+is ~10 KB of a ~19.6 KB heap.
 
 ## What changed in the code
 
@@ -301,7 +308,7 @@ idle 100s (awake: no deep sleep on this port)
 and on the hub within ~5 s: `dat sq=1 crc=… from ble-XXXX: accepted`. On a
 Pico W the likely first result is `node: node_lite does not fit in this
 board's heap` — that is the RAM section above, and the fix is in the
-firmware (`CONFIG_BT_MAX_CONN=1`). Run Step 2 on a Pico 2 W first to prove
+firmware (finding the ~22 KB the rebase took). Run Step 2 on a Pico 2 W first to prove
 the transport. Watch `free:` across 50 cycles for a leak.
 
 **Step 3 — Pico 2 W node with WiFi** (optional): add `"wifi_fallback":
@@ -315,9 +322,10 @@ true, "collector_url": "http://<hub-ip>"` and it gets the hub's cfg reply
   `ci/pico2w-ble-assets`) raised the Pico 2 W to 12 / `NET_MAX_CONN=16`
   for +1,968 B of RAM; set `"max_sockets": 12` with such firmware.
   TODO(fw-11): carry it onto the rebased branch or drop it.
-* The Pico W's RAM is the binding constraint: `CONFIG_BT_MAX_CONN=1` in its
-  board `.conf` (~11.6 KB back) is the single most useful firmware change
-  for this repo. TODO(fw-11).
+* The Pico W's RAM is the binding constraint. Its board `.conf` already
+  sets `CONFIG_BT_MAX_CONN=2` (~3.3 KB back from 5; tyeth/circuitpython
+  `b610e43` on `zephyr-picow-ble`); the single most useful firmware change
+  left is finding the ~22 KB the CircuitPython-11 rebase took. TODO(fw-11).
 * WiFi and BLE sharing the CYW43439 gSPI bus at the same time — a station
   serving HTTP while advertising and scanning — is the configuration the
   hub needs and the one nobody has run. The existing stack sizing
