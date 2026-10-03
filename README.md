@@ -208,6 +208,58 @@ broadcast and pin it (MAC + channel) in NVM. `collector_mac` in
 * **Config push**: every check-in's `cfg` reply carries interval, enabled
   metrics, ASC-off policy, pending calibration, and the current epoch.
 
+## Radios: pick one on a board without PSRAM
+
+`config.json` ships **`ap_enabled: true`, `ble_enabled: false`**, and that
+is a memory budget rather than a preference. Measured on the bench
+(2026-09-13, Feather ESP32-S3 **No PSRAM**, everything shipped as `.mpy`):
+with the early block bringing up BLE *and* ESP-NOW *and* the softAP, the
+very next import — `datastore` — dies with
+
+```
+MemoryError: memory allocation failed, allocating 158 bytes
+```
+
+The radios themselves all came up fine (`early BLE advertising as
+HUB-7DD4`, `early ESP-NOW up`, `early AP up: BASE217DD4 @ 192.168.4.1`);
+what runs out is the GC heap that has to hold the rest of the hub. This is
+the same wall the C6 hits (see `bugs_issues_and_todos.md`) and it applies
+to **any** no-PSRAM board, S3 included.
+
+### The measured matrix, with frozen libraries
+
+Every combination tried on the bench hub (Feather ESP32-S3 **No PSRAM**,
+firmware with this project's 22 libraries **frozen**, application as
+`.mpy`, 2026-09-13). "ESP-NOW" is always on — the early block starts it
+unconditionally, so even the display-only row is still collecting from
+nodes.
+
+| display | AP | BLE | result |
+|---|---|---|---|
+| ✅ | — | — | **runs**, 22.3 KB free steady, eInk refreshing |
+| — | ✅ | — | **runs**, 33.5 KB free, HTTP portal on `:80` |
+| ✅ | ✅ | — | ✗ `MemoryError` — dashboard built with 14.5 KB, then died |
+| ✅ | — | ✅ | ✗ **hard fault** → safe mode |
+| — | ✅ | ✅ | ✗ **hard fault** → safe mode |
+| ✅ | ✅ | ✅ | ✗ **hard fault** → safe mode |
+
+**Exactly one of {display, AP, BLE} at a time on a no-PSRAM board.** Any
+second one is a hard fault or an OOM, and no amount of freezing changes
+that: with BLE + ESP-NOW + softAP all up the radios have already taken the
+heap before the first application import runs.
+
+What freezing *did* buy, same board and application: the failure moved
+from `import datastore` (line 189) to `import net_espnow` (line 194) — so
+`datastore` and `extrtc` now fit where they did not — and display-only
+went from dying in `battery.py` to running with the SD mounted and the
+eInk refreshing (40,256 bytes free at the dashboard build against 15,936).
+Real, and not enough for two radios.
+
+**If you want the dashboard and a portal at once, that wants PSRAM.**
+
+`.mpy` everywhere buys the compiler peak back (294 KB of source → 80 KB of
+bytecode); freezing buys the resident bytecode. Neither buys the radios.
+
 ## Time service & clocks
 
 **Every clock in this project holds UTC.** The system RTC, the coin-cell
@@ -688,6 +740,40 @@ practical ones you need before touching the boards.
   counter and discovered channel live in `alarm.sleep_memory`, which a soft
   reload wipes — so after a hard reset expect the first wake to re-discover
   its collector.
+* **A `.py` left beside a `.mpy` is the one that runs.** Measured on the
+  bench: within a directory CircuitPython prefers the source, so the
+  cross-compile step buys nothing until the `.py` is **deleted**.
+  `tools/build_mpy.sh` produces the bytecode; removing the sources is a
+  separate, deliberate step, and skipping it looks exactly like success.
+* **Frozen wins over `lib/` — but not over `/`.** Read `sys.path` on the
+  board rather than assuming the order. On the ESP32 builds it is
+
+  ```
+  ['', '/', '.frozen', '/lib']
+  ```
+
+  so a stale copy in **`lib/` does not shadow** a frozen module, while a
+  module dropped in the **flash root does** — `/` is searched before
+  `.frozen`. On this project only the hub's own modules live in `/`, and
+  none of them shares a name with a frozen library, so there is nothing
+  there to clear; the thing to avoid is dropping a library copy into `/`.
+  Deleting `lib/` is worth doing for flash and for removing the ambiguity,
+  and **not** for RAM: measured on the bench hub, removing all 91 files
+  freed **346 KB of flash and zero RAM** — `display + AP` failed
+  identically before and after (13,232 vs 14,544 bytes free at the
+  dashboard build, i.e. noise).
+  Cross-compiling removes the on-device *compiler* peak — that is what
+  makes a large `code.py` bootable on the C6 — but the resident bytecode
+  is much the same size either way. A frozen module executes in place from
+  flash and never occupies heap. The project's libraries are frozen into
+  the ESP32 builds for the 13 boards it targets
+  ([tyeth/circuitpython#30](https://github.com/tyeth/circuitpython/pull/30)).
+  Measured on the S3 No PSRAM bench hub, same board, same application,
+  display on: `adafruit_ble` costs **5,728 bytes** to import frozen
+  against 30.6 KB of bytecode, and at the dashboard build the hub has
+  **40,256 bytes free instead of 15,936** — enough that the SD now mounts,
+  the fuel gauge initialises and the eInk refreshes, where before it died
+  in `battery.py`.
 * **`python -m py_compile` does not prove the board will accept it.**
   CircuitPython lacks syntax CPython has, and you find out at boot as a bare
   `SyntaxError: invalid syntax` with a line number — after the deploy. The

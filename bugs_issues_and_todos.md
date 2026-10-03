@@ -497,7 +497,7 @@ breaker would be the code answer if that ever has to change.
       compiled body of a 67 KB `code.py` takes the contiguous internal RAM
       `esp_wifi_init()` wants, with 242 KB still free. `collector/code.py`
       is now `import hubmain`, the body is `collector/hubmain.py`, and
-      `tools/build_bundle.sh` cross-compiles it. Bench: clean hard reset,
+      `tools/build_mpy.sh` cross-compiles it. Bench: clean hard reset,
       AP + HTTPS + BLE all up, 22 KB free after BLE.
       **The `.mpy` is load-bearing** — `hubmain.py` copied to the board as
       source fails exactly as the old `code.py` did, and a soft reload
@@ -567,6 +567,22 @@ breaker would be the code answer if that ever has to change.
       default (0/unset) is unaffected. Not benched; nothing here needs
       hardware, but the eInk clock line and a real NTP sync are worth an
       eyeball on the next bench run.
+* [x] **"The S3 hub logs nothing and the SD never mounts"** — both
+      diagnosed on the bench 2026-09-13, and **neither was what it looked
+      like**. The SD is fine: a 16 GB FAT card that mounts first time
+      (`storage: sd /sd`). The hub had never logged to a *day file* only
+      because it had never had a clock — every row was in
+      `data/unsynced.csv`, which is correct behaviour, not a fault. The
+      "no data anywhere" reading was an artefact of listing `/sd` while
+      the card was **unmounted**, which shows the flash decoy directory
+      holding `placeholder.txt` instead. Delete that decoy; it fools you
+      exactly once per person.
+      What *was* real: the hub died at boot with `espidf.MemoryError` out
+      of the SEN66 driver, and later at `MemoryError` in the SD mount and
+      the MAX17048 — none of which were caught, because
+      `MemoryError` is not an `OSError`/`ValueError`/`RuntimeError`. Those
+      two handlers now include it, so a tight board degrades (no card, no
+      local sensor) instead of not booting at all.
 * [ ] Fill in the BLE retest table above; file upstream issues 1–4 (and 5
       if confirmed) at adafruit/circuitpython + the jd79667 debug prints.
 * [x] History that would not sync to a browser (issue 9's clock TODO,
