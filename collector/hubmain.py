@@ -50,12 +50,73 @@ import envproto  # tiny; needed for the early AP SSID
 # workflow (which boots before user code) alongside our early AP.
 # Full evidence in bugs_issues_and_todos.md. ESP-NOW is light; it waits.
 # ---------------------------------------------------------------------------
+# The keys this block reads, mirrored into NVM whenever they were saved
+# somewhere it cannot look yet. A hub with a card keeps its config overrides
+# on /sd -- and the card is not mounted until well after the radios are up,
+# so without the mirror an "ap_enabled": false saved from the web UI would
+# be honoured by everything except the one place that decides it.
+#   nvm[16]      0xEC when nvm[17] is the length of a JSON object at nvm[18:]
+# (nvm[0:4] belong to boot.py and datastore -- see datastore.py.)
+EARLY_KEYS = ("ap_enabled", "ap_ssid", "ap_password", "ap_channel",
+              "ble_enabled", "ble_name", "display_enabled",
+              "wifi_tx_power_dbm")
+_EARLY_NVM_AT = 16
+_EARLY_NVM_MAGIC = 0xEC
+_EARLY_NVM_MAX = 255
+
+
 def _early_cfg():
     try:
         with open("/config.json") as f:
-            return json.load(f)
+            cfg = json.load(f)
     except (OSError, ValueError):
-        return {}
+        cfg = {}
+    try:
+        nvm = microcontroller.nvm
+        if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+            n = nvm[_EARLY_NVM_AT + 1]
+            at = _EARLY_NVM_AT + 2
+            cfg.update(json.loads(bytes(nvm[at:at + n]).decode()))
+    except (TypeError, IndexError, ValueError, UnicodeError):
+        pass   # no NVM, or a torn write: the shipped file alone is fine
+    return cfg
+
+
+def _mirror_early(saved):
+    """Keep the NVM copy of EARLY_KEYS in step with the saved overrides.
+
+    `saved` is the override layer that lives off the flash root (/sd or
+    /saves), or None when there is none -- then the mirror is cleared, so
+    a hand edit of /config.json is never outvoted by a stale copy. Writes
+    only on a change: NVM is flash, and this runs every boot.
+    """
+    try:
+        nvm = microcontroller.nvm
+        if nvm is None:
+            return
+        if saved is None:
+            if nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC:
+                nvm[_EARLY_NVM_AT] = 0
+            return
+        blob = json.dumps(dict((k, saved[k]) for k in EARLY_KEYS
+                               if k in saved)).encode()
+        if len(blob) > _EARLY_NVM_MAX:
+            print("config: radio settings too long to mirror (%d bytes); "
+                  "they apply once the card is read, not at boot"
+                  % len(blob))
+            return
+        at = _EARLY_NVM_AT + 2
+        if (nvm[_EARLY_NVM_AT] == _EARLY_NVM_MAGIC
+                and nvm[_EARLY_NVM_AT + 1] == len(blob)
+                and bytes(nvm[at:at + len(blob)]) == blob):
+            return
+        nvm[_EARLY_NVM_AT] = 0           # invalid while the body changes
+        nvm[at:at + len(blob)] = blob
+        nvm[_EARLY_NVM_AT + 1] = len(blob)
+        nvm[_EARLY_NVM_AT] = _EARLY_NVM_MAGIC
+        print("config: radio settings mirrored to NVM for the next boot")
+    except (TypeError, IndexError, ValueError, AttributeError) as exc:
+        print("config: could not mirror radio settings to NVM:", exc)
 
 _ecfg = _early_cfg()
 AP_SSID = (os.getenv("ENVHUB_AP_SSID")
@@ -396,6 +457,12 @@ for _root in ("/sd", "/saves", "/"):
     if _ov:
         _deep_merge(config, _ov)
         break
+# The early block above could only read /config.json (plus the NVM mirror
+# of what was saved last time). If the layer that won here lives anywhere
+# else, mirror its radio keys for the next boot -- a card edited on a PC,
+# or one swapped for another hub's, otherwise never reaches them.
+_mirror_early(_ov if _ov and _root != "/" else None)
+del _ov
 
 # Config migration. `config_rev` is absent from anything an older build
 # wrote, which is exactly the signal needed here: the saved override layer
@@ -711,10 +778,13 @@ def _persist_config():
         with open(store.root.rstrip("/") + "/config.json", "w") as f:
             json.dump(config, f)
         os.sync()
-        return True
     except OSError as exc:
         print("config save failed:", exc)
         return False
+    # "/" means the override IS /config.json, which the early block reads
+    # for itself; anywhere else it needs the NVM copy (see EARLY_KEYS).
+    _mirror_early(config if store.root.rstrip("/") else None)
+    return True
 
 
 def h_config_set(body):

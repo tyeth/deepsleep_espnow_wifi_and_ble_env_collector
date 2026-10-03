@@ -81,6 +81,7 @@ _TMP_SUFFIX = "~"              # a .plan being written (renamed when whole)
 #   nvm[1]     0xB7 when nvm[2:4] holds a boot id
 #   nvm[2:4]   little-endian id of the last boot that wrote to unsynced.csv;
 #              back to 0 once a relabel has emptied the file
+#   nvm[16:]   hubmain's mirror of the early radio keys (EARLY_KEYS)
 _NVM_MAGIC_AT = 1
 _NVM_ID_AT = 2
 _NVM_MAGIC = 0xB7
