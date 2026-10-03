@@ -255,7 +255,21 @@ an artifact (`bundle-<sha>`). It fails if mpy-cross rejects any source or
 if circup leaves either `lib/` empty (the script pipes circup through
 `grep`, which would otherwise mask a circup error).
 
-It downloads `mpy-cross` from tyeth/circuitpython with `gh run download`,
+**Since 2026-10-03 the default `mpy-cross` is upstream's**, not the fork's:
+CircuitPython 11.0.0-alpha.1 is out, Adafruit publishes a static Linux
+`mpy-cross` for every tag, and CP 11 still emits mpy v6.3 -- the 10.x
+bundle libraries load unchanged on it (per the 11.0.0-alpha.1 release
+notes). So `tools/build_bundle.sh` downloads
+`mpy-cross-linux-amd64-$CP_VERSION.static` (default `11.0.0-alpha.1`)
+and plain pushes and pull requests -- fork PRs included -- need no secret.
+circup still picks the bundle platform from each tree's `boot_out.txt`
+(currently 10.3.0-alpha.4, so `10.x-mpy`), which is the bench firmware's.
+`code.py` and `boot.py` are compiled only as a syntax check and ship in
+the artifact as source, since the supervisor never runs a `.mpy` of either.
+
+The fork path below is now opt-in: set `MPY_CROSS_RUN` locally, or the
+`mpy_cross_run` dispatch input. It downloads `mpy-cross` from
+tyeth/circuitpython with `gh run download`,
 which needs a token with **Actions: read** on *that* repository -- the
 job's own `GITHUB_TOKEN` is scoped to this repo and cannot do it. The
 workflow reads a repository secret named **`CP_CI_TOKEN`**, which has to
@@ -272,9 +286,9 @@ be created by hand:
 (A classic PAT works too but needs the whole `repo` scope, which is far
 broader; prefer the fine-grained token.) The workflow's own
 `permissions:` block is `contents: read` only. Pull requests from forks
-do not receive secrets, so the job can only pass for branches in this
-repository. On `workflow_dispatch` the run id to take mpy-cross from can
-be overridden (`mpy_cross_run`), and an optional `firmware_run` input
+do not receive secrets, so the fork path only works for branches in this
+repository. On `workflow_dispatch` the upstream version (`cp_version`) or a fork
+run id (`mpy_cross_run`) can be chosen, and an optional `firmware_run` input
 re-hosts the Pico 2 W firmware artifact from a `Build board (custom)` run
 alongside the bundle -- informational only, the bundle build does not
 use it.

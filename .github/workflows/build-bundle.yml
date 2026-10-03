@@ -1,18 +1,16 @@
 # SPDX-License-Identifier: MIT
 #
 # Build node/ and collector/ the way tools/build_bundle.sh does locally:
-# byte-compile every device source with a fork-built mpy-cross, stage each
-# tree's libraries with circup, and compile any library that only ships as
-# .py. No hardware is involved; a green run means CircuitPython will accept
-# the code and every requested library exists, nothing more.
+# byte-compile every device source with mpy-cross, stage each tree's
+# libraries with circup, and compile any library that only ships as .py.
+# No hardware is involved; a green run means CircuitPython will accept the
+# code and every requested library exists, nothing more.
 #
-# The mpy-cross binary is a build artifact of the tyeth/circuitpython repo,
-# so fetching it needs a token with `actions: read` on THAT repo. The
-# job-scoped GITHUB_TOKEN cannot do this (it is limited to this repo), so
-# the workflow reads the CP_CI_TOKEN secret instead -- see the section
-# "Continuous integration (this repo)" in build_results.md for how to create it.
-# Pull requests from forks do not receive secrets, so this job can only pass
-# for branches in this repository.
+# By default mpy-cross is Adafruit's published static build for cp_version
+# (no token needed, so fork PRs build too). A workflow_dispatch can instead
+# take it from a tyeth/circuitpython Actions run; that, and re-hosting the
+# Pico 2 W firmware, need the CP_CI_TOKEN secret (`actions: read` on that
+# repo) -- see "Continuous integration (this repo)" in build_results.md.
 name: Build bundle
 
 on:
@@ -23,10 +21,15 @@ on:
     paths-ignore: ['**.md', 'webapp/**']
   workflow_dispatch:
     inputs:
-      mpy_cross_run:
-        description: 'tyeth/circuitpython Actions run id that has an `mpy-cross` artifact'
+      cp_version:
+        description: 'CircuitPython version whose upstream mpy-cross to use'
         required: false
-        default: '34494018766'
+        default: '11.0.0-alpha.1'
+        type: string
+      mpy_cross_run:
+        description: 'Optional: tyeth/circuitpython Actions run id with an `mpy-cross` artifact (overrides cp_version; needs CP_CI_TOKEN)'
+        required: false
+        default: ''
         type: string
       firmware_run:
         description: >-
@@ -43,7 +46,8 @@ permissions:
   contents: read
 
 env:
-  MPY_CROSS_RUN: ${{ inputs.mpy_cross_run || '34494018766' }}
+  CP_VERSION: ${{ inputs.cp_version || '11.0.0-alpha.1' }}
+  MPY_CROSS_RUN: ${{ inputs.mpy_cross_run || '' }}
   # Consumed by `gh` inside tools/build_bundle.sh and by the steps below.
   GH_TOKEN: ${{ secrets.CP_CI_TOKEN }}
 
@@ -54,31 +58,23 @@ jobs:
       - name: Check out
         uses: actions/checkout@v5
 
-      - name: Check CP_CI_TOKEN is configured
+      - name: Check CP_CI_TOKEN is configured (fork-run inputs only)
+        if: env.MPY_CROSS_RUN != '' || inputs.firmware_run != ''
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::Secret CP_CI_TOKEN is not set. Create a fine-grained PAT with" \
                  "'Actions: Read-only' on tyeth/circuitpython and add it as a repository" \
-                 "secret named CP_CI_TOKEN. Fork PRs do not receive secrets."
+                 "secret named CP_CI_TOKEN."
             exit 1
           fi
-          gh auth status 2>&1 || true
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
 
-      - name: Fetch mpy-cross from tyeth/circuitpython run ${{ env.MPY_CROSS_RUN }}
-        run: |
-          mkdir -p build/mpy-cross
-          gh run download --repo tyeth/circuitpython "$MPY_CROSS_RUN" \
-            --name mpy-cross --dir build/mpy-cross
-          chmod +x build/mpy-cross/mpy-cross
-          build/mpy-cross/mpy-cross --version
-
       - name: Build bundle (mpy-cross + circup)
-        run: MPY_CROSS=build/mpy-cross/mpy-cross tools/build_bundle.sh
+        run: tools/build_bundle.sh
 
       # build_bundle.sh pipes circup through grep, so a circup failure would
       # not fail the script by itself. Make sure something was actually staged.

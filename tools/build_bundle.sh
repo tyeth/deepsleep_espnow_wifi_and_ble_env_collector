@@ -6,24 +6,41 @@
 #
 #   MPY_CROSS=/path/to/mpy-cross tools/build_bundle.sh
 #
-# Without MPY_CROSS, and with `gh` authenticated, it fetches the mpy-cross
-# artifact from a tyeth/circuitpython Actions run (MPY_CROSS_RUN, default
-# 34494018766 = the green ci/pico2w-ble-assets run). circup is used from the venv
-# at $VENV (default ./venv), created and populated if missing.
+# Without MPY_CROSS it downloads Adafruit's static Linux x86-64 mpy-cross for
+# CP_VERSION (default 11.0.0-alpha.1; any tag published on S3 works). Set
+# MPY_CROSS_RUN instead to take the `mpy-cross` artifact from a
+# tyeth/circuitpython Actions run (needs `gh` authenticated, and the artifact
+# expires after 90 days). CP 11 still emits mpy v6.3, the same as 10.x, so
+# either compiler's output loads on both. circup is used from the venv at
+# $VENV (default ./venv), created and populated if missing.
+#
+# code.py and boot.py are syntax-checked but NOT put in the bundle as .mpy:
+# the supervisor only ever runs them as source (see tools/build_mpy.sh).
 set -u
 cd "$(dirname "$0")/.."
 BUILD=${BUILD_DIR:-build}
 VENV=${VENV:-venv}
-MPY_CROSS_RUN=${MPY_CROSS_RUN:-34494018766}
+CP_VERSION=${CP_VERSION:-11.0.0-alpha.1}
+MPY_CROSS_RUN=${MPY_CROSS_RUN:-}
 
 if [ -z "${MPY_CROSS:-}" ]; then
-    MPY_CROSS=$BUILD/mpy-cross/mpy-cross
-    if [ ! -x "$MPY_CROSS" ]; then
-        mkdir -p "$BUILD/mpy-cross"
-        gh run download --repo tyeth/circuitpython "$MPY_CROSS_RUN" \
-            --name mpy-cross --dir "$BUILD/mpy-cross" || exit 2
-        chmod +x "$MPY_CROSS"
+    if [ -n "$MPY_CROSS_RUN" ]; then
+        MPY_CROSS=$BUILD/mpy-cross/run-$MPY_CROSS_RUN/mpy-cross
+        if [ ! -x "$MPY_CROSS" ]; then
+            mkdir -p "$(dirname "$MPY_CROSS")"
+            gh run download --repo tyeth/circuitpython "$MPY_CROSS_RUN" \
+                --name mpy-cross --dir "$(dirname "$MPY_CROSS")" || exit 2
+        fi
+    else
+        MPY_CROSS=$BUILD/mpy-cross/mpy-cross-$CP_VERSION
+        if [ ! -x "$MPY_CROSS" ]; then
+            mkdir -p "$BUILD/mpy-cross"
+            curl -fsSL -o "$MPY_CROSS" \
+                "https://adafruit-circuit-python.s3.amazonaws.com/bin/mpy-cross/linux-amd64/mpy-cross-linux-amd64-$CP_VERSION.static" \
+                || { rm -f "$MPY_CROSS"; exit 2; }
+        fi
     fi
+    chmod +x "$MPY_CROSS"
 fi
 echo "mpy-cross: $("$MPY_CROSS" --version)"
 
@@ -37,6 +54,12 @@ compile() {  # compile <label> <file...>
     for f in "$@"; do
         n=$((n + 1))
         out=$BUILD/$label/${f#*/}; out=${out%.py}.mpy
+        case "$f" in
+            node/code.py|node/boot.py|collector/code.py|collector/boot.py)
+                # Ship the source; the .mpy is only proof that it compiles.
+                mkdir -p "$BUILD/$label" && cp "$f" "$BUILD/$label/"
+                out=$BUILD/syntax-only/$f.mpy ;;
+        esac
         mkdir -p "$(dirname "$out")"
         if ! err=$("$MPY_CROSS" -o "$out" "$f" 2>&1); then
             bad=$((bad + 1)); rc=1
