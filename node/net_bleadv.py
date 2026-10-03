@@ -15,6 +15,15 @@ controller sends ADV_NONCONN_IND at the port's fixed fast interval
 (~100-150 ms; zephyr-cp ignores the `interval` argument) for as long as
 `start()` is in effect. Legacy PDUs only: this controller has no extended
 advertising and the port builds with CONFIG_BT_EXT_ADV=n.
+
+The address it goes out from is NOT the board's. zephyr-cp's Adapter.c
+starts advertising with options=0, and for a non-connectable set Zephyr's
+bt_id_set_adv_own_addr() then uses a non-resolvable private address,
+picked afresh at every start() -- once per reading. That is why the
+payload carries the node's own id (envadv VERSION 2) and the hub never
+looks at the address. Asking for the identity address instead
+(BT_LE_ADV_OPT_USE_IDENTITY) is a firmware change, not something _bleio
+exposes.
 """
 
 

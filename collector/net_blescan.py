@@ -44,35 +44,35 @@ class AdvReceiver:
         self.scan_s = scan_s
         self.every_s = every_s
         self.min_rssi = min_rssi
-        self.last_seq = {}       # address bytes -> last seq accepted
+        # node id (from the payload) -> last seq accepted. Keyed by what the
+        # node says it is, never by the advertiser address: that is a fresh
+        # random NRPA on every advertising start (envadv's docstring), so a
+        # dict keyed by it grew by one entry per reading, for ever.
+        self.last_seq = {}
         self.rx_count = 0
         self.dup_count = 0
+        self.old_count = 0       # ours, but a VERSION this hub cannot read
         self.overruns = 0        # scans we had to stop ourselves (see top)
         self.last_error = None
         self._next = 0.0
         self._warned = False
+        self._warned_ver = False
         try:
             import _bleio
             self.adapter = _bleio.adapter
+            # On an ESP32 hub hubmain only gets here when the early block
+            # already enabled BLE (a late enable beside the softAP is the
+            # C6 hard fault); on a Pico this is the first enable, and fine.
             self.adapter.enabled = True
             self.ok = True
         except Exception as exc:
             print("BLE scan receiver unavailable: %s: %s"
                   % (type(exc).__name__, exc))
 
-    @staticmethod
-    def src_for(addr):
-        """Stable node id from the advertiser address: the node's name does
-        not fit the 31-byte PDU next to the reading, so the hub's `zones`
-        config maps this id to a display name.
-
-        `address_bytes` is least-significant byte FIRST (CircuitPython
-        stores it reversed from how addresses are printed), so the two
-        bytes that differ between boards are [1] and [0] -- the last two
-        of the printed address. [-2:] would be the vendor (OUI) end, the
-        same on every CYW43439, and every Pico node would share one id."""
-        b = bytes(addr)
-        return "ble-%02X%02X" % (b[1], b[0])
+    # the node's name does not fit the 31-byte PDU next to the reading, so
+    # the id it carries becomes "ble-XXXX" and the hub's `zones` config
+    # maps that to a display name. One definition, shared with the node.
+    src_for = staticmethod(envadv.src_for)
 
     def poll(self):
         """Yield (src, packet_dict, rssi, raw_adv_bytes) for each NEW
@@ -103,14 +103,25 @@ class AdvReceiver:
                 got = envadv.unpack(raw)
                 if got is None:
                     continue
-                seq, m, vb, kind = got
-                addr = bytes(e.address.address_bytes)
-                if self.last_seq.get(addr) == seq:
+                if isinstance(got, int):
+                    # A node still on another layout (VERSION 1 had no node
+                    # id, so there is no way to tell whose it is). Dropped:
+                    # said once, then counted, since it repeats every
+                    # ~100 ms for its whole window. Update that node.
+                    self.old_count += 1
+                    if not self._warned_ver:
+                        self._warned_ver = True
+                        print("BLE scan: ignoring advertisements in envadv "
+                              "VERSION %d (this hub reads %d): update that "
+                              "node's envadv/node_lite" % (got, envadv.VERSION))
+                    continue
+                nid, seq, m, vb, kind = got
+                if self.last_seq.get(nid) == seq:
                     self.dup_count += 1
                     continue
-                self.last_seq[addr] = seq
+                self.last_seq[nid] = seq
                 self.rx_count += 1
-                src = self.src_for(addr)
+                src = self.src_for(nid)
                 yield src, envadv.to_packet(src, seq, m, vb, kind), e.rssi, raw
         except Exception as exc:
             self.last_error = "%s: %s" % (type(exc).__name__, exc)

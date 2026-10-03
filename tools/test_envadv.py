@@ -42,16 +42,23 @@ def check(name, cond):
 def main():
     print("envadv")
     m = {"tc": 21.37, "rh": 48.2, "co2": 612, "pm25": 3.1, "voc": 101, "nox": 1}
-    adv = envadv.adv_bytes(42, m, 3.87, "scd4x")
-    check("fits a legacy PDU (31 B): %d" % len(adv), len(adv) <= 31)
+    NID = 0x62AC
+    adv = envadv.adv_bytes(NID, 42, m, 3.87, "scd4x")
+    check("payload is 20 B", envadv.SIZE == 20 and len(envadv.pack(NID, 1, m)) == 20)
+    check("fits a legacy PDU (31 B): %d = 3 flags + 4 AD header + 20" % len(adv),
+          len(adv) == 27 and len(adv) <= 31)
     check("starts with the flags structure", adv[:3] == b"\x02\x01\x06")
     # _bleio compares a prefix from the AD *type* byte (after the length):
     # shared-module/_bleio/ScanEntry.c bleio_scanentry_data_matches
     check("prefix filter matches the manufacturer structure",
           adv[4:4 + len(envadv.PREFIX) - 1] == envadv.PREFIX[1:])
+    check("layout: VERSION 2, node id LE at payload offset 2, seq at 4",
+          adv[7] == envadv.MAGIC and adv[8] == 2 and adv[9] == 0xAC
+          and adv[10] == 0x62 and adv[11] == 42)
     got = envadv.unpack(adv)
-    check("unpacks", got is not None)
-    seq, mm, vb, kind = got
+    check("unpacks", isinstance(got, tuple))
+    nid, seq, mm, vb, kind = got
+    check("node id round-trips", nid == NID)
     check("seq round-trips", seq == 42)
     check("kind round-trips", kind == "scd4x")
     check("battery to 1 mV", vb == 3.87)
@@ -62,28 +69,79 @@ def main():
     check("voc/nox exact", mm["voc"] == 101 and mm["nox"] == 1)
     check("unscaled fields stay ints, as over ESP-NOW",
           all(isinstance(mm[k], int) for k in ("co2", "voc", "nox")))
+    # values whose scaled float sits just under the integer: int() put
+    # 19.98 / 0.28 / 0.5 on air, round() the reading itself
+    r = envadv.unpack(envadv.adv_bytes(1, 1, {"tc": 19.99, "rh": 0.29,
+                                              "pm25": 0.57}))
+    check("scaled fields rounded, not truncated (tc %r rh %r pm25 %r)"
+          % (r[2]["tc"], r[2]["rh"], r[2]["pm25"]),
+          r[2]["tc"] == 19.99 and r[2]["rh"] == 0.29 and r[2]["pm25"] == 0.6)
+    check("int() would have truncated these (the test is a real one)",
+          int(19.99 * 100) == 1998 and int(0.29 * 100) == 28
+          and int(0.57 * 10) == 5)
+    check("negative temperature rounds too",
+          envadv.unpack(envadv.adv_bytes(1, 1, {"tc": -16.15}))[2]["tc"] == -16.15)
+    check("out-of-range temperature is 'none', not a struct.error",
+          "tc" not in envadv.unpack(envadv.adv_bytes(1, 1, {"tc": 400.0, "co2": 1}))[2])
     check("a simulated sensor says so on air",
-          envadv.unpack(envadv.adv_bytes(1, {"co2": 1}, None, "sim"))[3] == "sim")
-    adv2 = envadv.adv_bytes(7, {"co2": 500}, None, "sen6x")
-    seq2, mm2, vb2, kind2 = envadv.unpack(adv2)
+          envadv.unpack(envadv.adv_bytes(1, 1, {"co2": 1}, None, "sim"))[4] == "sim")
+    adv2 = envadv.adv_bytes(NID, 7, {"co2": 500}, None, "sen6x")
+    _, seq2, mm2, vb2, kind2 = envadv.unpack(adv2)
     check("missing metrics are absent, not zero", set(mm2) == {"co2"} and vb2 is None)
-    check("negative temperature", envadv.unpack(envadv.adv_bytes(1, {"tc": -4.5}))[1]["tc"] == -4.5)
+    check("negative temperature", envadv.unpack(envadv.adv_bytes(1, 1, {"tc": -4.5}))[2]["tc"] == -4.5)
     check("foreign manufacturer data is rejected",
           envadv.unpack(b"\x02\x01\x06\x05\xff\x4c\x00\x01\x02") is None)
     check("wrong magic is rejected",
           envadv.unpack(adv[:7] + b"\x00" + adv[8:]) is None)
-    check("seq wraps at 256", envadv.unpack(envadv.adv_bytes(300, {"co2": 1}))[0] == 44)
+    check("seq wraps at 256", envadv.unpack(envadv.adv_bytes(1, 300, {"co2": 1}))[1] == 44)
+    check("node id is 16 bits", envadv.unpack(envadv.adv_bytes(0x162AC, 1, {"co2": 1}))[0] == 0x62AC)
+    # a VERSION 1 advertisement, built the way the old envadv built it
+    import struct
+    v1p = struct.pack("<BBBhHHHHHHB", 0xE7, 1, 42, 2137, 4820, 612, 31,
+                      101, 1, 3870, 1)
+    v1 = b"\x02\x01\x06" + bytes([len(v1p) + 3, 0xFF, 0xFF, 0xFF]) + v1p
+    check("an old (VERSION 1) node is recognised as ours-but-old: %r"
+          % (envadv.unpack(v1),), envadv.unpack(v1) == 1)
+    check("a truncated current one is not ours", envadv.unpack(adv[:-3]) is None)
     pkt = envadv.to_packet("ble-62AC", seq, mm, vb, kind)
     check("hub packet shape", pkt["k"] == "dat" and pkt["n"] == "ble-62AC"
           and pkt["sq"] == 42 and pkt["m"]["co2"] == 612 and pkt["vb"] == 3.87)
 
-    print("node id from the BLE address")
+    print("node id from the payload, not the (random) address")
     import net_blescan
-    # _bleio's address_bytes for the printed address 2C:CF:67:01:62:AC:
-    # least-significant byte first
-    lsb_first = bytes([0xAC, 0x62, 0x01, 0x67, 0xCF, 0x2C])
-    check("ble-XXXX is the END of the printed address, not the OUI",
-          net_blescan.AdvReceiver.src_for(lsb_first) == "ble-62AC")
+    check("src_for is ble-%04X", envadv.src_for(0x62AC) == "ble-62AC"
+          and net_blescan.AdvReceiver.src_for(0x00AB) == "ble-00AB")
+
+    class _Adapter:
+        enabled = False
+
+        def __init__(self, advs):
+            self.advs = advs
+
+        def start_scan(self, *a, **k):
+            # each entry from a different NRPA, the way zephyr-cp sends a
+            # non-connectable set: a new random address per advertising start
+            for i, a in enumerate(self.advs):
+                yield type("E", (), {"advertisement_bytes": a, "rssi": -50,
+                                     "address": type("A", (), {
+                                         "address_bytes": bytes([i, i * 7 & 0xFF, 0x11,
+                                                                 0x22, 0x33, 0x40 | i])})})()
+
+        def stop_scan(self):
+            pass
+
+    rx = net_blescan.AdvReceiver()      # no _bleio on a host: ok=False
+    rx.ok = True
+    rx.adapter = _Adapter([envadv.adv_bytes(NID, s, {"co2": 600 + s})
+                           for s in (1, 1, 1, 2, 2, 3)] + [v1, v1])
+    rx.scan_s = 60
+    got = list(rx.poll())
+    check("three readings from six advertisements on six addresses: %d" % len(got),
+          len(got) == 3 and rx.dup_count == 3)
+    check("one source for all of them", set(g[0] for g in got) == {"ble-62AC"})
+    check("de-dup state is per node, not per address: %r" % (rx.last_seq,),
+          rx.last_seq == {NID: 3})
+    check("old-VERSION advertisements dropped and counted", rx.old_count == 2)
 
     print("caps clock without an RTC")
     import caps

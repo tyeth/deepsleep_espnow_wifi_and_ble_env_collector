@@ -4,9 +4,10 @@
 node_lite - the sensor node for boards WITHOUT ESP-NOW or deep sleep:
 Raspberry Pi Pico W (RP2040, a heap of ~19.6 KB on the current firmware
 -- see "Budget" below) and Pico 2 W (RP2350) on
-CircuitPython's Zephyr port. node/code.py picks this over nodemain (the
-ESP32 node) when `espnow` or `alarm` is missing, imports it -- which sets
-everything up -- and then calls run(), which never returns.
+CircuitPython's Zephyr port. node/nodegate.py (what node/code.py imports)
+picks this over nodemain (the ESP32 node) when `espnow` or `alarm` is
+missing, imports it -- which sets everything up -- and then calls run(),
+which never returns.
 
 What it does, every `interval_s`:
   1. read the sensor (auto-detected on the board's I2C bus, or "sim")
@@ -17,6 +18,9 @@ What it does, every `interval_s`:
      reply (interval, time) back to this node -- and the only one with a
      delivery confirmation
   4. stop advertising and time.sleep() the rest of the interval
+Every advertisement carries this node's 16-bit id (NODE_ID, envadv
+VERSION 2): the on-air address is a random one, new each time, so the id
+is how the hub knows it is us -- and it names the WiFi POST too.
 
 What it does NOT do, honestly:
   * deep sleep. `alarm` does not exist on these boards, so the node is an
@@ -51,8 +55,8 @@ W firmware rebased onto CircuitPython 11 with CONFIG_BT_MAX_CONN=2
 (ci/pico2w-ble-assets @ 3501030d6c, CI run 37127295820) uses 250,224 B of
 the RP2040's 264 KB statically, which leaves ~19.6 KB -- room for node_lite
 itself with nothing to spare, and NOT for node_lite plus a sensor driver,
-so as built this node does not fit a Pico W and code.py will say so rather
-than crash. Connections are not where the rest is: going 5 -> 2 gave back
+so as built this node does not fit a Pico W and nodegate will say so
+rather than crash. Connections are not where the rest is: going 5 -> 2 gave back
 3,292 B (~1.1 KB each), so 1 would add only ~1.1 KB more. The heap was
 ~42 KB on the 20260909 prerelease; the ~22 KB that went with the rebase is
 not yet accounted for (compare the two builds' memory maps). Nothing here
@@ -77,11 +81,14 @@ import node_sensors
 supervisor.runtime.autoreload = False
 
 DEFAULTS = {
-    # "" -> ble-XXXX, the id the hub gives our advertisements. Leave it so:
-    # the advertisement cannot carry a name, and a WiFi POST under any
+    # "" -> ble-XXXX, from the node id our advertisements carry. Leave it
+    # so: the advertisement cannot carry a name, and a WiFi POST under any
     # other name lands on the hub as a second source (and escapes its
     # same-reading check). Name the node in the hub's `zones` instead.
     "name": "",
+    # 0 -> from the board's own address (_node_id). Set 1..65535 only to
+    # part two boards whose addresses end in the same two bytes.
+    "node_id": 0,
     "interval_s": 120,
     "metrics": None,
     "sensor": "",             # "" auto-detect, "sim" synthetic (bench)
@@ -105,28 +112,38 @@ for _path in ("/node_config.json", "/saves/node_config.json"):
         pass
 
 
-def _mac_tail():
-    """Last two bytes of the printed BLE address -- the same id the hub
-    derives from the advertisement (net_blescan.src_for). _bleio's
-    address_bytes is least-significant byte first, hence [1], [0]. The
-    WiFi MAC (most-significant first, so [-2], [-1]) is a fallback only,
-    and NOT the same id: on the CYW43439 the BD_ADDR is the WiFi MAC + 1,
-    so a node named from it must be mapped in the hub's `zones` by hand."""
+def _node_id():
+    """This node's 16-bit id: the last two bytes of its printed BLE
+    *identity* address (_bleio's address_bytes is least-significant byte
+    first, hence [1], [0]), else of the WiFi MAC (most-significant first,
+    so [-2], [-1]). It goes on air INSIDE every advertisement (envadv
+    VERSION 2), because the address the advertisement is sent from is not
+    this one -- it is a random NRPA, new every advertising start -- and it
+    names the WiFi POST, so the hub sees one source "ble-XXXX" whichever
+    path a reading took. Which address it came from no longer matters
+    (both paths use this one number); it only has to be stable per board.
+    Two boards that share the last two bytes of an address would share a
+    source: set `node_id` in one's node_config.json if that ever happens."""
     try:
         import _bleio
         b = _bleio.adapter.address.address_bytes
-        return "%02X%02X" % (b[1], b[0])
+        return (b[1] << 8) | b[0]
     except Exception:
         try:
             import wifi
             b = wifi.radio.mac_address
-            return "%02X%02X" % (b[-2], b[-1])
+            return (b[-2] << 8) | b[-1]
         except Exception:
-            return "0000"
+            return 0
 
 
+NODE_ID = int(config.get("node_id") or _node_id()) & 0xFFFF
 if not config.get("name"):
-    config["name"] = "ble-" + _mac_tail()   # what the hub calls us too
+    config["name"] = envadv.src_for(NODE_ID)   # what the hub calls us too
+elif config["name"] != envadv.src_for(NODE_ID) and config.get("wifi_fallback"):
+    print("note: WiFi POSTs as %r but advertises as %s: the hub will see "
+          "two sources (leave `name` empty)" % (config["name"],
+                                               envadv.src_for(NODE_ID)))
 
 print("node_lite:", config["name"], "reset:", microcontroller.cpu.reset_reason,
       "free:", caps.free())
@@ -255,65 +272,85 @@ def apply_cfg(cfg):
 
 
 # ---------------------------------------------------------------------------
-# Loop. A function rather than module-level code so that node/code.py can
-# tell "this did not fit" (a MemoryError while importing us) apart from
+# Loop. A function rather than module-level code so that node/nodegate.py
+# can tell "this did not fit" (a MemoryError while importing us) apart from
 # anything that goes wrong once we are running.
 # ---------------------------------------------------------------------------
-def run():
+def _cycle(seq, t0):
+    """One reading: read, advertise, maybe POST, hold the window."""
     global sensor, _wifi_ok
+    metrics = {}
+    if sensor is None:
+        if i2c is not None:
+            sensor = node_sensors.detect(i2c)
+            if sensor is not None:
+                print("sensor:", sensor.kind)
+                _start_sensor()
+    if sensor is not None:
+        try:
+            metrics = sensor.read() or {}
+        except (OSError, RuntimeError) as exc:
+            print("sensor read failed:", exc)
+            metrics = {}
+        if not metrics:
+            print("sensor read timed out")
+    enabled = config.get("metrics")
+    if enabled:
+        metrics = {k: v for k, v in metrics.items() if k in enabled}
+    vb = _batt.voltage() if _batt is not None else None
+    kind = sensor.kind if sensor is not None else "?"
+    print("read sq=%d: %s batt=%s free=%d"
+          % (seq, metrics, vb, caps.free()))
+
+    on_air = False
+    if beacon is not None and metrics:
+        on_air = beacon.start(envadv.adv_bytes(NODE_ID, seq, metrics, vb, kind))
+        if on_air:
+            print("BLE advertising sq=%d for %ds"
+                  % (seq, config["ble_adv_s"]))
+
+    if _wifi_ok and metrics:
+        try:
+            import envproto
+            pkt = envproto.make_data_packet(
+                config["name"], kind, seq, vb, metrics,
+                at=caps.now() if caps.synced() else None)
+            apply_cfg(wifi_post(pkt, seq))
+        except MemoryError:
+            print("envproto/WiFi path does not fit in RAM here; BLE only")
+            _wifi_ok = False
+        except Exception as exc:
+            print("wifi path error: %s: %s" % (type(exc).__name__, exc))
+
+    # keep the advertisement up for its window, then go quiet (run() stops
+    # it, so an exception above cannot leave it on air)
+    window = config["ble_adv_s"] if on_air else 0
+    while on_air and time.monotonic() - t0 < window:
+        time.sleep(1)
+
+
+def run():
+    """Never returns. Each cycle runs under a catch-all, like nodemain's
+    guard: this node has no deep sleep to reset it and nobody watching its
+    REPL, so one bad cycle -- an OSError out of the battery monitor's I2C
+    read, a ValueError from a driver handed garbage, a MemoryError on a heap
+    this tight -- is logged and the loop carries on at the next interval,
+    rather than ending the node until someone power-cycles it."""
     seq = 0
     while True:
         t0 = time.monotonic()
-        metrics = {}
-        if sensor is None:
-            if i2c is not None:
-                sensor = node_sensors.detect(i2c)
-                if sensor is not None:
-                    print("sensor:", sensor.kind)
-                    _start_sensor()
-        if sensor is not None:
-            try:
-                metrics = sensor.read() or {}
-            except (OSError, RuntimeError) as exc:
-                print("sensor read failed:", exc)
-                metrics = {}
-            if not metrics:
-                print("sensor read timed out")
-        enabled = config.get("metrics")
-        if enabled:
-            metrics = {k: v for k, v in metrics.items() if k in enabled}
-        vb = _batt.voltage() if _batt is not None else None
         seq = (seq + 1) & 0xFF
-        kind = sensor.kind if sensor is not None else "?"
-        print("read sq=%d: %s batt=%s free=%d"
-              % (seq, metrics, vb, caps.free()))
-
-        on_air = False
-        if beacon is not None and metrics:
-            on_air = beacon.start(envadv.adv_bytes(seq, metrics, vb, kind))
-            if on_air:
-                print("BLE advertising sq=%d for %ds"
-                      % (seq, config["ble_adv_s"]))
-
-        if _wifi_ok and metrics:
-            try:
-                import envproto
-                pkt = envproto.make_data_packet(
-                    config["name"], kind, seq, vb, metrics,
-                    at=caps.now() if caps.synced() else None)
-                apply_cfg(wifi_post(pkt, seq))
-            except MemoryError:
-                print("envproto/WiFi path does not fit in RAM here; BLE only")
-                _wifi_ok = False
-            except Exception as exc:
-                print("wifi path error: %s: %s" % (type(exc).__name__, exc))
-
-        # keep the advertisement up for its window, then go quiet
-        window = config["ble_adv_s"] if on_air else 0
-        while on_air and time.monotonic() - t0 < window:
-            time.sleep(1)
+        try:
+            _cycle(seq, t0)
+        except MemoryError:
+            gc.collect()
+            print("cycle sq=%d: MemoryError (%d free after collect); "
+                  "carrying on" % (seq, caps.free()))
+        except Exception as exc:
+            print("cycle sq=%d failed: %s: %s; carrying on"
+                  % (seq, type(exc).__name__, exc))
         if beacon is not None:
-            beacon.stop()
+            beacon.stop()        # never raises: Beacon.stop catches
 
         gc.collect()
         rest = config["interval_s"] - (time.monotonic() - t0)
