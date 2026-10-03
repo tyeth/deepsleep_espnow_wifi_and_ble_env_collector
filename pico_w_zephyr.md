@@ -67,11 +67,16 @@ neither, and the code says so at boot instead of dying at `import`.
 Every import in both trees against that table (`tools/board_budget.py`, CPython `ast`):
 
 ```
-$ python tools/board_budget.py
-collector/hubmain.py   HARD: none.  soft: analogio (battery, guarded), espidf (net_wifi, guarded),
-                       espnow (hubmain guarded / net_espnow conditional), rtc (extrtc guarded, caps deferred)
-node/node_lite.py      HARD: none.  soft: analogio (guarded), rtc (caps deferred)
+$ python tools/board_budget.py         (from the module each code.py imports)
+collector/hubgate.py   HARD: none.  soft: analogio (battery, guarded), espidf (net_wifi, guarded),
+                       espnow (hubmain guarded / net_espnow conditional), rtc (extrtc / caps deferred)
+node/nodegate.py       HARD: none.  soft: alarm, espnow (nodegate's own probes, guarded),
+  (not following       analogio (battery, guarded), rtc (caps deferred)
+   nodemain)
 ```
+
+`node/nodegate.py~nodemain` leaves out the ESP32 branch a Pico never takes;
+pass `node/nodemain.py` to see what stops it there.
 
 ## Corrections to PR #11, and where each went
 
@@ -102,7 +107,7 @@ moved five premises; this branch carries all five.
    listeners + captive DNS out of 6), `"max_sockets"` in `config.json`
    overrides.
 5. **The heap table was wrong** both ways — see RAM. The hub gate in
-   `collector/code.py` is 40 KB of `gc.mem_free()`, not PR #11's 128 KB,
+   `collector/hubgate.py` is 40 KB of `gc.mem_free()`, not PR #11's 128 KB,
    which would have refused the Pico 2 W.
 
 ## RAM
@@ -133,7 +138,7 @@ firmware.
 Two consequences in the code:
 
 * `gc.mem_free()` under-reads on this port, so no gate may demand what the
-  hub really needs: `collector/code.py` refuses only below 40 KB (under the
+  hub really needs: `collector/hubgate.py` refuses only below 40 KB (under the
   ~70 KB a Pico 2 W reports, over anything a Pico W can), and node_lite's
   `wifi_min_free` (40 KB) keeps a Pico W off the WiFi POST path while
   letting a Pico 2 W on.
@@ -143,13 +148,16 @@ Two consequences in the code:
 
 ### Pico W: the risk
 
-`node_lite` + `caps` + `envadv` + `node_sensors` + `net_bleadv` (+ the
-guarded `battery`/`envproto`) come to ~15.8 KB of `.mpy`, **~19 KB
-loaded** — just inside the rebased Pico W's whole ~19.6 KB, and nowhere
-near it once a sensor driver (`adafruit_scd4x` + `bus_device` ~9 KB) and
-the supervisor's own allocations arrive. **As built, the Pico W node does
-not fit.** `node/code.py` catches the `MemoryError` from loading it and
-says so, with the REPL left up.
+`nodegate` + `node_lite` + `caps` + `envadv` + `node_sensors` +
+`net_bleadv` (+ the guarded `battery`/`envproto`) come to ~16.1 KB of
+`.mpy`, **~19.3 KB loaded** — just inside the rebased Pico W's whole
+~19.6 KB, and nowhere near it once a sensor driver (`adafruit_scd4x` +
+`bus_device` ~9 KB) and the supervisor's own allocations arrive. **As
+built, the Pico W node does not fit.** `node/nodegate.py` catches the
+`MemoryError` from loading it and says so, with the REPL left up.
+(`board_budget.py` compiles each module by its bare name, as
+`build_mpy.sh` does; it used to pass the full path, which `mpy-cross`
+stores in the `.mpy`, and over-counted ~100 B a module.)
 
 Connections are not where it is won back. The Pico W already builds with
 `CONFIG_BT_MAX_CONN=2`, and going from upstream's 5 to 2 gave back
@@ -167,12 +175,17 @@ is ~10 KB of a ~19.6 KB heap.
 
 ## What changed in the code
 
-* **Entry points.** `collector/code.py` is still essentially `import
-  hubmain` (the C6 needs it small); it adds one check before loading the
-  hub — below 40 KB of `gc.mem_free()` it says the board is too small and
-  idles. `node/code.py` picks `nodemain` (the ESP32 node, unchanged) when
-  `espnow` and `alarm` import, else imports `node_lite` and calls its
-  `run()`; a `MemoryError` from that import is reported as "does not fit".
+* **Entry points.** Both `code.py` files are still one line — the C6
+  compiles `code.py` on the device and a bigger one denies `esp_wifi_init`
+  its contiguous RAM — so the new logic lives in two tiny modules shipped
+  as `.mpy` like the rest. `collector/code.py` imports `hubgate`: below
+  40 KB of `gc.mem_free()` it says the board is too small and idles, else
+  `import hubmain`. `node/code.py` imports `nodegate`: `nodemain` (the
+  ESP32 node, unchanged) when `espnow` and `alarm` import, else `node_lite`
+  and its `run()`; a `MemoryError` from that import is reported as "does
+  not fit". `run()` catches each cycle's own failures (a battery-monitor
+  `OSError`, a driver's `ValueError`, a `MemoryError`), logs them and
+  carries on at the next interval.
 * **`caps.py`** (identical in both trees): probes and the clock.
   `caps.time` is the `time` module wherever `rtc` exists and `time.time()`
   works — every ESP32, and now the Pico W — and otherwise a stand-in whose
@@ -188,13 +201,56 @@ is ~10 KB of a ~19.6 KB heap.
   nothing is imported above it): no ESP-NOW → `_NoHub`; softAP verified on
   this port; AP *or* station (above); no user SPI → no display and no SD,
   decided before their modules import; I2C from `caps.i2c()`.
-* **BLE advertisement transport.** `envadv.py` (18-byte reading in a
-  manufacturer-data structure, 25 bytes on air), `node/net_bleadv.py` (raw
-  `_bleio`, non-connectable), `collector/net_blescan.py` (1 s passive scan
-  every 5 s, prefix filter, de-dup by address + seq, its own deadline,
-  into `take_node_packet(mac=None)` — nothing is sent back). Nodes appear
-  as `ble-XXXX`; map them in `zones`. The hub scans by default only where it
-  has no ESP-NOW; `"ble_scan_nodes": true` turns it on elsewhere.
+* **BLE advertisement transport.** `envadv.py` (a 20-byte reading in a
+  manufacturer-data structure, 27 bytes on air of the legacy PDU's 31),
+  `node/net_bleadv.py` (raw `_bleio`, non-connectable),
+  `collector/net_blescan.py` (1 s passive scan every 5 s, prefix filter,
+  de-dup by node id + seq, its own deadline, into
+  `take_node_packet(mac=None)` — nothing is sent back). Nodes appear as
+  `ble-XXXX`; map them in `zones`. The hub scans by default only where it
+  has no ESP-NOW; `"ble_scan_nodes": true` turns it on elsewhere — and on
+  an ESP32 only if BLE came up in the early block (`"ble_enabled": true`),
+  since enabling the adapter after the softAP is the C6 hard fault; it is
+  refused with a log line otherwise.
+* **The node id is in the payload** (envadv `VERSION` 2). The advertiser
+  address is useless as an id: zephyr-cp's `Adapter.c` advertises with
+  `options=0`, so for a non-connectable set Zephyr's
+  `bt_id_set_adv_own_addr()` picks a fresh non-resolvable private address
+  at every advertising start — once per reading. Keyed by address, every
+  reading was a new source, the datastore's 256-source cap filled in
+  ~8.5 h, and the node's WiFi POST never matched its advertisement. Now
+  `node_lite` derives a 16-bit id from its identity address (the last two
+  printed bytes; `"node_id"` in `node_config.json` overrides), puts it in
+  every advertisement and names its POST `ble-%04X` from the same number;
+  the hub ignores the address. A VERSION 1 advertisement is dropped with
+  one log line (`ignoring advertisements in envadv VERSION 1`) and counted.
+
+  | offset | size | field |
+  |---|---|---|
+  | 0 | 1 | MAGIC `0xE7` (the scan filter) |
+  | 1 | 1 | VERSION `2` |
+  | 2 | 2 | node id, uint16 LE → `ble-%04X` |
+  | 4 | 1 | seq (wraps at 256) |
+  | 5 | 2 | tc × 100, int16 (−32768 = none) |
+  | 7 | 2 | rh × 100 |
+  | 9 | 2 | co2 ppm |
+  | 11 | 2 | pm2.5 × 10 |
+  | 13 | 2 | VOC index |
+  | 15 | 2 | NOx index |
+  | 17 | 2 | battery mV |
+  | 19 | 1 | sensor type |
+
+  uint16 fields use `0xFFFF` for none; scaled values are rounded, not
+  truncated. 20 + 4 (AD length, type, company id `0xFFFF`) + 3 (flags) =
+  27 bytes.
+* **When a node sends both.** A `node_lite` with `wifi_fallback` sends
+  each reading as an advertisement *and* a POST, and the POST is the
+  richer copy (pm1/pm4/pm10 and the node's `at`). The datastore is
+  append-only, so the hub cannot merge one into the other: instead, once a
+  node has POSTed since the hub booted, its BLE copies are held up to 30 s
+  for the POST, which replaces them; a copy whose POST never comes is
+  stored when the 30 s run out. A failed store forgets the reading's seq,
+  so the next copy of it is taken rather than dropped as a duplicate.
 
 ## Power, honestly
 
@@ -226,9 +282,12 @@ Node, `node/node_config.json`:
 "sensor": ""                 auto-detect on I2C0 (GP4/GP5), or "sim" for a bench run
 "interval_s": 120, "ble_adv_s": 20
 "wifi_fallback": false       true + "collector_url" only where RAM allows (Pico 2 W)
+"name": ""                   leave empty: the POST then uses the advertised ble-XXXX
+"node_id": 0                 0 = from the board's address; set only to part two colliding nodes
 ```
 
-Deploy `.mpy` (`tools/build_mpy.sh`, or `tools/build_bundle.sh`), keep
+Deploy `.mpy` (`tools/build_mpy.sh`, or `tools/build_bundle.sh` — both
+compile `hubgate`/`nodegate` with everything else), keep
 `code.py` as source, and copy only the `lib/` entries the tree imports
 (for an SCD4x node: `adafruit_scd4x.mpy`, `adafruit_bus_device/`).
 
@@ -305,7 +364,10 @@ BLE advertising sq=1 for 20s
 idle 100s (awake: no deep sleep on this port)
 ```
 
-and on the hub within ~5 s: `dat sq=1 crc=… from ble-XXXX: accepted`. On a
+and on the hub within ~5 s: `dat sq=1 crc=… from ble-XXXX: accepted`,
+with the **same** `ble-XXXX` the node printed, and the same one again at
+`sq=2`, `sq=3` — a new id per reading means the hub is reading the
+(random) address, i.e. an old `envadv` on one side. On a
 Pico W the likely first result is `node: node_lite does not fit in this
 board's heap` — that is the RAM section above, and the fix is in the
 firmware (finding the ~22 KB the rebase took). Run Step 2 on a Pico 2 W first to prove
