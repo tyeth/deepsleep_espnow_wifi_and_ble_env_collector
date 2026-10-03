@@ -745,6 +745,10 @@ def h_latest():
     # `clock.now` are UTC; tz_offset_min is what the eInk adds to them and
     # tz_source says who decided that -- "utc" means nobody has yet.
     clock = extrtc.status(ext_rtc)
+    # What config asked for, beside what was found: "auto" with a chip in
+    # `rtc` is the page's cue to offer saving that chip by name, which is
+    # the reliable setting (two chips share 0x51 -- see extrtc).
+    clock["rtc_config"] = config.get("rtc", "auto")
     tz_s, clock["tz_source"] = _tz_offset()
     clock["tz_offset_min"] = tz_s // 60
     return {"ts": now, "mac": MAC, "sources": sources, "abnormal": abnormal,
