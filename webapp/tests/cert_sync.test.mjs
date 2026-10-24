@@ -33,16 +33,16 @@ const rejects = async (p, re) => {
   catch (e) { assert.match(String(e.message || e), re); }
 };
 
-group("pemChain keeps leaf + intermediate and drops the root", () => {
+group("pemChain retains the cross-signed certificate in a three-certificate chain", () => {
   const out = H.pemChain([LEAF, INTER, ROOT].join("\n"));
-  assert.equal((out.match(/BEGIN CERTIFICATE/g) || []).length, 2);
-  assert.ok(out.includes("leaf") && out.includes("inter") && !out.includes("root"));
+  assert.equal((out.match(/BEGIN CERTIFICATE/g) || []).length, 3);
+  assert.ok(out.includes("leaf") && out.includes("inter") && out.includes("root"));
   assert.equal(H.pemChain(""), "\n");
 });
 
-group("validateCertPair accepts a real pair and returns the trimmed chain", () => {
+group("validateCertPair preserves the complete provided chain", () => {
   const { chain, key } = H.validateCertPair([LEAF, INTER, ROOT].join("\n"), KEY);
-  assert.equal((chain.match(/BEGIN CERTIFICATE/g) || []).length, 2);
+  assert.equal((chain.match(/BEGIN CERTIFICATE/g) || []).length, 3);
   assert.equal(key, KEY);
 });
 

@@ -1,0 +1,486 @@
+{
+  "job_id": "0e6e2e0f-951d-41bd-9231-de64f51c5153",
+  "finished_utc": "2026-10-23T04:38:16.447390+00:00",
+  "bridge_revision": "bec1d71e1379e08e279327bdb222b3207456cebe",
+  "test_sha256": "9df42d4bd36014b2c6499ca15e10bc9f04f9d36c6132e86fd1b2e46188ae26ee",
+  "diagnostic_completed": true,
+  "simultaneous_consoles_passed": true,
+  "rounds": [
+    {
+      "order": [
+        "s3"
+      ],
+      "devices": {
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "interface_admission": [
+            {
+              "class": "02",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "0a",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "08",
+              "authorized": "0",
+              "driver": null
+            },
+            {
+              "class": "03",
+              "authorized": "0",
+              "driver": null
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE adafruit_feather_esp32s3_4mbflash_2mbpsram 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        }
+      }
+    },
+    {
+      "order": [
+        "pico",
+        "s3"
+      ],
+      "devices": {
+        "pico": {
+          "descriptors_sha256": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 130,
+                  "type": 2
+                },
+                {
+                  "address": 1,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 2,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 3,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "interface_admission": [
+            {
+              "class": "02",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "0a",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "08",
+              "authorized": "0",
+              "driver": null
+            },
+            {
+              "class": "03",
+              "authorized": "0",
+              "driver": null
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE raspberrypi_rpi_pico2_w_zephyr 3.4.0; CircuitPython 11.0.0-alpha.2-31-g6b117bdce5 on 2026-10-23\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        },
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "interface_admission": [
+            {
+              "class": "02",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "0a",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "08",
+              "authorized": "0",
+              "driver": null
+            },
+            {
+              "class": "03",
+              "authorized": "0",
+              "driver": null
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE adafruit_feather_esp32s3_4mbflash_2mbpsram 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        }
+      }
+    },
+    {
+      "order": [
+        "s3",
+        "pico"
+      ],
+      "devices": {
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "interface_admission": [
+            {
+              "class": "02",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "0a",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "08",
+              "authorized": "0",
+              "driver": null
+            },
+            {
+              "class": "03",
+              "authorized": "0",
+              "driver": null
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE adafruit_feather_esp32s3_4mbflash_2mbpsram 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        },
+        "pico": {
+          "descriptors_sha256": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 130,
+                  "type": 2
+                },
+                {
+                  "address": 1,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 2,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 3,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "interface_admission": [
+            {
+              "class": "02",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "0a",
+              "authorized": "1",
+              "driver": "cdc_acm"
+            },
+            {
+              "class": "08",
+              "authorized": "0",
+              "driver": null
+            },
+            {
+              "class": "03",
+              "authorized": "0",
+              "driver": null
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE raspberrypi_rpi_pico2_w_zephyr 3.4.0; CircuitPython 11.0.0-alpha.2-31-g6b117bdce5 on 2026-10-23\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        }
+      }
+    }
+  ],
+  "authorization_defaults_restored": true,
+  "transport_restored": true,
+  "bridge_reset": false,
+  "bridge_uptime_before": 61,
+  "bridge_uptime_after": 88,
+  "uart_opened": false,
+  "firmware_writes": false,
+  "scope": "Two CDC consoles with MSC/HID unauthorized before driver probing; same physical devices, descriptors, test and orders as the failed baseline."
+}

@@ -1,0 +1,233 @@
+{
+  "board": "raspberrypi_rpi_pico2_w_zephyr",
+  "source_pins": {
+    "circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+    "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+  },
+  "finished_utc": "2026-10-23T10:42:29.282608+00:00",
+  "identical_configuration_except": {
+    "CONFIG_UDC_RPI_PICO_STACK_SIZE": [
+      "512",
+      "2048"
+    ]
+  },
+  "phases": [
+    {
+      "usb_worker_stack_bytes": 2048,
+      "firmware_sha256": "15ad24e790489783a213e6571a5c830807a22c2af6efd31a2942a940e09919bc",
+      "status": "passed",
+      "radio_cycles": 8,
+      "radio_elapsed_seconds": 61.015,
+      "ble_advertisements": 383,
+      "wifi_networks_per_cycle": [
+        49,
+        50,
+        58,
+        55,
+        48,
+        55,
+        53,
+        60
+      ],
+      "msc_reads": 147,
+      "msc_bytes": 602112,
+      "msc_read_interval_seconds": [
+        0.08069653100392316,
+        72.69783735799138
+      ],
+      "all_reads_match_pretest_reference": true,
+      "cdc_payload_bytes_per_cycle": 512,
+      "usb_worker_max_used_bytes": 260,
+      "usb_worker_min_unused_bytes": 1788,
+      "stack_samples": [
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        },
+        {
+          "unused": 1788,
+          "used": 260,
+          "total": 2048
+        }
+      ],
+      "radio_cleanup": true,
+      "raw_console_sha256": "03b9a6d767c761b7fd878f038ff9a70c557a4668be68f94a9878ccea549c9f7f"
+    },
+    {
+      "usb_worker_stack_bytes": 512,
+      "firmware_sha256": "105e30390aa33e8c4c0c33f30c3baaedc873f088384d09f22fbc5ff609c9d170",
+      "status": "passed",
+      "radio_cycles": 8,
+      "radio_elapsed_seconds": 61.143,
+      "ble_advertisements": 384,
+      "wifi_networks_per_cycle": [
+        43,
+        56,
+        55,
+        57,
+        59,
+        50,
+        58,
+        47
+      ],
+      "msc_reads": 150,
+      "msc_bytes": 614400,
+      "msc_read_interval_seconds": [
+        0.08485488999576773,
+        73.09363189700525
+      ],
+      "all_reads_match_pretest_reference": true,
+      "cdc_payload_bytes_per_cycle": 512,
+      "usb_worker_max_used_bytes": 260,
+      "usb_worker_min_unused_bytes": 252,
+      "stack_samples": [
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        },
+        {
+          "unused": 252,
+          "used": 260,
+          "total": 512
+        }
+      ],
+      "radio_cleanup": true,
+      "raw_console_sha256": "33c6c06368ef9d191c4c0ac78f904e308403f08d202bb35f05825eb1dbfd2265"
+    }
+  ],
+  "instrumentation": {
+    "worker_symbol": "udc_priv_0",
+    "worker_object_address": "0x200048e0",
+    "first_struct_member": "struct k_thread thread_data",
+    "analyzer_period_seconds": 10,
+    "stack_sentinel": true,
+    "stack_initialized": true
+  },
+  "restoration": {
+    "full_backup_bytes": 4194304,
+    "whole_flash_matches_pretest": true,
+    "production_firmware_sha256": "75c0057c17f080d76390bf0fd72b45de0ed89d3245239d40502e0060cf983632",
+    "production_runtime_verified": true,
+    "recovery_radio_cycles": 3,
+    "imports_detached": true,
+    "bridge_reset_observed": false
+  },
+  "failed_attempt": {
+    "status": "failed_before_workload",
+    "cause": "Immediate fuser assertion after attaching MSC; owner was not captured",
+    "stack_bytes_installed": 2048,
+    "stack_samples": 0,
+    "production_restoration_and_cleanup_passed": true,
+    "followup": "Wait for udev settle, require two consecutive idle checks, record any owner without killing it"
+  },
+  "storage_writes": false,
+  "kernel_audit": [
+    {
+      "stack_bytes": 2048,
+      "kernel_bytes": 136,
+      "kernel_sha256": "336baafdad1d26b99dcd790b7855062342bd59865e12227e0f152069ccea4af7",
+      "kernel_error_pattern": "error|fail|timeout|disconnect|reset|stall|overrun",
+      "kernel_error_lines": [],
+      "console_fatal_lines": []
+    },
+    {
+      "stack_bytes": 512,
+      "kernel_bytes": 272,
+      "kernel_sha256": "291ffa8e2ab56e6a8781fab1c2f04b8401059123b9ef2cc048728cc8bcd9f567",
+      "kernel_error_pattern": "error|fail|timeout|disconnect|reset|stall|overrun",
+      "kernel_error_lines": [],
+      "console_fatal_lines": []
+    }
+  ],
+  "evidence_sha256": {
+    "pico2-stack-current-job.json": "3498c97b669ae902d7bb9f306e4fdd717290cd8e575dc37628cce29b05eec9c7",
+    "pico2-stack-v2-job.json": "1465c34cee3caa4802cd02fca427708385e0d7d3cacd284d447cae6c247abe92",
+    "pico2-stack-fixture-failure-job.json": "9efdd30246b02eea1a338b592b616d660060619aa608b0c08ec9114765af2671",
+    "pico2-stack-recovery-job.json": "a447214c3bfa7ab506edc4079f6369e62ef078961f2aa66ee821f38cb18c1728"
+  },
+  "limits": [
+    "Short fixed-order comparison, not a soak or all-path stack proof",
+    "Read-only MSC at eight offsets, not write, boundary or full-volume qualification",
+    "No reproduction or causal explanation of earlier idle/re-enumeration failures",
+    "Stack watermark is specific to this firmware, instrumentation, workload and worker; separate MSC worker is not conflated"
+  ],
+  "workload_job_result": "fail_due_to_post_workload_bridge_timeout",
+  "separate_recovery": {
+    "status": "passed",
+    "whole_flash_matches_pretest": true,
+    "runtime_verified": true,
+    "imports_detached": true,
+    "bridge_reset_observed": false
+  },
+  "restoration_interruption": {
+    "error_type": "URLError",
+    "operation": "Read bridge USB hub inventory before ROM entry",
+    "writes_started": false,
+    "subsequent_readonly_bridge_check_passed": true,
+    "cause_unconfirmed": true
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "zephyr_before": "0589940bee3386b144961901717b2bce3576a2d6",
+  "zephyr_after": "353bcd30f76e1fa140291540dde20334e952e0e6",
+  "platform": "native_sim/native/64",
+  "transport": "native simulator using real flash map and settings backends",
+  "mount_instrumentation": "Test-only wrappers count mount attempts; valid layouts call the real backend.",
+  "runs": {
+    "before": [
+      {
+        "name": "settings.sector_geometry.nvs.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.nvs.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.nvs.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.nvs.empty",
+        "status": "failed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.nvs.empty.settings_geometry.backend_init",
+            "status": "failed"
+          },
+          {
+            "name": "settings.sector_geometry.nvs.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.empty",
+        "status": "failed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.empty.settings_geometry.backend_init",
+            "status": "failed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.custom.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.custom.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.custom.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.custom.empty",
+        "status": "failed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.custom.empty.settings_geometry.backend_init",
+            "status": "failed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.custom.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "name": "settings.sector_geometry.nvs.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.nvs.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.nvs.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.nvs.empty",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.nvs.empty.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.nvs.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.empty",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.empty.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.custom.valid",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.custom.valid.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.custom.valid.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "name": "settings.sector_geometry.zms.custom.empty",
+        "status": "passed",
+        "testcases": [
+          {
+            "name": "settings.sector_geometry.zms.custom.empty.settings_geometry.backend_init",
+            "status": "passed"
+          },
+          {
+            "name": "settings.sector_geometry.zms.custom.empty.settings_geometry.flash_geometry",
+            "status": "passed"
+          }
+        ]
+      }
+    ]
+  },
+  "nvs_source_sha256": {
+    "before": "c05cfe0248358bbdd5b767ff5e867ab65896cedf521f6943ca6eecf1e98d2fb5",
+    "after": "07b2203e5d0fa261ec9499648b900309af1259ee5de6ee21bd6c2f811db71ddf"
+  },
+  "zms_source_sha256": {
+    "before": "2b2e15fe76a03b687f9bbbda9c0a16d59e44dec15fee2d8dad2e3487ad27dbd4",
+    "after": "30c09f5771917404dd035b831451a43446aebdf3e4b2f4a6469cef6fb1728958"
+  },
+  "test_sha256": "cfb1f15116cf8910f5ffb2b642997513f2158793fb4b40e9ad6bb3a3876ef7ab",
+  "integration_validation": {
+    "circuitpython": "1ca79521f3261cf90e0e7c6dfa398d5ad9885735",
+    "zephyr": "353bcd30f76e1fa140291540dde20334e952e0e6",
+    "ble_scan_cases_passed": 10,
+    "build_tool_tests_passed": 85,
+    "ble_scan_elapsed_s": 54.4,
+    "log_sha256": "0fe680c6b951fda9a7de87a04cbe5cd5a84c24a453c510db7a863600ddd42098"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "status": "passed",
+  "finished_utc": "2026-10-23T01:02:32.058348+00:00",
+  "circuitpython": "6b117bdce576abf927554a4946b8610149150aa0",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "image_sha256": "75aec10112aea8a5dc4cf1fd9d0b6cb2b0b7c4bd4dad56e3c9575535d7b5eef5",
+  "station_board": "adafruit_feather_esp32_v2",
+  "station_firmware": "cb5301b6fb-dirty",
+  "diagnostic_overrides": false,
+  "channels": [
+    {
+      "channel": 1,
+      "dhcp_lease": true,
+      "ping_seconds": 0.017,
+      "scanned_channel_matches": true,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true,
+      "ble_advertisements_during_ap": 95,
+      "original_scan_survives_extended_rejection": true
+    },
+    {
+      "channel": 6,
+      "dhcp_lease": true,
+      "ping_seconds": 0.019,
+      "scanned_channel_matches": true,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true,
+      "ble_advertisements_during_ap": 98,
+      "original_scan_survives_extended_rejection": true
+    },
+    {
+      "channel": 11,
+      "dhcp_lease": true,
+      "ping_seconds": 0.019,
+      "scanned_channel_matches": true,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true,
+      "ble_advertisements_during_ap": 97,
+      "original_scan_survives_extended_rejection": true
+    }
+  ],
+  "cleanup_passed": true,
+  "bridge_port_state_unchanged": true,
+  "direct_usb_authorized_after_update": true,
+  "private_backup_bytes": 2097152,
+  "private_backup_sha256": "e1e94da7f4fdf5a829b2b7312189549d63d4ec45ca3dedc9ba21d5d5704a41bb",
+  "whole_flash_sha256": "b4a01ce1a55f3b0e3d7ef0aa1cd762ea318eb8080ed7347ddcdd284056f0207a",
+  "protected_sha256": "abc363a5707ec00a571140114dc844c900c07863d26474208b4085ab92e0675b",
+  "protected_offset": 1564672,
+  "whole_flash_verified": true,
+  "ble_identity_preserved": true,
+  "private_update_job_sha256": "d0193b63c257dbbbd2ec72f5e3b29a8559c3ce77cfe8abc3bc9dce0669f5c445",
+  "private_qualification_job_sha256": "2a35278553dd53ec2550d75c8d8eb7bf260204eb532eff3afe60195f0f45066c",
+  "limits": [
+    "No new eight-hour soak or TLS qualification for this revision",
+    "No concurrent MSC stress or physical failed-start injection",
+    "Station lifecycle no-op remains tracked in tyeth/circuitpython#40"
+  ]
+}

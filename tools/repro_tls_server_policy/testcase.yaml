@@ -1,0 +1,4 @@
+tests:
+  crypto.circuitpython_tls_server_policy:
+    platform_allow: native_sim/native/64
+    tags: [crypto, mbedtls]

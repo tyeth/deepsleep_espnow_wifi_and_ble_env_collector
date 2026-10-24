@@ -1,0 +1,84 @@
+{
+  "status": "passed",
+  "scope": "Feather receiver thirty-minute run only; fixture outcome recorded separately",
+  "verified_utc": "2026-10-22T22:02:34.482737+00:00",
+  "board": "adafruit_feather_esp32_v2",
+  "version": "3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+  "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+  "image_sha256": "b393922d552551a2f097eea8c9a27607579a873328617e231a042b4c21935183",
+  "started_utc": "2026-10-22T21:28:41.867063+00:00",
+  "finished_utc": "2026-10-22T21:58:41.874824+00:00",
+  "elapsed_s": 1800.0,
+  "cycles": 60,
+  "wifi_range": [
+    1,
+    2
+  ],
+  "ble_range": [
+    9,
+    31
+  ],
+  "scan_seconds_range": [
+    5.00197,
+    5.007142
+  ],
+  "gc_allocated_range": [
+    3056,
+    3136
+  ],
+  "controlled_fixture": {
+    "status": "cleanup_failed",
+    "revision": "7d4ef1aac7",
+    "checks": 63,
+    "started_utc": "2026-10-22T21:28:34.492827+00:00",
+    "finished_utc": "2026-10-22T22:00:20.463872+00:00",
+    "last_successful_check_utc": "2026-10-22T21:59:35.583381+00:00",
+    "advertising_stopped": false,
+    "error": "Write timeout",
+    "cleanup_error": "device reports readiness to read but returned no data (device disconnected or multiple access on port?)",
+    "coverage_verified_through_receiver_finish": true,
+    "note": "Pico W advertising checks cover the receiver interval; recorder counts all BLE reports. Later fixture failure is not a passed fixture run."
+  },
+  "prior_failed_followup": {
+    "status": "failed",
+    "elapsed_s": 65.03,
+    "cycles": 2,
+    "failures": [
+      "RuntimeError: Three consecutive cycles received no Wi-Fi or BLE results"
+    ]
+  },
+  "services": {
+    "envhub-feather-fullchain-followup-03": {
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    },
+    "envhub-picow-controlled-ble-source-01": {
+      "MainPID": "0",
+      "Result": "exit-code",
+      "ExecMainStatus": "1",
+      "ActiveState": "failed",
+      "SubState": "failed"
+    }
+  },
+  "sha256": {
+    "status.json": "0863c6edbb57674fc117193811351e25b768c56255f94443e79970e16976ff62",
+    "cycles.jsonl": "47fcfc98537d8794ea735053c3abe6699b834eefdb51447a1b30eb8fe4ccde4a"
+  },
+  "fixture_sha256": {
+    "status.json": "cd53b23ffa06d5646ef0b0c9527b79ff42a2fa2bf5ad6b989e29ee2109005d56",
+    "checks.jsonl": "6e63240193668f4065c7716e59b11dbe1e0c9116f0674960e4c5170619c3c6a1"
+  },
+  "post_failure_recovery": {
+    "verified_utc": "2026-10-22T22:17:23Z",
+    "revision": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+    "same_firmware_no_flash_write": true,
+    "advertising_before_explicit_stop": true,
+    "advertising_stopped_verified": true,
+    "physical_mcu_power_cycle_proven": false,
+    "scope": "Later USB recovery and runtime check only; original fixture remains cleanup_failed",
+    "private_job_evidence_sha256": "245f8ae5d766e09c8ca4e1ff94202665acf7c49658f3d22f95daa1295bdbdd05"
+  }
+}

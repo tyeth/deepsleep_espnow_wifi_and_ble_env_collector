@@ -1,0 +1,25 @@
+{
+  "board": "adafruit_feather_esp32s3_4mbflash_2mbpsram",
+  "version": "CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+  "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+  "completed_utc": "2026-10-22T23:32:35.128086+00:00",
+  "ble_disable_reenable_scan_counts": [
+    111,
+    111,
+    106,
+    118,
+    112
+  ],
+  "sd_absent_card_failures": 5,
+  "sd_spi_lock_reacquired_after_each_failure": true,
+  "reset_requested": false,
+  "firmware_writes": false,
+  "original_port_state_restored": true,
+  "private_evidence_sha256": "0538c6f958ae117db3bfca07cae394813b0e7bf07f2fecf70c34176770957001",
+  "limitations": [
+    "No connected NUS session before teardown",
+    "No ESP-NOW object or display workload",
+    "No C6 physical test",
+    "No SPI configure exception injection"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "issue": "https://github.com/tyeth/circuitpython/issues/42",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "direct_usb": true,
+  "usbip_bridge_used": false,
+  "older_runtime": "9e153ad624",
+  "temporary_candidate": "6839890534556b06b8b3d7c491e36fd2005b2483",
+  "candidate_bin_sha256": "2910af3498123383a9087be24120ba5572adb0ee01b3524b16a395bc19d23ce7",
+  "candidate_rollout_retained": false,
+  "rollout_result": "failed_initial_storage_timeout_automatic_restore_unbind_timeout",
+  "separate_rollout_recovery": "passed_full_expected_image_runtime_three_radios_bindings",
+  "trace_result": "same_initial_storage_timeout_original_firmware_restored",
+  "trace_recovery": "passed_full_expected_image_runtime_three_radios_bindings",
+  "production_on_both_picos": "9e153ad624",
+  "pcap": {
+    "sha256": "c0019ffac165a57c04ce0dd3cf64a5b4381b3d5746fc67906d78b4fa4dfac2fc",
+    "bytes": 25864944,
+    "events": 15762,
+    "truncated_packets": 0,
+    "kernel_reported_drops": 0,
+    "all_msc_wrappers_have_status": true,
+    "delayed_test_unit_ready_seconds": 10.126206,
+    "raw_capture_private": true
+  },
+  "controls": {
+    "cpu": [
+      {
+        "mode": "sleep",
+        "host_read_seconds": 0.031301,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "busy",
+        "host_read_seconds": 0.031801,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "sleep",
+        "host_read_seconds": 0.059968,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      }
+    ],
+    "console": [
+      {
+        "mode": "open",
+        "host_read_seconds": 0.03128,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "dtr_off",
+        "host_read_seconds": 0.031087,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "open",
+        "host_read_seconds": 0.030552,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "closed",
+        "host_read_seconds": 2.068388,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "open",
+        "host_read_seconds": 0.031014,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      }
+    ],
+    "reopen_delays": [
+      {
+        "mode": "open",
+        "reopen_delay_seconds": 0,
+        "host_read_seconds": 0.031077,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "closed",
+        "reopen_delay_seconds": 1,
+        "host_read_seconds": 0.030221,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "open",
+        "reopen_delay_seconds": 0,
+        "host_read_seconds": 0.034127,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "closed",
+        "reopen_delay_seconds": 4,
+        "host_read_seconds": 4.066246,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "open",
+        "reopen_delay_seconds": 0,
+        "host_read_seconds": 0.05348,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "dtr_off",
+        "reopen_delay_seconds": 4,
+        "host_read_seconds": 0.059529,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      },
+      {
+        "mode": "open",
+        "reopen_delay_seconds": 0,
+        "host_read_seconds": 0.030128,
+        "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+      }
+    ]
+  },
+  "root_cause_established": false,
+  "no_thread_priority_change": true,
+  "physical_data_toggle_capture": false,
+  "other_boards_qualified_for_trigger": false
+}

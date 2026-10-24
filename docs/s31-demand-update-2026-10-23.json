@@ -1,0 +1,24 @@
+{
+  "status": "firmware_written_api_verified",
+  "verified_bytes": 16777216,
+  "backup_sha256": "03b9f0870cd23aa5f5c4649e627c5b53206de3fe602f17ab90eaebf3a8e2578c",
+  "plan": {
+    "source_sha256": "03b9f0870cd23aa5f5c4649e627c5b53206de3fe602f17ab90eaebf3a8e2578c",
+    "old_app_sha256": "8fcde9fbe1bc8b55fc392a83c0c64be57b5560a810dadde6169cf0776301a7c7",
+    "new_app_sha256": "8a540fc8296b973072584c0bd59de509be8ffa0d0d5275540796804e52c87bd6",
+    "partition_sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820",
+    "write_offset": 65536,
+    "write_bytes": 1048576,
+    "write_sha256": "6ef3aa2e46b2d25dde5f4141d2871c253e57b66814547734b20554a83eb5ec4f",
+    "protected_sha256": "9d8c2038a2e4c9cdcfe13433579d907d12cb2e0a8634fe7c40a744f7d8019778",
+    "expected_flash_sha256": "94dbae21c3ea4af8dc7e11e1fa62a38aa20e91b5e9df6da0f2d0eeb168a82951"
+  },
+  "protected_regions_verified": true,
+  "finished_utc": "2026-10-23T04:36:58.949850+00:00",
+  "job_id": "1f822b6c-2dc0-400c-a6ce-4554a50deeb0",
+  "runtime_version": "bec1d71 2026-10-23 04:31:11",
+  "intentional_update_reset": true,
+  "recovery_files_private": true,
+  "direct_pico_authorization_unchanged": true,
+  "original_topology_verified": true
+}

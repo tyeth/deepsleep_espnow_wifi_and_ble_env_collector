@@ -1,0 +1,90 @@
+[
+  {
+    "file": "picow-zephyr-alpha2-ble-retry.bin",
+    "bytes": 1252352,
+    "sha256": "2913c0ec93aa988b29a8e33183ea90410f4c18cb065f7a987de29515573ecafb",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-ble-retry.uf2",
+    "bytes": 2504704,
+    "sha256": "7b6e6be3602d5583c4f3daa92d31132e545f82ee2790c9a26318658331272eee",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-ble-retry.elf",
+    "bytes": 23535568,
+    "sha256": "003f2795bfc48160f9ceaaf712de89f2d915b85c49554b6ab8667d98e5c5236e",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-ble-retry.map",
+    "bytes": 3169565,
+    "sha256": "b675008519ff22804795605e87828ee4f4530e5769959cbc6abd6f6b7b9beace",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-ble-retry.bin",
+    "bytes": 1208764,
+    "sha256": "9a4ba07fb55f4eee10b9ccc5842e6a1bd25fb333636a856c4cfe96864563bd85",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-ble-retry.uf2",
+    "bytes": 2417664,
+    "sha256": "1a7ddad6b19994903c1f0d79bf0f0cb064d039504b140f09b8727d58b962fe47",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-ble-retry.elf",
+    "bytes": 24260740,
+    "sha256": "4bd315b21579b80352889b958bc179d12a2292c891af1f4a5dbacc8fa2dd3737",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-ble-retry.map",
+    "bytes": 3109032,
+    "sha256": "a4f7f7918d9084a26eac4426853175aa08460a0a3be20d34ae4e078ffe19bd8a",
+    "actual_revisions": {
+      "circuitpython": "5bb1d640043691aa16a00137e710b19e0fc23fbc",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    }
+  }
+]

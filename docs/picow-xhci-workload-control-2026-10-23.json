@@ -1,0 +1,288 @@
+{
+  "finished_utc": "2026-10-23T21:14:50.592548+00:00",
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "trace_instance_removed": true,
+  "bindings_restored": true,
+  "bridge_untouched": true,
+  "trace_events": [
+    "xhci_urb_enqueue",
+    "xhci_urb_giveback",
+    "xhci_queue_trb",
+    "xhci_ring_ep_doorbell",
+    "xhci_handle_transfer",
+    "xhci_handle_event"
+  ],
+  "firmware": "9e153ad624",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "result": "stall_not_reproduced",
+  "root_cause_established": false,
+  "rounds": [
+    {
+      "mode": "sleep",
+      "closed": false,
+      "index": 0,
+      "host_read_seconds": 0.032147,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 184,
+      "trace_sha256": "d28d27b7b9095cbfcb335c2587cd5ec872baa6242613492a172c8703d50bdea1",
+      "python_duration_seconds": 8.001224,
+      "python_iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01953125,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 102,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 64,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 5,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 1,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "index": 1,
+      "host_read_seconds": 0.034654,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 345,
+      "trace_sha256": "7d36674010aafdefedbc324afb2451e5c22d5888be391ed0b541b434bb03ac36",
+      "python_duration_seconds": 8.001224,
+      "python_iterations": 17470,
+      "maximum_iteration_gap_seconds": 0.00756836,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 252,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 1,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 23,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 57,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "index": 2,
+      "host_read_seconds": 0.031567,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 369,
+      "trace_sha256": "782e5630a5d86c4af0def231b22e40276f54dfac68c455ee9e214312b67d6d5b",
+      "python_duration_seconds": 8.008058,
+      "python_iterations": 723,
+      "maximum_iteration_gap_seconds": 0.014160156,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 215,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 22,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 62,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 58,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "index": 3,
+      "host_read_seconds": 0.032,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 367,
+      "trace_sha256": "fd46afd4a380cf65ca697da1cf9370707ca1dcef7c4fe6c3d71c415c42cc7e8a",
+      "python_duration_seconds": 8.0,
+      "python_iterations": 17457,
+      "maximum_iteration_gap_seconds": 0.006591798,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 270,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 23,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 38,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 24,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "index": 4,
+      "host_read_seconds": 0.040704,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 367,
+      "trace_sha256": "11e5a2257466ebcebf989c6958c97a36c2604dad312f2d8958af308b491fef82",
+      "python_duration_seconds": 8.001224,
+      "python_iterations": 722,
+      "maximum_iteration_gap_seconds": 0.013183596,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 211,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 25,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 116,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 3,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "index": 5,
+      "host_read_seconds": 0.031367,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 367,
+      "trace_sha256": "408f3f80c652a9d94ec0b01ebd690e7ef34918cc590db448175e5c99bed663fa",
+      "python_duration_seconds": 8.0,
+      "python_iterations": 17455,
+      "maximum_iteration_gap_seconds": 0.006591798,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 212,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 3,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 128,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 12,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "index": 6,
+      "host_read_seconds": 0.052305,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "trace_lines": 367,
+      "trace_sha256": "3797ce60b76764f108df9b3ac744c46d9b85e1ace4e9d27faae6d1886a3ac4ce",
+      "python_duration_seconds": 8.003664,
+      "python_iterations": 722,
+      "maximum_iteration_gap_seconds": 0.012939456,
+      "trace_counts": {
+        "cpu0": {
+          "entries": 211,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu1": {
+          "entries": 25,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu2": {
+          "entries": 92,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        },
+        "cpu3": {
+          "entries": 27,
+          "overrun": 0,
+          "commit overrun": 0,
+          "dropped events": 0
+        }
+      }
+    }
+  ]
+}

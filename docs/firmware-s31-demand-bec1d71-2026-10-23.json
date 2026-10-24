@@ -1,0 +1,76 @@
+{
+  "recorded_utc": "2026-10-23T03:40:59.698302+00:00",
+  "revision": "bec1d71e1379e08e279327bdb222b3207456cebe",
+  "base_revision": "74975412c1b04c0738dcf57ab03bae82bc8ac71f",
+  "pull_request": "https://github.com/tyeth-ai-assisted/esp-usbip-bridge/pull/25",
+  "idf_revision": "ce2100de51a4d9a372f26578fd2ee763ca4b1279",
+  "idf_worktree_clean": true,
+  "target": "esp32s31",
+  "full_build_passed": true,
+  "build_exit_code": 0,
+  "artifacts": [
+    {
+      "file": "esp32p4_usbip_bridge.bin",
+      "bytes": 829088,
+      "sha256": "8a540fc8296b973072584c0bd59de509be8ffa0d0d5275540796804e52c87bd6"
+    },
+    {
+      "file": "esp32p4_usbip_bridge.elf",
+      "bytes": 11874672,
+      "sha256": "db4bb7ba99f9c40df6ede817bc6289b3d24c6a7c72ea357cbb1088e6da1c8f98"
+    },
+    {
+      "file": "partition_table/partition-table.bin",
+      "bytes": 3072,
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"
+    },
+    {
+      "file": "esp-idf/main/CMakeFiles/__idf_main.dir/usb_backend.c.obj",
+      "bytes": 304284,
+      "sha256": "5f3809a6918d821cb74fcd2d18622222e739e8223485a5ef30553b41816270fd"
+    }
+  ],
+  "inputs": [
+    {
+      "file": "main/usb_backend.c",
+      "bytes": 61443,
+      "sha256": "0d8ccc3a1e9512c026ddcccf2a180cac6ccc05dbed275ab43339855b4cce5950"
+    },
+    {
+      "file": "tools/check_interface_demand.py",
+      "bytes": 11705,
+      "sha256": "07a57e9f0bddde9f7b5525cd9016b4e51191c9bcbd4b5008a97ef76c93360439"
+    },
+    {
+      "file": "tools/check_interface_claims.py",
+      "bytes": 7056,
+      "sha256": "d50819130f67f4b931eeccc9565281cf958c9786d46ec4f1798bd5d5a0559fef"
+    },
+    {
+      "file": "dependencies.lock",
+      "bytes": 1307,
+      "sha256": "d1ba53309294046e2b68605dd5efb32680cc1a019119c1a1eee17e6e9ce72e77"
+    },
+    {
+      "file": "sdkconfig.s31-function-coreboard-1",
+      "bytes": 115465,
+      "sha256": "ac33f2ed8eca08b06530d36af9f3bbe76e64466a516e0d98482d241ea7b216b2"
+    }
+  ],
+  "native_regression": {
+    "candidate_groups": 17,
+    "failed_assertions": 0,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "historical_cleanup_baseline_cases": 24,
+    "historical_cleanup_failed_assertions": 0,
+    "capacity_comparison": "Actual all-interface baseline fails to admit the second device; actual per-interface candidate admits two CDC devices. Both use modeled 16 total / 8 baseline channels; not a physical candidate result."
+  },
+  "installed": true,
+  "hardware_qualified": true,
+  "build_scope": "custom integration commit, fresh full ESP32-S31 build",
+  "hardware_qualification_scope": "Two CDC consoles with MSC/HID unauthorized before driver probing; same physical devices, descriptors, test and orders as the failed baseline.",
+  "hardware_evidence": "s31-selective-interface-candidate-2026-10-23.json"
+}

@@ -1,0 +1,48 @@
+{
+  "status": "passed",
+  "finished_utc": "2026-10-23T00:40:37.157048+00:00",
+  "circuitpython": "6b117bdce576abf927554a4946b8610149150aa0",
+  "image_sha256": "7dae24ba1c94a70c19dd1393e08d4bde2e910857e3199ea419c67a2f35d26a98",
+  "station_firmware": "cb5301b6fb-dirty",
+  "station_board": "adafruit_feather_esp32_v2",
+  "board": "raspberrypi_rpi_pico2_w_zephyr",
+  "diagnostic_overrides": false,
+  "channels": [
+    {
+      "channel": 1,
+      "scanned_channel_matches": true,
+      "dhcp_lease": true,
+      "ping_seconds": 0.01,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true
+    },
+    {
+      "channel": 6,
+      "scanned_channel_matches": true,
+      "dhcp_lease": true,
+      "ping_seconds": 0.019,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true
+    },
+    {
+      "channel": 11,
+      "scanned_channel_matches": true,
+      "dhcp_lease": true,
+      "ping_seconds": 0.02,
+      "station_mac_and_lease_match": true,
+      "station_departure": true,
+      "ap_stop": true
+    }
+  ],
+  "cleanup_passed": true,
+  "original_port_state_restored": true,
+  "raw_job_sha256": "859e1d156f2e19cc23a6f4139b9d192303db11b4067e15987c1a369b0106ebfc",
+  "update_scope": "Fresh private 4 MiB backup, entire flash readback verified; settings/NVM/filesystem preserved.",
+  "limits": [
+    "Pico W production image not installed or tested",
+    "No concurrent MSC stress or physical failed-start injection",
+    "Single S31 import with a directly attached UART station; not simultaneous S31 capacity proof"
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "status": "passed",
+  "finished_utc": "2026-10-23T01:33:28.324693+00:00",
+  "circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "peer_board": "adafruit_feather_esp32_v2",
+  "peer_firmware": "cb5301b6fb-dirty",
+  "image_sha256": "c1e390f99928d0b0c1ff76d7af47ad9ce6c2931f0979ffa88d27dcd44c23abc8",
+  "station_channel": 6,
+  "cycles": [
+    {
+      "cycle": 0,
+      "dhcp_lease": true,
+      "ping_seconds": 0.018,
+      "peer_mac_matches": true,
+      "disconnect_seconds": 0.01300049,
+      "address_cleared": true,
+      "radio_remains_enabled": true,
+      "ap_confirms_departure": true,
+      "repeated_stop": true,
+      "started_from_disabled": false
+    },
+    {
+      "cycle": 1,
+      "dhcp_lease": true,
+      "ping_seconds": 0.014,
+      "peer_mac_matches": true,
+      "disconnect_seconds": 0.01300049,
+      "address_cleared": true,
+      "radio_remains_enabled": true,
+      "ap_confirms_departure": true,
+      "repeated_stop": true,
+      "started_from_disabled": false
+    },
+    {
+      "cycle": 2,
+      "dhcp_lease": true,
+      "ping_seconds": 0.017,
+      "peer_mac_matches": true,
+      "disconnect_seconds": 0.01525879,
+      "address_cleared": true,
+      "radio_remains_enabled": true,
+      "ap_confirms_departure": true,
+      "repeated_stop": true,
+      "started_from_disabled": true
+    }
+  ],
+  "ap_preservation_channel": 11,
+  "ap_preservation_ping_seconds": 0.018,
+  "cleanup_passed": true,
+  "transport_unchanged": true,
+  "whole_flash_verified": true,
+  "settings_nvm_filesystem_preserved": true,
+  "ble_identity_preserved": true,
+  "native_checks": 46,
+  "baseline_native_failures": 38,
+  "private_evidence_sha256": {
+    "qualification": "d5b5572680c137c4c7f81d46c7d7012c1f90f2bce5d87e991e44741b472927ea",
+    "update": "c4ff1989605ae6299b34636ddf0a6a74509f81d3b4d1c92042d22bab7eaf6b64",
+    "initial_fixture_failure": "0066fbe76666c1cc2d14a2b644d964e347bcf179b63b5d1adf101ed3215b8290",
+    "cleanup_fixture_failure": "646fe1ae634d9718dfb6a0d07a3ec985f50093d75992421b0459d5f7136c17af"
+  },
+  "earlier_runs": [
+    {
+      "status": "failed",
+      "cause": "AP address sampled before ready; invalid ping argument; both cleanups passed"
+    },
+    {
+      "status": "cleanup_failed",
+      "cause": "Pico functional checks passed; ESP peer cleanup assertion ran before state settled"
+    }
+  ],
+  "limits": [
+    "Pico 2 image builds but is not installed at this revision",
+    "No physical driver failure injection or simultaneous MSC stress",
+    "Prior soaks and channel 1/6/11 BLE/AP checks retain their earlier firmware revisions"
+  ]
+}

@@ -1,0 +1,11 @@
+tests:
+  crypto.p256_premaster.p256m:
+    platform_allow: native_sim/native/64
+    tags: [crypto, mbedtls]
+    extra_configs:
+      - CONFIG_MBEDTLS_PSA_P256M_DRIVER_ENABLED=y
+  crypto.p256_premaster.builtin:
+    platform_allow: native_sim/native/64
+    tags: [crypto, mbedtls]
+    extra_configs:
+      - CONFIG_MBEDTLS_PSA_P256M_DRIVER_ENABLED=n

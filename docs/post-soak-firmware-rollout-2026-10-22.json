@@ -1,0 +1,78 @@
+{
+  "recorded_utc": "2026-10-22T20:37:47.374254+00:00",
+  "boards": [
+    {
+      "board": "ESP32-C61 DevKit",
+      "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+      "image_sha256": "58d5d48d3673c2fa4fb4510edba08618ad88b05e33d47805d557a442debdc982",
+      "upgraded_utc": "2026-10-22T20:16:09.415954+00:00",
+      "runtime_verified_utc": "2026-10-22T20:16:47.802693+00:00",
+      "full_backup_verified": true,
+      "protected_regions_verified": true,
+      "trusted_fullchain_verified": true,
+      "wrong_hostname_rejected": true,
+      "followup_soak_verified": false,
+      "upgrade_job": "bfbf52d9-ac31-421e-942a-cfddeee3fe4d",
+      "runtime_job": "473982f3-cae3-43ab-b904-86fd207c48c2"
+    },
+    {
+      "board": "Feather ESP32 V2",
+      "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+      "image_sha256": "b393922d552551a2f097eea8c9a27607579a873328617e231a042b4c21935183",
+      "upgraded_utc": "2026-10-22T20:32:23.164190+00:00",
+      "runtime_verified_utc": "2026-10-22T20:33:16.838094+00:00",
+      "full_backup_verified": true,
+      "protected_regions_verified": true,
+      "trusted_fullchain_verified": true,
+      "wrong_hostname_rejected": true,
+      "followup_soak_verified": false,
+      "upgrade_job": "22730d98-9e2b-4d3c-9240-37def2db551e",
+      "runtime_job": "33108582-a474-41b3-9e3d-c9973d9d0a50"
+    }
+  ],
+  "note": "Post-soak firmware rollout; earlier overnight passes retain their original image attribution. Private recovery files are not published.",
+  "later_updates": [
+    {
+      "board": "Feather ESP32-S3 4MB flash / 2MB PSRAM",
+      "runtime_verified_utc": "2026-10-22T23:17:19.084278+00:00",
+      "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+      "reported_version": "CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+      "image_sha256": "ef75c2e593ab2c7746f157afe579dc8af104a097cae02fadb3807c39e0edacbb",
+      "full_backup_bytes": 4194304,
+      "full_backup_verified": true,
+      "app_only_update": true,
+      "whole_flash_verified": true,
+      "protected_regions_verified": true,
+      "recovery_slot": "already erased; preserved unchanged",
+      "filesystem": "existing 960 KiB FAT preserved",
+      "runtime_identity_verified": true,
+      "radio_cycles": [
+        {
+          "wifi": 3,
+          "cycle": 1,
+          "ble": 25,
+          "gc_free": 2069056
+        },
+        {
+          "wifi": 3,
+          "cycle": 2,
+          "ble": 25,
+          "gc_free": 2069056
+        },
+        {
+          "wifi": 3,
+          "cycle": 3,
+          "ble": 24,
+          "gc_free": 2069056
+        }
+      ],
+      "followup_soak_verified": false,
+      "trusted_fullchain_verified": false,
+      "normal_rts_resume_failed": true,
+      "watchdog_resume_verified": true,
+      "original_port_state_restored": true,
+      "private_runtime_evidence_sha256": "4406359ae27ad052f9873ce1320bf57a2138d10f4c2ab8e58959311ad0998f77",
+      "scope": "Three overlapping Wi-Fi/BLE scans; no new soak or TLS claim"
+    }
+  ]
+}

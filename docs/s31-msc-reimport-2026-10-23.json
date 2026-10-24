@@ -1,0 +1,179 @@
+{
+  "status": "failure_reproduced",
+  "bridge_commit": "bec1d71e1379e08e279327bdb222b3207456cebe",
+  "pico2_commit": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "metro_s3_commit": "ea06dcb44e",
+  "physical_hubs": 3,
+  "physical_leaf_devices": 3,
+  "single_import_control": {
+    "result": "failed",
+    "rounds": [
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "read_passed",
+        "failure_stage": null,
+        "msc_error": null,
+        "read_bytes": 4096,
+        "repeated_sha256": [
+          "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+          "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+        ],
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      },
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      },
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      },
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      }
+    ],
+    "imports_and_ports_restored": true,
+    "virtual_bus_authorization_defaults_restored": true,
+    "bridge_uptime_before": 11842,
+    "bridge_uptime_after": 11937,
+    "bridge_reset_observed": false
+  },
+  "mixed_import_control": {
+    "result": "failed",
+    "rounds": [
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "read_passed",
+        "failure_stage": null,
+        "msc_error": null,
+        "read_bytes": 4096,
+        "repeated_sha256": [
+          "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+          "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+        ],
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      },
+      {
+        "order": [
+          "pico",
+          "s3"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "pico": "SerialException('write failed: [Errno 5] Input/output error')",
+          "s3": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d",
+          "s3": "013e9e45a9eb6220b5180fbf5faa26c1b45214d25a901be426583085112a09e4"
+        }
+      },
+      {
+        "order": [
+          "s3",
+          "pico"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "s3": "passed",
+          "pico": "SerialException('write failed: [Errno 5] Input/output error')"
+        },
+        "descriptor_sha256": {
+          "s3": "013e9e45a9eb6220b5180fbf5faa26c1b45214d25a901be426583085112a09e4",
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      },
+      {
+        "order": [
+          "pico"
+        ],
+        "msc_status": "failed",
+        "failure_stage": "disk_enumeration",
+        "msc_error": "RuntimeError('MSC disk did not enumerate in 20 seconds')",
+        "read_bytes": null,
+        "repeated_sha256": null,
+        "cdc_after": {
+          "pico": "passed"
+        },
+        "descriptor_sha256": {
+          "pico": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d"
+        }
+      }
+    ],
+    "imports_and_ports_restored": true,
+    "virtual_bus_authorization_defaults_restored": true,
+    "bridge_uptime_before": 11628,
+    "bridge_uptime_after": 11734,
+    "bridge_reset_observed": false
+  },
+  "filesystem_writes": false,
+  "firmware_writes": false,
+  "uart_opened": false,
+  "network_logger": "unavailable; source startup call is commented out",
+  "limits": [
+    "No direct live channel counter or bridge transfer log",
+    "Channel pressure alone does not explain sequential single-import failure",
+    "No root cause or release regression established",
+    "No direct-USB Pico 2 replug comparison",
+    "No new bridge or CircuitPython fix claimed"
+  ]
+}

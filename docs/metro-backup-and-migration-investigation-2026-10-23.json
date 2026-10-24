@@ -1,0 +1,172 @@
+{
+  "status": "full_backup_verified",
+  "finished_utc": "2026-10-23T07:37:22.368916+01:00",
+  "verified_bytes": 16777216,
+  "backup_sha256": "72803aa16d14e356b7cdd49c48bd0880bfa2b69092aadb395b2c7519250e8671",
+  "flash_writes": false,
+  "original_port_state_restored": true,
+  "bridge_revision": "bec1d71",
+  "reader_packet_bytes": 512,
+  "reader_packets_in_flight": 1,
+  "chunk_bytes": 65536,
+  "chunk_count": 256,
+  "read_digest_and_independent_device_verify": true,
+  "old_partition_table": [
+    {
+      "name": "nvs",
+      "type": 1,
+      "subtype": 2,
+      "offset": 36864,
+      "size": 20480,
+      "flags": 0,
+      "sha256": "46ed9865fbaccf0e3532e5d1be13bbb53f5c3e1abf014b20153b04c01963f072"
+    },
+    {
+      "name": "otadata",
+      "type": 1,
+      "subtype": 0,
+      "offset": 57344,
+      "size": 8192,
+      "flags": 0,
+      "sha256": "f53a6d60e971aac6d5757021a8b09ff14c92f823541e36bf296c53e0d7f2381a"
+    },
+    {
+      "name": "ota_0",
+      "type": 0,
+      "subtype": 16,
+      "offset": 65536,
+      "size": 2097152,
+      "flags": 0,
+      "sha256": "9f83fb2aeea586bcd8f4d1375d7676a47d9c450e8c82d7da32c41e257838c5c1"
+    },
+    {
+      "name": "ota_1",
+      "type": 0,
+      "subtype": 17,
+      "offset": 2162688,
+      "size": 2097152,
+      "flags": 0,
+      "sha256": "4bda3a28f4ffe603c0ec1258c0034d65a1a0d35ab7bd523a834608adabf03cc5"
+    },
+    {
+      "name": "uf2",
+      "type": 0,
+      "subtype": 0,
+      "offset": 4259840,
+      "size": 262144,
+      "flags": 0,
+      "sha256": "ff22acc5ca58a023c4df2240af1f79ffba036b3a70cfcf44101bf45314f6877e"
+    },
+    {
+      "name": "ffat",
+      "type": 1,
+      "subtype": 129,
+      "offset": 4521984,
+      "size": 12255232,
+      "flags": 0,
+      "sha256": "3832cc9548d577e155629a2928b4c0737b47c43ede685c4f019b95d1aa74c94b",
+      "first_sector_fat_signature": false
+    }
+  ],
+  "old_partition_table_md5_valid": true,
+  "filesystem_geometry": {
+    "partition_bytes": 12255232,
+    "all_erased": false,
+    "fat_boot_candidates": [],
+    "device_access": false,
+    "wear_level_state_candidates": [
+      {
+        "copy": 0,
+        "partition_offset": 12152832,
+        "position": 4294967295,
+        "max_position": 4294967295,
+        "move_count": 4294967295,
+        "block_size": 4294967295,
+        "version": 4294967295,
+        "crc_valid": false
+      },
+      {
+        "copy": 1,
+        "partition_offset": 12201984,
+        "position": 4294967295,
+        "max_position": 4294967295,
+        "move_count": 4294967295,
+        "block_size": 4294967295,
+        "version": 4294967295,
+        "crc_valid": false
+      }
+    ]
+  },
+  "bpb_fields": {
+    "jump": "ebfe90",
+    "sector_size": 512,
+    "cluster_sectors": 4,
+    "reserved_sectors": 1,
+    "fat_tables": 1,
+    "root_entries": 512,
+    "sectors16": 23936,
+    "media_type": 248,
+    "fat_sectors16": 31,
+    "sectors32": 65535,
+    "fat_sectors32": 2687360,
+    "end_512": "ffff",
+    "end_4096": "ffff",
+    "device_access": false,
+    "file_contents_printed": false
+  },
+  "offline_copy_diagnostic": {
+    "tools_available": {
+      "fsck.fat": true,
+      "mdir": true,
+      "mcopy": true
+    },
+    "device_access": false,
+    "original_backup_modified": false,
+    "variants": [
+      {
+        "variant": "original",
+        "sha256": "3832cc9548d577e155629a2928b4c0737b47c43ede685c4f019b95d1aa74c94b",
+        "patched_offsets": [],
+        "results": {
+          "fsck.fat": {
+            "returncode": 1,
+            "log_sha256": "f93750b0ea85051ebcc0759c3f734c8428ddf85b43334c5c1c6971aa2bf36ac2"
+          },
+          "mdir": {
+            "returncode": 1,
+            "log_sha256": "cf1ca637efdaae2f5676dc1342115b1613d0403dd65e3c0823f07a7b9d1cb7e4"
+          }
+        }
+      },
+      {
+        "variant": "signature_only_copy",
+        "sha256": "cf43b71077f174a61618ecc497c857b8073527faa5d62a743f92dd771860d38c",
+        "patched_offsets": [
+          510,
+          511
+        ],
+        "results": {
+          "fsck.fat": {
+            "returncode": 1,
+            "log_sha256": "e058ca406faeebb2d584f83f40555192e8680ddc9249e37c0f5266ed4f82c4f2"
+          },
+          "mdir": {
+            "returncode": 1,
+            "log_sha256": "cf1ca637efdaae2f5676dc1342115b1613d0403dd65e3c0823f07a7b9d1cb7e4"
+          }
+        }
+      }
+    ]
+  },
+  "file_recovery_verified": false,
+  "firmware_installed": false,
+  "earlier_short_frame_root_cause_established": false,
+  "private_evidence_sha256": {
+    "backup_job": "437de8a4fa33ddfbe63e790ccce77db7247b0a6daf0d36b83d9e70863948b1e9",
+    "partition_job": "02b25d50d2b7c6db6021c42f6c8bbf971697f3aaa53d7d6577d6d7d075056073",
+    "geometry_job": "6f04356b6c11c75d138bada59ddf51a968b717a6fe6b4a81a3932e9219d963b5",
+    "bpb_job": "f2d3964f2ae5255742f2ed91d2bd0122ab4616b68dfd2ac6bcc479e56e2ac4f0",
+    "fat_copy_job": "4e2b3f615ec046767105450d30d51d53a43d89ae50f190a7a7e9ce58c52a1064"
+  },
+  "subsequent_migration_and_runtime_evidence": "metro-ea06-migration-2026-10-23.json"
+}

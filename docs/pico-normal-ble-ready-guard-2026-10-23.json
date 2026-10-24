@@ -1,0 +1,376 @@
+{
+  "builds": {
+    "pins": {
+      "circuitpython": "0d545efdcf74fdefef66190236f8707ac2b545c5",
+      "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+    },
+    "images": {
+      "picow": {
+        "board": "raspberrypi_rpi_pico_w_zephyr",
+        "artifacts": {
+          "bin": {
+            "bytes": 1252696,
+            "sha256": "54240241685cfad9c0264f016c29d4bfde7c25f0bcdf6d18bacd2f930f90e4d0"
+          },
+          "elf": {
+            "bytes": 23545888,
+            "sha256": "d213940aa5ab81f45a59becca48a7dfa2ed04c5b5572a030a519c2b07214071a"
+          },
+          "map": {
+            "bytes": 3169627,
+            "sha256": "d7e958d7b0e1bae262b100ce2d5f979c125df19a82d70cffb5c1bca4df87b910"
+          },
+          "config": {
+            "bytes": 86189,
+            "sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false
+      },
+      "pico2": {
+        "board": "raspberrypi_rpi_pico2_w_zephyr",
+        "artifacts": {
+          "bin": {
+            "bytes": 1209076,
+            "sha256": "fe0c3194104c4a3fe119e745e7e330946ef96fbaa5908f13f9d7c724bd196de7"
+          },
+          "elf": {
+            "bytes": 24270496,
+            "sha256": "6ad6e0878823bd34b03e77db97226ada4b81bf3f3ab3123617a45aea62b5c0ec"
+          },
+          "map": {
+            "bytes": 3109172,
+            "sha256": "359cfacdbbf3b007e88dee91214b22001df22d11c1b831f9f9d3542c4d03cde6"
+          },
+          "config": {
+            "bytes": 88576,
+            "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false
+      }
+    },
+    "hardware_qualification": "bounded normal startup and three BLE reenable/Wi-Fi/BLE scan cycles pass on both Pico boards; original code restored",
+    "production_devices": "retain 9e153ad624"
+  },
+  "picow": {
+    "status": "passed_and_restored",
+    "candidate_sha256": "54240241685cfad9c0264f016c29d4bfde7c25f0bcdf6d18bacd2f930f90e4d0",
+    "normal_radio_counts_wifi_ble": [
+      [
+        70,
+        70
+      ],
+      [
+        59,
+        72
+      ],
+      [
+        78,
+        75
+      ]
+    ],
+    "stable_ble_identity": true,
+    "restored_radio_counts_wifi_ble": [
+      [
+        67,
+        74
+      ],
+      [
+        71,
+        73
+      ],
+      [
+        55,
+        67
+      ]
+    ],
+    "original_code_restored": true,
+    "whole_expected_image_verified": true,
+    "whole_image_bit_identical_to_pretest": false,
+    "host_and_port_state_restored": true,
+    "bridge_not_restarted": true,
+    "finished_utc": "2026-10-23T20:37:32.244134+00:00"
+  },
+  "pico2": {
+    "status": "passed_and_restored",
+    "candidate_sha256": "fe0c3194104c4a3fe119e745e7e330946ef96fbaa5908f13f9d7c724bd196de7",
+    "normal_radio_counts_wifi_ble": [
+      [
+        65,
+        68
+      ],
+      [
+        62,
+        77
+      ],
+      [
+        63,
+        78
+      ]
+    ],
+    "stable_ble_identity": true,
+    "restored_radio_counts_wifi_ble": [
+      [
+        66,
+        75
+      ],
+      [
+        69,
+        78
+      ],
+      [
+        60,
+        80
+      ]
+    ],
+    "original_code_restored": true,
+    "whole_expected_image_verified": true,
+    "whole_image_bit_identical_to_pretest": false,
+    "host_and_port_state_restored": true,
+    "bridge_not_restarted": true,
+    "finished_utc": "2026-10-23T20:56:25.798593+00:00"
+  },
+  "preserved_pico2_preflight_failure": {
+    "stage": "original-firmware combined initialization command",
+    "raw_response": "OK without completion",
+    "candidate_installed": false,
+    "firmware_writes": false,
+    "port_and_imports_restored": true,
+    "cause": "unresolved"
+  },
+  "separate_segmented_preflight": {
+    "interpreter": "pass",
+    "wifi": "pass",
+    "ble": "pass",
+    "firmware_writes": false
+  },
+  "separate_marked_preflight": {
+    "before_and_after_wifi_import": "pass",
+    "enabled_connected_ap_active": "pass",
+    "ble": "pass",
+    "firmware_writes": false
+  },
+  "native_controls": {
+    "candidate": {
+      "passed": 17,
+      "function_sha256": "d0433733e6167891e03493a4c0fc946906feb2fb75bfb821eee1095a34d16022",
+      "source_sha256": "cfe1d5b6a64940734a843233aa0d1469df24dec3ae59a3f325426fb3d3f24609",
+      "cases": [
+        {
+          "mode": 0,
+          "failure_stage": 0,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 1,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 2,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 3,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 4,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 5,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 0,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 1,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 2,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 3,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 4,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 5,
+          "returncode": 0
+        },
+        {
+          "mode": 2,
+          "failure_stage": 3,
+          "returncode": 0
+        },
+        {
+          "mode": 2,
+          "failure_stage": 4,
+          "returncode": 0
+        },
+        {
+          "mode": 2,
+          "failure_stage": 5,
+          "returncode": 0
+        },
+        {
+          "mode": 3,
+          "failure_stage": 0,
+          "returncode": 0
+        },
+        {
+          "mode": 3,
+          "failure_stage": 3,
+          "returncode": 0
+        }
+      ]
+    },
+    "baseline": {
+      "passed": 8,
+      "function_sha256": "c023843f52f6094ee1fc5c5b7b4e65002b0f7acf2f43c80bf6bdeb274318f534",
+      "source_sha256": "a3c8bc06ceb9d7c4838c0f187404a65cc5b45f8661bb7c4cf72ea5136c599377",
+      "cases": [
+        {
+          "mode": 0,
+          "failure_stage": 0,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 1,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 2,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 3,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 4,
+          "returncode": 0
+        },
+        {
+          "mode": 0,
+          "failure_stage": 5,
+          "returncode": 0
+        },
+        {
+          "mode": 1,
+          "failure_stage": 0,
+          "returncode": -6
+        },
+        {
+          "mode": 1,
+          "failure_stage": 1,
+          "returncode": -6
+        },
+        {
+          "mode": 1,
+          "failure_stage": 2,
+          "returncode": -6
+        },
+        {
+          "mode": 1,
+          "failure_stage": 3,
+          "returncode": -6
+        },
+        {
+          "mode": 1,
+          "failure_stage": 4,
+          "returncode": -6
+        },
+        {
+          "mode": 1,
+          "failure_stage": 5,
+          "returncode": -6
+        },
+        {
+          "mode": 2,
+          "failure_stage": 3,
+          "returncode": -6
+        },
+        {
+          "mode": 2,
+          "failure_stage": 4,
+          "returncode": -6
+        },
+        {
+          "mode": 2,
+          "failure_stage": 5,
+          "returncode": -6
+        },
+        {
+          "mode": 3,
+          "failure_stage": 0,
+          "returncode": 0
+        },
+        {
+          "mode": 3,
+          "failure_stage": 3,
+          "returncode": 0
+        }
+      ]
+    }
+  },
+  "remaining": [
+    "Pico 2 forced-error retry qualification",
+    "natural hardware-fault recovery",
+    "USB console-close rollout blocker CP42",
+    "end-to-end BLE workflow client transfers",
+    "intermittent original-firmware preflight stalls remain unexplained"
+  ],
+  "preserved_pico2_segmented_preflight_failure": {
+    "status": "original_firmware_preflight_failed",
+    "candidate_installed": false,
+    "firmware_writes": false,
+    "interpreter_check": "passed",
+    "wifi_check": "no completion",
+    "ports_and_imports_restored": true,
+    "bridge_not_restarted": true
+  },
+  "matched_original_helper_frame_control": {
+    "exact_original_commands": true,
+    "unchanged_repl_exec": true,
+    "all_three_commands_passed": true,
+    "all_final_prompts_observed": true,
+    "firmware_writes": false,
+    "client_framing_defect_proven": false
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "qualification": "failed DHCP qualification; diagnostic completed successfully",
+  "pico_firmware": "IDENTITY raspberrypi_rpi_pico2_w_zephyr 3.4.0; CircuitPython 11.0.0-alpha.2-30-g7d4ef1aac7 on 2026-10-22",
+  "station_firmware": "IDENTITY adafruit_feather_esp32_v2 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+  "channel": 1,
+  "association_observations": 6,
+  "dhcp_lease_observed": false,
+  "connect_timeout_requested_seconds": 10,
+  "host_deadline_seconds": 25,
+  "connect_returned_before_host_deadline": false,
+  "station_address_after_interrupt": "0.0.0.0",
+  "static_address_reconnect_passed": true,
+  "static_ping_seconds": 0.015,
+  "explicit_dhcp_client_restart_control": "failed to complete combined connect/ping within 30 seconds",
+  "explicit_control_connect_timeout_seconds": 20,
+  "cleanup": "AP stopped; station disconnected and DHCP restored; imports detached and original port state restored",
+  "dual_s31_console_test": "failed before AP start; second device enumerated but raw REPL did not respond",
+  "dual_failure_root_cause": "unproven; bridge claims all interfaces on first data request, so endpoint/channel pressure remains a candidate",
+  "completed_utc": "2026-10-22T23:56:50.020348+00:00",
+  "firmware_writes": false,
+  "private_evidence_sha256": {
+    "diagnostic": "d15c884d61e0be17d502b0fad007a345a122ca94b80ebb1da5e46359d2c7a553",
+    "explicit_dhcp_control": "aa4f5a74404d2ab533cb593897ef4ed524dda5b9b6a5689db10121657b5d9b24",
+    "dual_console": "95623b18ad0037fdd618f0f431e2efae851dcf19523bf78614b66e0bd5441881"
+  },
+  "next_diagnostic_build": {
+    "built": true,
+    "flashed": false,
+    "bytes": 1221284,
+    "sha256": "50cbb7a571239ef1ce7380011ce6ae89988fa630304c4e50efdc6cd9bf9b91f9",
+    "dhcp_debug_level": 4,
+    "initialized_stack_measurement": true,
+    "usb_thread_stack_bytes": 2048
+  },
+  "limitations": [
+    "No DHCP packet capture or root cause yet",
+    "Channels 6 and 11 and station departure not qualified",
+    "512/2048 stack comparison not run",
+    "S31 simultaneous capacity not fixed by partial-claim cleanup"
+  ]
+}

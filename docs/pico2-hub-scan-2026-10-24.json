@@ -1,0 +1,1222 @@
+{
+  "board": "raspberrypi_rpi_pico2_w_zephyr",
+  "application_base": "415710c80b3c02785b4a7860bab71d87a473897e",
+  "patch": "collector/net_blescan.py: prefixes=envadv.PREFIX",
+  "patched_source_sha256": "ad1b840b7bb03a0b9339382ea6b957f1842a092d5d88f14d191a87624e099541",
+  "candidate_pins": {
+    "circuitpython": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+    "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+  },
+  "host_regression": {
+    "baseline": {
+      "tests": 3,
+      "failures": 2,
+      "errors": 1
+    },
+    "fixed": {
+      "tests": 3,
+      "passed": 3
+    },
+    "envadv_checks_passed": 50
+  },
+  "application_attempts": [
+    {
+      "job": "8d400313-0674-44e3-a6b9-fd643359b4c0",
+      "result": "fail",
+      "scope": "Fixture used bytes(nvm) rather than bytes(nvm[:]); stopped before application writes.",
+      "record_sha256": "9d76e04e62db3aa78d6a6e6f6d2924b28d696d13bc99e834a3088dbafbbc7110",
+      "finished_utc": "2026-10-24T02:10:11.328231+00:00",
+      "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "original_backup_bytes": 4194304,
+      "restore": {
+        "status": "verified",
+        "before_sha256": "eb0f2a25436e0573db43bfbaabbd7d9ad61658cd15df82b3ef149dbb93e4717b",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "production_restored": true,
+      "runtime_restored": true,
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "recovery_required": false,
+      "payload_verified": false,
+      "files_verified": 0,
+      "boot_bytes": null,
+      "boot_sha256": null
+    },
+    {
+      "job": "23dbd129-ea60-4b61-b767-37c656134803",
+      "result": "fail",
+      "scope": "Fixture assumed hashlib.sha256 existed; stopped after its first file write and before app boot.",
+      "record_sha256": "e04a6e008db19bb4bc8209df4b09db306290b26216a6b89edbeebf40c5bd128b",
+      "finished_utc": "2026-10-24T02:13:35.336140+00:00",
+      "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "original_backup_bytes": 4194304,
+      "restore": {
+        "status": "verified",
+        "before_sha256": "21b58c6a3b664c67eb3a144e11771b5a124d93a3bec386ab539ff7ca3ff92d58",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "production_restored": true,
+      "runtime_restored": true,
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "recovery_required": false,
+      "payload_verified": false,
+      "files_verified": 0,
+      "boot_bytes": null,
+      "boot_sha256": null
+    },
+    {
+      "job": "22d99503-134f-478a-a682-f4a8ddba51cf",
+      "result": "fail",
+      "scope": "Fixture missed an early boot marker after USB reattachment; boot log independently reproduces positional scan argument TypeError.",
+      "record_sha256": "5853e615b0d4971bce97eb4ee7bfef5b3e2eb23eda8a11a863d02d8899b3079d",
+      "finished_utc": "2026-10-24T02:20:53.410665+00:00",
+      "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "original_backup_bytes": 4194304,
+      "restore": {
+        "status": "verified",
+        "before_sha256": "07903cbb999be4c6f73bf5fe3e13f45b49b2717f55ec14c16aa4c211833e4e9d",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "production_restored": true,
+      "runtime_restored": true,
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "recovery_required": false,
+      "payload_verified": true,
+      "files_verified": 44,
+      "boot_bytes": 1060,
+      "boot_sha256": "a66098fc8acf1dce4734da9bb6b44115a77ac90410906fe6187fa533137e6c63"
+    },
+    {
+      "job": "3617aa1c-fcf9-49f1-94ab-6847075d136f",
+      "result": "fail",
+      "scope": "Keyword fix removes TypeError; full hub reports scan OSError22 and fails the boot check.",
+      "record_sha256": "b8bc9c400333e4a1bdb3da9c89635e954ef9ef013139c0a6e1aada9e97a8d88f",
+      "finished_utc": "2026-10-24T02:29:55.110646+00:00",
+      "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "original_backup_bytes": 4194304,
+      "restore": {
+        "status": "verified",
+        "before_sha256": "c7b8aba36f935835749d2c845ede08e5f25959e48e42a23acd313be6fbdb615e",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "production_restored": true,
+      "runtime_restored": true,
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "recovery_required": false,
+      "payload_verified": true,
+      "files_verified": 44,
+      "boot_bytes": 1053,
+      "boot_sha256": "25c1a2037f7022afddf5505e30f326681d8151007123da46d3f1ba61be07fd17"
+    }
+  ],
+  "raw_scan_matrices": [
+    {
+      "job": "ddb76464-6c3d-4281-affc-004f00e19aff",
+      "revision": "9e153ad624",
+      "result": "pass",
+      "record_sha256": "106b7aa6e93f4e6815a180cfd91aaa5800172f7a1b2508680c55917bfe920449",
+      "cases": [
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0320004,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": false,
+          "count": 30,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.031998,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.028,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": false,
+          "count": 10,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.031999,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0220024,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": false,
+          "count": 26,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.018001,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0219984,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": false,
+          "count": 21,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0239976,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.021994,
+          "label": "connectable",
+          "ap": false,
+          "prefix": false,
+          "count": 28,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0250036,
+          "label": "connectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0209964,
+          "label": "connectable",
+          "ap": false,
+          "prefix": false,
+          "count": 16,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.019991,
+          "label": "connectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0279964,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": false,
+          "count": 26,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0320036,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0290016,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": false,
+          "count": 18,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0320016,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.035004,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": false,
+          "count": 29,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.038004,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0410044,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": false,
+          "count": 12,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0349944,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0320016,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": false,
+          "count": 31,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0309964,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.031994,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": false,
+          "count": 14,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0320016,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        }
+      ],
+      "finished_utc": "2026-10-24T02:32:47.048202+00:00",
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "firmware_writes": false,
+      "filesystem_writes": false,
+      "radios_stopped": true
+    },
+    {
+      "job": "b662ba2f-dae0-4e96-92e9-c43d2a805d4c",
+      "revision": "5f73172d46",
+      "result": "pass",
+      "record_sha256": "c48bfef83e0007f068ab8519710529812c8234b9c6f8a203129aaced0783576f",
+      "cases": [
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0360004,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": false,
+          "count": 32,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.028,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0310004,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": false,
+          "count": 16,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0360004,
+          "label": "no_adv",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.023001,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": false,
+          "count": 32,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0259964,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.022996,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": false,
+          "count": 7,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.023001,
+          "label": "nonconnectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.023001,
+          "label": "connectable",
+          "ap": false,
+          "prefix": false,
+          "count": 34,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.024996,
+          "label": "connectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0220016,
+          "label": "connectable",
+          "ap": false,
+          "prefix": false,
+          "count": 12,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0279964,
+          "label": "connectable",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0290016,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": false,
+          "count": 28,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0320016,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0290016,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": false,
+          "count": 19,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0340064,
+          "label": "ap_connectable",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": true
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0390016,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": false,
+          "count": 32,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.0410044,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0360016,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": false,
+          "count": 17,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.036999,
+          "label": "ap_no_adv",
+          "ap": true,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.029999,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": false,
+          "count": 33,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.1,
+          "elapsed_s": 1.033007,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.0339968,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": false,
+          "count": 18,
+          "advertising": false
+        },
+        {
+          "result": "pass",
+          "window": 0.05,
+          "elapsed_s": 1.031006,
+          "label": "after_ap",
+          "ap": false,
+          "prefix": true,
+          "count": 0,
+          "advertising": false
+        }
+      ],
+      "finished_utc": "2026-10-24T02:37:54.448953+00:00",
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "restore": {
+        "status": "verified",
+        "before_sha256": "eb0f2a25436e0573db43bfbaabbd7d9ad61658cd15df82b3ef149dbb93e4717b",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "runtime_restored": true
+    }
+  ],
+  "limits": [
+    "Full hub scan OSError22 remains unresolved",
+    "First four app jobs did not attempt HTTP; instrumented fifth passes12 HTTP checks but retains scanner failure",
+    "No filtered node packet was received in either raw matrix",
+    "No full app soak, latest browser assets or physical sensors qualified",
+    "Raw matrix uses simple advertisements, not the full UART service/application"
+  ],
+  "instrumented_hub": {
+    "job": "f39cb948-910a-4574-9262-e9a9fb4ffef8",
+    "result": "fail",
+    "record_sha256": "9e9d3419046428b4fc93e0baf20248b8b586a16cd21ef40023c5cbe04b31befc",
+    "finished_utc": "2026-10-24T02:45:53.459130+00:00",
+    "boot_bytes": 1621,
+    "boot_sha256": "19ec2680f9dd0f9a28b711042b269b32ea76433a4a94428bbdb31f6d47a40104",
+    "http_checks": [
+      {
+        "cycle": 0,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/latest",
+        "bytes": 327,
+        "sha256": "08eb7d96910c14904f0f8a2bb38ae660d5c639afcb8b0aad2ccd34fff10c4a80"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/latest",
+        "bytes": 327,
+        "sha256": "e999f09a165f025e58b823e43b15b8b0a4e5f4e09a693f6b9166328c24fdc77e"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/latest",
+        "bytes": 327,
+        "sha256": "8d49cd87402b3c7dfa1a9b418288b7db81aa1c163f064b27be890b409278d97a"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      }
+    ],
+    "scanner_api_states": [
+      {
+        "ble_rx": 0,
+        "ble_err": "OSError: [Errno 22] Invalid argument"
+      },
+      {
+        "ble_rx": 0,
+        "ble_err": "OSError: [Errno 22] Invalid argument"
+      },
+      {
+        "ble_rx": 0,
+        "ble_err": "OSError: [Errno 22] Invalid argument"
+      }
+    ],
+    "late_boot_failure": true,
+    "network_restore_error": "AssertionError()",
+    "restore": {
+      "status": "verified",
+      "before_sha256": "8a15a5a9746e30b82160bdbc30f0a5bf42f14ee061d795ead82a05e97af503b8",
+      "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "bytes": 4194304,
+      "whole_flash_verified": true
+    },
+    "production_restored": true,
+    "runtime_restored": true,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_reset_observed": false,
+    "recovery_required": false,
+    "first_scan": {
+      "timeout_s": 1.0,
+      "every_s": 5.0,
+      "minimum_rssi": -100,
+      "prefix_hex": "04ffffffe7",
+      "adapter_enabled": true,
+      "advertising": true,
+      "connected": false
+    },
+    "failure_stage": "start_scan",
+    "exception": "OSError: [Errno 22] Invalid argument",
+    "postflight": {
+      "job": "78bdb0e2-836e-48c4-938b-3cf91e791e22",
+      "result": "pass",
+      "record_sha256": "771cbef1a3aecbad5fd4599dde05a21f2ed4edf365cc35db8560ff3f61a50313",
+      "read_only": true,
+      "wlan_disconnected": true,
+      "test_profile_absent": true,
+      "no_active_units": true,
+      "no_imports": true,
+      "original_port_state_verified": true
+    }
+  },
+  "firmware_traced_hub": {
+    "job": "601195e2-2735-4a23-b0a5-fa6a497a20d2",
+    "result": "fail",
+    "record_sha256": "95bdba8db0fc4ed621b51c9eb14a74f79c5e23e18f47819779ff73daf47271aa",
+    "finished_utc": "2026-10-24T03:03:23.820477+00:00",
+    "candidate_sha256": "329c20f6053e4201e05987e998c766bb4bbcbff79ed84f9aa7bae7db58e14cd7",
+    "candidate_bytes": 1209596,
+    "boot_bytes": 2478,
+    "boot_sha256": "30ecf822cdca7a8e18de8914fae30249aa4a9b0b3fcf5169ca5e4191cbea3872",
+    "scan_diagnostic_lines": [
+      "ENVHUB_SCAN_REGISTER 0",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100"
+    ],
+    "restore_error": "OSError(19, 'No such device')",
+    "network_restored": true,
+    "production_restored": false,
+    "recovery_required": true,
+    "http_checks_attempted": false,
+    "network_failure": "NetworkManager key-mgmt property missing",
+    "separate_recovery": {
+      "job": "c9242134-6d29-49dd-973f-4e0605387929",
+      "result": "pass",
+      "record_sha256": "b628a6f5d849c44c8d5d7540490e8f86c52b5b37269a93dc48b9a3d6edcf13df",
+      "finished_utc": "2026-10-24T03:07:55.574522+00:00",
+      "restore": {
+        "status": "verified",
+        "before_sha256": "3fa4b4f1e2f583d86ff1d93d0b6cbac5e23573ff245caf5052b27b25d7e6f0f1",
+        "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "bytes": 4194304,
+        "whole_flash_verified": true
+      },
+      "whole_flash_matches_pretest": true,
+      "runtime_verified": true,
+      "imports_detached": true,
+      "original_port_state_restored": true,
+      "bridge_reset_observed": false,
+      "recovery_required": false,
+      "radio_counts": [
+        [
+          62,
+          74
+        ],
+        [
+          59,
+          80
+        ],
+        [
+          66,
+          81
+        ]
+      ],
+      "postflight": {
+        "job": "df79e9af-d9ff-4e52-a9b6-730f3bbf822b",
+        "read_only": true,
+        "result": "pass",
+        "record_sha256": "d0bac132aa370eba3af852e2b9f28812a16ddb51c953c2ba23444e6a275c79a4"
+      }
+    }
+  },
+  "scan_order_reproduction": {
+    "job": "83887e61-3b67-4713-8563-4f72a83b562d",
+    "result": "completed_and_restored",
+    "record_sha256": "09cb201bdbd10156bcf9ab94050cdfd85b1d21e693e1c67ad95c88bbc1e8c077",
+    "finished_utc": "2026-10-24T03:15:12.649213+00:00",
+    "candidate_sha256": "329c20f6053e4201e05987e998c766bb4bbcbff79ed84f9aa7bae7db58e14cd7",
+    "candidate_bytes": 1209596,
+    "cases": [
+      {
+        "window": 0.1,
+        "result": "error",
+        "label": "connectable_first",
+        "error": "OSError: [Errno 22] Invalid argument",
+        "elapsed_s": 0.01700068,
+        "advertising": true
+      },
+      {
+        "window": 0.05,
+        "result": "error",
+        "label": "connectable_first_half_window",
+        "error": "OSError: [Errno 22] Invalid argument",
+        "elapsed_s": 0.01700068,
+        "advertising": true
+      },
+      {
+        "window": 0.1,
+        "label": "no_advertising_prime",
+        "result": "pass",
+        "elapsed_s": 1.0289996,
+        "count": 22,
+        "advertising": false
+      },
+      {
+        "window": 0.1,
+        "label": "connectable_after_prime",
+        "result": "pass",
+        "elapsed_s": 1.022001,
+        "count": 18,
+        "advertising": true
+      }
+    ],
+    "boot_bytes": 1320,
+    "boot_sha256": "83b97f5a70ab54bde1ed4519661d720910c67a6c19f084525200a42071f24f20",
+    "scan_diagnostic_lines": [
+      "ENVHUB_SCAN_REGISTER 0",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=-22 stage=5 backend=-22 addr_type=1 opcode=200c status=18 type=0 interval=160 window=80 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=1 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=1 opcode=200c status=0 type=0 interval=160 window=160 timeout=100"
+    ],
+    "restore_rom_via_existing_console": true,
+    "restore": {
+      "status": "verified",
+      "before_sha256": "33ca4a70a5052f7001c784451c644bf93e6a85831c4e52eff465699cc266fedc",
+      "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "bytes": 4194304,
+      "whole_flash_verified": true
+    },
+    "runtime_restored": true,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_reset_observed": false,
+    "recovery_required": false,
+    "identity_address_type": 0,
+    "radio_counts": [
+      65,
+      73
+    ],
+    "postflight": {
+      "job": "016a9bd0-c1f6-450c-8b48-5e69a030fc79",
+      "read_only": true,
+      "result": "pass",
+      "record_sha256": "bbe5187d9f975e74dee8357a936c4cd09d3d69cab94e997e6f6db51bd30136e8"
+    },
+    "issue": "https://github.com/tyeth/zephyr/issues/12",
+    "scope": "Two initial scan failures and two subsequent scan successes; successful diagnostic completion is not a full-app pass"
+  },
+  "identity_fix": {
+    "commit": "5bf4230db7fe1e6b27bd866cf1691ff54ac5099d",
+    "pr": "https://github.com/tyeth/zephyr/pull/11",
+    "issue": "https://github.com/tyeth/zephyr/issues/12",
+    "diagnostic_build_pins": {
+      "circuitpython": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+      "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+    },
+    "diagnostic_artifacts": {
+      "bin": {
+        "bytes": 1209612,
+        "sha256": "b89064c3030f1f367a43f8d235af64a831a8d009c0bb826261f6ecd226dbc671"
+      },
+      "elf": {
+        "bytes": 24278192,
+        "sha256": "f62b8f11f1fff3db045fdd54cdbb5180fc596da09a607368b1dd90ae849ecb71"
+      },
+      "map": {
+        "bytes": 3109709,
+        "sha256": "193522e9263b7e5b2666df44291af45edfc04cbd531c48cd9c2d1a84e966f75e"
+      },
+      "config": {
+        "bytes": 88576,
+        "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+      }
+    },
+    "review_source_relation": "Identical C tokens; review changes only whitespace/comments from tested source",
+    "unit_regression": {
+      "baseline": {
+        "pass": 19,
+        "fail": 1,
+        "skip": 35
+      },
+      "candidate": {
+        "pass": 20,
+        "fail": 0,
+        "skip": 35
+      },
+      "configurations_executed": 5,
+      "build_only": 0,
+      "case": "test_scan_with_nondefault_advertising_identity",
+      "test_scope": "id.c unit test; actual adv.c exercised by physical default-public-identity comparison"
+    },
+    "integration_manifest_at_test": "c6200e80ea6973b092da3c30c672901cc1951fc2"
+  },
+  "fixed_hub_v8": {
+    "job": "3a6b833b-dda3-4836-89de-2e3628b4b34d",
+    "result": "pass",
+    "record_sha256": "718cdce6601de911490aea5a303ce107a7d5defe3acbbb38565aa83e9c5b6c4e",
+    "finished_utc": "2026-10-24T13:02:35.581599+00:00",
+    "candidate_revision": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+    "candidate_sha256": "b89064c3030f1f367a43f8d235af64a831a8d009c0bb826261f6ecd226dbc671",
+    "candidate_bytes": 1209612,
+    "application_revision": "415710c80b3c02785b4a7860bab71d87a473897e",
+    "payload_verified": true,
+    "mcu_reset_observed": true,
+    "boot_markers_verified": true,
+    "http_checks": [
+      {
+        "cycle": 0,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/latest",
+        "bytes": 276,
+        "sha256": "6d16cc5c47b4297e8d3c81270aada31d0213d879cd1457b25bc70c5bbd3e13d5"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 0,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/latest",
+        "bytes": 276,
+        "sha256": "347de859694e590836bdd1158bafb954b4d0b176b7c669fc47af381ddf7e856e"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 1,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/config",
+        "bytes": 1724,
+        "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/latest",
+        "bytes": 276,
+        "sha256": "47085e44622852cab205cc78662deca75e37ab39343611370299fc4653a98ab7"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/battery",
+        "bytes": 100,
+        "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+      },
+      {
+        "cycle": 2,
+        "route": "/api/cert",
+        "bytes": 185,
+        "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+      }
+    ],
+    "scanner_api_states": [
+      {
+        "ble_rx": 0
+      },
+      {
+        "ble_rx": 0
+      },
+      {
+        "ble_rx": 0
+      }
+    ],
+    "validated_scan_starts": 12,
+    "boot_bytes": 2843,
+    "boot_sha256": "13ce506cd9e0180f066412f5d58ced7ad734b6cfdee0cfe8d00d12d78889d364",
+    "scan_diagnostic_lines": [
+      "ENVHUB_SCAN_REGISTER 0",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100",
+      "ENVHUB_SCAN_DIAG rc=0 stage=5 backend=0 addr_type=0 opcode=200c status=0 type=0 interval=160 window=160 timeout=100"
+    ],
+    "network_restored": true,
+    "production_restored": true,
+    "runtime_restored": true,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_reset_observed": false,
+    "recovery_required": false,
+    "deployed_file_count": 44,
+    "original_full_flash_bytes": 4194304,
+    "original_full_flash_restored_exactly": true,
+    "restored_radio_counts": [
+      63,
+      85
+    ],
+    "postflights": [
+      {
+        "record_sha256": "f632c10556084177fbbd576a35bf585a00394c7d4ec8fa96935cb693921c1030",
+        "result": "pass",
+        "read_only": true
+      },
+      {
+        "record_sha256": "510cfb9dcc32c9650b0b3409c7c7250f30656bc350f87a1c53ca293042caad39",
+        "result": "pass",
+        "read_only": true
+      }
+    ],
+    "scope": "Bounded MCU-boot application, scan-start and HTTP qualification; no received node packets, real sensors or long soak"
+  },
+  "candidate_minimal_capture_failure": {
+    "job": "9a01684b-33d1-4cc6-b882-024f587fa9c0",
+    "result": "fail",
+    "record_sha256": "dd8a3ffbcd2202c9c3d7b2b6cb607a4d00985da08e9cd50baa12ab55c85ed512",
+    "reason": "Missing SCAN_ORDER_BEGIN marker despite ADDRESS_TYPE, four passing cases and DONE",
+    "observed_case_report_counts": [
+      18,
+      16,
+      22,
+      19
+    ],
+    "scanner_address_types": [
+      0,
+      0,
+      1,
+      0
+    ],
+    "original_full_flash_restored_exactly": true,
+    "restored_radio_counts": [
+      64,
+      82
+    ],
+    "independent_postflight": "pass"
+  },
+  "candidate_preflash_failure": {
+    "job": "40036111-37b7-406b-870a-e65b4430e08e",
+    "result": "fail",
+    "storage_mutated": false,
+    "reason": "Original-firmware combined preflight raw-REPL response timed out before backup/install",
+    "separate_startup_control": "06f6c6b5-479b-400d-9b57-2a23b4e241e3 passed six separate identity/Wi-Fi/BLE commands; does not establish timeout cause"
+  },
+  "normal_integration_builds": {
+    "pins": {
+      "circuitpython": "3254e272628ea1c08977cd753dda8762e8951ac2",
+      "zephyr": "5bf4230db7fe1e6b27bd866cf1691ff54ac5099d",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+    },
+    "images": {
+      "picow": {
+        "board": "raspberrypi_rpi_pico_w_zephyr",
+        "returncode": 0,
+        "artifacts": {
+          "bin": {
+            "bytes": 1252848,
+            "sha256": "1a0a5bdbbfd69f5c6ef987d074e391e27eb1e03409b676e090319462e047c6be"
+          },
+          "elf": {
+            "bytes": 23549980,
+            "sha256": "c6bbf7fa5af1eebc052a8886a28b42928bbb11f862e23b8e8ca183fa44847796"
+          },
+          "map": {
+            "bytes": 3169761,
+            "sha256": "7707941f0217dddc6aed7bf6e3531e6af4fea1dc93bf821b6844396142bf1454"
+          },
+          "config": {
+            "bytes": 86189,
+            "sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false,
+        "build_log_sha256": "7dcd1130dd7bd7f9dd529375ca71a87b630eaae6c6e4e3831dde058eb01719bc"
+      },
+      "pico2": {
+        "board": "raspberrypi_rpi_pico2_w_zephyr",
+        "returncode": 0,
+        "artifacts": {
+          "bin": {
+            "bytes": 1209228,
+            "sha256": "2c6bfb34138e7d9195f495d66fb35dd1ddaf8024e264ea8af165c2715b1cfd89"
+          },
+          "elf": {
+            "bytes": 24274604,
+            "sha256": "640abbab219d66d2fc901dc261e023f7d6999b2114b87ecb9c32bd2898c4d040"
+          },
+          "map": {
+            "bytes": 3109267,
+            "sha256": "1ea086b5c22a11d27fbaebd37b5d3929dacc274125e8d302a21e0812f1d4142e"
+          },
+          "config": {
+            "bytes": 88576,
+            "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false,
+        "build_log_sha256": "ba64aa665f5027006baeb033df92f6dc403b1e0d02845225c55b35a09fe45464"
+      }
+    },
+    "hardware_qualification": "not run for these normal images; diagnostic physical results separate",
+    "production_devices": "original 9e153 retained",
+    "sources_unchanged": true
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "status": "failed_clean_retry_after_three_successful_forced_error_returns",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "circuitpython": "6839890534556b06b8b3d7c491e36fd2005b2483",
+  "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+  "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+  "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac",
+  "diagnostic_artifacts": {
+    "bin": {
+      "bytes": 1248344,
+      "sha256": "0e6e568ac2267cbd56ef186303bb93b6d185d05017f0f5926a32ecae4da74fed"
+    },
+    "elf": {
+      "bytes": 23485468,
+      "sha256": "92e73ed24d811bc24013fc2e336a5d3e3148c83ee9a70f443d0d09091e1348ae"
+    },
+    "map": {
+      "bytes": 3159105,
+      "sha256": "8be97b1740fcd881250accfa0d77c0284cc988fbddb256c9958ef5ef7939dedc"
+    }
+  },
+  "automatic_ble_workflows_disabled": true,
+  "injection": "force software return only after successful hardware operation",
+  "rounds": [
+    {
+      "stage": 3,
+      "errno": 5,
+      "wifi_scan_count": 66
+    },
+    {
+      "stage": 4,
+      "errno": 116,
+      "wifi_scan_count": 67
+    },
+    {
+      "stage": 5,
+      "errno": 116,
+      "wifi_scan_count": 67
+    }
+  ],
+  "saved_hal_counters": [
+    4,
+    3,
+    0,
+    5,
+    0,
+    179,
+    4,
+    1
+  ],
+  "swd_capture": {
+    "core0_pc": "0x100977ce",
+    "core0_lr": "0x10036331",
+    "core0_xpsr": "0x2100000b",
+    "psp": "0x2001dfc8",
+    "core1_registers_available": false
+  },
+  "exception_frame": {
+    "r0": "0x3",
+    "r1": "0xf6",
+    "r2": "0x0",
+    "r3": "0x3",
+    "r12": "0x0",
+    "lr": "0x1008c57b",
+    "pc": "0x10014e24",
+    "xpsr": "0x1000000"
+  },
+  "decoded_failure": {
+    "svc_instruction_before_saved_pc": "0xdf02",
+    "fatal_reason": "K_ERR_KERNEL_OOPS",
+    "function": "bt_hci_cmd_send_sync",
+    "assertion": "err == 0 after k_sem_take(sync_sem, HCI_CMD_TIMEOUT)",
+    "opcode": "0x1009",
+    "command": "HCI Read_BD_ADDR",
+    "caller": "hci_cyw43_setup"
+  },
+  "restoration": {
+    "original_code_restored": true,
+    "whole_expected_flash_verified": true,
+    "bit_identical_to_pretest": false,
+    "difference": "runtime build-version metadata",
+    "wifi_ble_scan_counts": [
+      [
+        62,
+        79
+      ],
+      [
+        55,
+        78
+      ],
+      [
+        49,
+        77
+      ]
+    ],
+    "host_bindings_restored": true
+  },
+  "remaining": [
+    "unfaulted workflow-disabled control",
+    "independent single-fault retries",
+    "reason HCI response was not received",
+    "natural hardware-fault recovery"
+  ]
+}

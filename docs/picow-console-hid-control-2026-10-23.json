@@ -1,0 +1,125 @@
+{
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "firmware": "9e153ad624",
+  "host_change": "Only usbhid interface unbound and restored; CDC/MSC bindings unchanged",
+  "read_bytes": 4096,
+  "reopen_delay_seconds": 3,
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "bindings_restored": true,
+  "bridge_untouched": true,
+  "rounds": [
+    {
+      "phase": "before",
+      "closed": false,
+      "hid_bound": true,
+      "host_read_seconds": 0.031677,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.007144,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.015991216
+    },
+    {
+      "phase": "before",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 3.127529,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.00586,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01690674
+    },
+    {
+      "phase": "before",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 0.034139,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.004214,
+      "iterations": 723,
+      "maximum_iteration_gap_seconds": 0.016235352
+    },
+    {
+      "phase": "before",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 3.067737,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.000978,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.016235352
+    },
+    {
+      "phase": "hid_unbound",
+      "closed": true,
+      "hid_bound": false,
+      "host_read_seconds": 3.068321,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.015991216
+    },
+    {
+      "phase": "hid_unbound",
+      "closed": true,
+      "hid_bound": false,
+      "host_read_seconds": 0.058163,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.00519,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01501465
+    },
+    {
+      "phase": "hid_unbound",
+      "closed": true,
+      "hid_bound": false,
+      "host_read_seconds": 3.140225,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.009094,
+      "iterations": 723,
+      "maximum_iteration_gap_seconds": 0.013305664
+    },
+    {
+      "phase": "restored",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 0.031101,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.014282228
+    },
+    {
+      "phase": "restored",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 0.034545,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.00293,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01373291
+    },
+    {
+      "phase": "restored",
+      "closed": true,
+      "hid_bound": true,
+      "host_read_seconds": 0.059647,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.007144,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01794434
+    },
+    {
+      "phase": "restored",
+      "closed": false,
+      "hid_bound": true,
+      "host_read_seconds": 0.061273,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.002994,
+      "iterations": 723,
+      "maximum_iteration_gap_seconds": 0.013305664
+    }
+  ],
+  "conclusion": "A bound host HID driver is not required for the reproduced stall. Underlying USB endpoint configuration and host/hub contributions remain unresolved.",
+  "limit": "Three closed attempts per phase; no incidence-rate estimate or claim that rebinding fixes the problem."
+}

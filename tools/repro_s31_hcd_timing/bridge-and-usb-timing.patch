@@ -1,0 +1,266 @@
+--- a/main/usb_backend.c
++++ b/main/usb_backend.c
+@@ -11,6 +11,7 @@
+ 
+ #include "esp_err.h"
+ #include "esp_log.h"
++#include "esp_timer.h"
+ 
+ #include "sdkconfig.h"
+ #include "usb/usb_host.h"
+@@ -741,6 +742,10 @@
+ static void xfer_done_cb(usb_transfer_t *transfer)
+ {
+     xfer_t *x = (xfer_t *)transfer->context;
++    if (x->req != NULL && x->req->diagnostic_timing) {
++        x->req->diagnostic_callback_us = esp_timer_get_time();
++        usb_host_diagnostic_times(transfer, &x->req->diagnostic_active_us, &x->req->diagnostic_hcd_done_us);
++    }
+     x->completed = true;
+ }
+ 
+@@ -1007,10 +1012,17 @@
+     transfer->num_bytes = xfer_len;
+     transfer->timeout_ms = 0;   /* not enforced by the host library; deadlines are ours */
+ 
++    if (pipe->req->diagnostic_timing) {
++        pipe->req->diagnostic_submitted_us = esp_timer_get_time();
++        pipe->req->diagnostic_attempts++;
++    }
+     if (pipe->is_control) {
+         err = usb_host_transfer_submit_control(s_state.client_hdl, transfer);
+     } else {
+         err = usb_host_transfer_submit(transfer);
++    }
++    if (pipe->req->diagnostic_timing) {
++        pipe->req->diagnostic_submit_return_us = esp_timer_get_time();
+     }
+     if (err != ESP_OK) {
+         ESP_LOGD(TAG, "submit failed: %s (ep=0x%02x)",
+--- a/main/usb_backend.h
++++ b/main/usb_backend.h
+@@ -99,6 +99,14 @@
+     struct usb_backend_req *next;
+     uint32_t seq;
+     int status;
++    /* Temporary bounded MSC timing instrumentation; not a production fix. */
++    bool diagnostic_timing;
++    uint64_t diagnostic_submitted_us;
++    uint64_t diagnostic_callback_us;
++    uint64_t diagnostic_submit_return_us;
++    uint64_t diagnostic_active_us;
++    uint64_t diagnostic_hcd_done_us;
++    uint32_t diagnostic_attempts;
+ };
+ 
+ /* Queue a transfer.  Never blocks; done() follows from the backend task,
+--- a/main/usbip_server.c
++++ b/main/usbip_server.c
+@@ -19,6 +19,7 @@
+ #include "freertos/task.h"
+ 
+ #include "esp_log.h"
++#include "esp_timer.h"
+ #include "sdkconfig.h"
+ 
+ #include "usb_backend.h"
+@@ -368,6 +369,23 @@
+    task; the writer sends the reply and frees everything.  A pending read
+    therefore costs only this item and its buffer, as a pending URB does on
+    a Linux host. */
++/* TEMPORARY DIAGNOSTIC: RAM timestamps only on the backend path.
++ * Output is emitted after the reply, outside its mutex. Logs can affect later
++ * requests, so this must be compared to the unchanged baseline and restored.
++ * Callback time is client event dispatch, not an electrical USB completion. */
++_Static_assert(URB_SEG_SIZE == 4096, "Timing fixture requires 4 KiB segments");
++typedef struct {
++    uint64_t queued_us, submitted_us, callback_us, done_us;
++    uint64_t submit_return_us, active_us, hcd_done_us;
++    uint32_t attempts;
++    int status;
++    size_t bytes;
++} msc_segment_timing_t;
++typedef struct {
++    msc_segment_timing_t segments[16];
++    size_t recorded;
++} msc_urb_timing_t;
++
+ typedef struct urb_work_item {
+     urb_stream_ctx_t *stream;
+     usbip_header_t request;
+@@ -381,6 +399,7 @@
+     int status;                             /* result for the reply */
+     size_t in_len;
+     int slot;                               /* index in stream->in_flight[] */
++    msc_urb_timing_t *diagnostic;
+ } urb_work_item_t;
+ 
+ /* Free an in-flight slot so it can be reused.  Caller holds write_mutex. */
+@@ -487,6 +506,15 @@
+     item->req.out_len = is_in ? 0 : n;
+     item->req.in_data = is_in ? data : NULL;
+     item->req.in_capacity = is_in ? n : 0;
++    if (item->diagnostic != NULL && item->seg < 16) {
++        item->diagnostic->segments[item->seg].queued_us = esp_timer_get_time();
++        item->req.diagnostic_submitted_us = 0;
++        item->req.diagnostic_callback_us = 0;
++        item->req.diagnostic_submit_return_us = 0;
++        item->req.diagnostic_active_us = 0;
++        item->req.diagnostic_hcd_done_us = 0;
++        item->req.diagnostic_attempts = 0;
++    }
+     usb_backend_submit(&item->req);
+ }
+ 
+@@ -499,6 +527,19 @@
+     const bool is_in = urb_is_in(item);
+     urb_buf_t *buf = is_in ? &item->in : &item->out;
+     const size_t nsegs = urb_buf_nsegs(buf);
++    if (item->diagnostic != NULL && item->seg < 16) {
++        msc_segment_timing_t *stamp = &item->diagnostic->segments[item->seg];
++        stamp->submitted_us = req->diagnostic_submitted_us;
++        stamp->callback_us = req->diagnostic_callback_us;
++        stamp->submit_return_us = req->diagnostic_submit_return_us;
++        stamp->active_us = req->diagnostic_active_us;
++        stamp->hcd_done_us = req->diagnostic_hcd_done_us;
++        stamp->done_us = esp_timer_get_time();
++        stamp->attempts = req->diagnostic_attempts;
++        stamp->status = status;
++        stamp->bytes = in_len;
++        item->diagnostic->recorded = item->seg + 1;
++    }
+ 
+     if (status == 0) {
+         const size_t n = (item->seg < nsegs) ? urb_buf_seg_len(buf, item->seg) : 0;
+@@ -573,6 +614,13 @@
+     if (endpoint == 0) {
+         memcpy(&item->req.setup, item->request.u.cmd_submit.setup, sizeof(item->req.setup));
+     }
++    if (direction == USBIP_DIR_IN && endpoint == 3 && item->in.len == 65536) {
++        item->diagnostic = calloc(1, sizeof(*item->diagnostic));
++        item->req.diagnostic_timing = item->diagnostic != NULL;
++        if (item->diagnostic == NULL) {
++            ESP_LOGW(TAG, "MSC_TIMING_ALLOCATION_FAILED");
++        }
++    }
+     item->req.done = urb_backend_done;
+     urb_submit_segment(item);
+ }
+@@ -624,10 +672,27 @@
+            CMD_UNLINK sees either a pending URB or one already answered. */
+         xSemaphoreTake(ctx->write_mutex, portMAX_DELAY);
+         urb_send_reply(item);
++        const uint64_t diagnostic_reply_us = item->diagnostic != NULL ? esp_timer_get_time() : 0;
+         urb_stream_free_slot(ctx, item->slot);
+         xSemaphoreGive(ctx->write_mutex);
+         xSemaphoreGive(ctx->slot_sem);
+ 
++        if (item->diagnostic != NULL) {
++            const uint32_t seq = ntohl(item->request.base.seqnum);
++            ESP_LOGI(TAG, "MSC_TIMING_END seq=%"PRIu32" status=%d bytes=%u segments=%u reply_us=%"PRIu64,
++                     seq, item->status, (unsigned)item->in_len,
++                     (unsigned)item->diagnostic->recorded, diagnostic_reply_us);
++            for (size_t i = 0; i < item->diagnostic->recorded; i++) {
++                const msc_segment_timing_t *stamp = &item->diagnostic->segments[i];
++                ESP_LOGI(TAG, "MSC_HCD_SEG seq=%"PRIu32" index=%u r=%"PRIu64" a=%"PRIu64" h=%"PRIu64,
++                         seq, (unsigned)i, stamp->submit_return_us, stamp->active_us, stamp->hcd_done_us);
++                ESP_LOGI(TAG, "MSC_TIMING_SEG seq=%"PRIu32" index=%u q=%"PRIu64" s=%"PRIu64" c=%"PRIu64" d=%"PRIu64" attempts=%"PRIu32" status=%d bytes=%u",
++                         seq, (unsigned)i, stamp->queued_us, stamp->submitted_us,
++                         stamp->callback_us, stamp->done_us, stamp->attempts,
++                         stamp->status, (unsigned)stamp->bytes);
++            }
++            free(item->diagnostic);
++        }
+         urb_buf_free(&item->out);
+         urb_buf_free(&item->in);
+         free(item);
+--- a/main/idf_component.yml
++++ b/main/idf_component.yml
+@@ -7,7 +7,7 @@
+     path: host/usb
+     version: a391e1fd7fa6b3a527897a4bfec9d9f51141e014
+   espressif/mdns:
+-    version: ">=1.9.1"
++    version: "1.14.0"
+   espressif/cjson:
+     version: ">=1.7.17"
+   logic_capture:
+--- a/managed_components/espressif__usb/src/hcd_dwc.c
++++ b/managed_components/espressif__usb/src/hcd_dwc.c
+@@ -20,6 +20,7 @@
+ #include "hal/usb_dwc_hal.h"
+ #include "hcd.h"
+ #include "usb_private.h"
++#include "esp_timer.h"
+ #include "usb/usb_types_ch9.h"
+ 
+ #include "esp_cache.h"
+@@ -2514,6 +2515,9 @@
+     // Update buffer and multi buffer flags
+     buffer_to_exec->status_flags.executing = 1;
+     pipe->multi_buffer_control.buffer_is_executing = 1;
++    if (buffer_to_exec->urb->transfer.bEndpointAddress == 0x83 && buffer_to_exec->urb->transfer.num_bytes == 4096) {
++        buffer_to_exec->urb->diagnostic_active_us = esp_timer_get_time();
++    }
+     usb_dwc_hal_chan_activate(pipe->chan_obj, buffer_to_exec->xfer_desc_list, desc_list_len, start_idx);
+ }
+ 
+@@ -2746,6 +2750,9 @@
+         _buffer_parse_error(buffer_to_parse);
+     }
+     urb_t *urb = buffer_to_parse->urb;
++    if (urb->transfer.bEndpointAddress == 0x83 && urb->transfer.num_bytes == 4096) {
++        urb->diagnostic_hcd_done_us = esp_timer_get_time();
++    }
+     urb->hcd_var = URB_HCD_STATE_DONE;
+     buffer_to_parse->urb = NULL;
+     buffer_to_parse->flags.val = 0; // Clear flags
+@@ -2836,6 +2843,8 @@
+     urb->hcd_ptr = (void *)pipe;
+     // Add the URB to the pipe's pending tailq
+     urb->hcd_var = URB_HCD_STATE_PENDING;
++    urb->diagnostic_active_us = 0;
++    urb->diagnostic_hcd_done_us = 0;
+     TAILQ_INSERT_TAIL(&pipe->pending_urb_tailq, urb, tailq_entry);
+     pipe->num_urb_pending++;
+     // use the URB's reserved_flags to store the URB's current state
+--- a/managed_components/espressif__usb/src/usb_host.c
++++ b/managed_components/espressif__usb/src/usb_host.c
+@@ -1839,6 +1839,13 @@
+     return ESP_OK;
+ }
+ 
++void usb_host_diagnostic_times(usb_transfer_t *transfer, uint64_t *active_us, uint64_t *done_us)
++{
++    urb_t *urb = __containerof(transfer, urb_t, transfer);
++    *active_us = urb->diagnostic_active_us;
++    *done_us = urb->diagnostic_hcd_done_us;
++}
++
+ esp_err_t usb_host_transfer_free(usb_transfer_t *transfer)
+ {
+     if (transfer == NULL) {
+--- a/managed_components/espressif__usb/include/usb/usb_host.h
++++ b/managed_components/espressif__usb/include/usb/usb_host.h
+@@ -707,6 +707,9 @@
+  */
+ esp_err_t usb_host_transfer_alloc(size_t data_buffer_size, int num_isoc_packets, usb_transfer_t **transfer);
+ 
++/* Temporary diagnostic: call only from the completed transfer callback. */
++void usb_host_diagnostic_times(usb_transfer_t *transfer, uint64_t *active_us, uint64_t *done_us);
++
+ /**
+  * @brief Free a transfer object
+  *
+--- a/managed_components/espressif__usb/private_include/usb_private.h
++++ b/managed_components/espressif__usb/private_include/usb_private.h
+@@ -45,6 +45,9 @@
+     // Host Lib Layer:
+     void *usb_host_client;  // Currently only used when submitted to shared pipes (i.e., Device default pipes)
+     bool usb_host_inflight; // Debugging variable, used to prevent re-submitting URBs already inflight
++    // Temporary diagnostic timestamps. Clear on each HCD enqueue; no public ABI change.
++    uint64_t diagnostic_active_us;
++    uint64_t diagnostic_hcd_done_us;
+     // Public transfer structure. Must be last due to variable length array
+     usb_transfer_t transfer;
+ };

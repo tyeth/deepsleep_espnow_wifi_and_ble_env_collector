@@ -465,6 +465,40 @@ def main():
     check("unsynced is reported as such",
           extrtc.status(None)["synced"] is False)
 
+    # A Pico on CircuitPython's Zephyr port: no `rtc` module at all, and
+    # time.time() raises. The chip has to set *caps'* clock there -- that is
+    # the whole value of a coin cell on such a board -- and a sync from
+    # the system side has to read caps' clock, not the host's.
+    print("no rtc module (zephyr-cp): the chip sets caps' clock")
+    import caps
+    sys.modules["rtc"] = None            # `import rtc` -> ImportError
+    caps_has_rtc = caps.HAS_RTC
+    caps.HAS_RTC = False
+    caps._off_ns = None
+    extrtc.time = caps._NoRtcTime()
+    extrtc.CAPS_CLOCK = True
+    try:
+        check("an unset caps clock is not a plausible time",
+              caps.now() < extrtc.PLAUSIBLE_EPOCH)
+        bus = FakeBus({0x51: pcf85063a_regs(time.localtime(WHEN))})
+        r = extrtc.attach(bus)
+        msg = extrtc.sync(r)
+        check("caps' clock is set from the chip (%d)" % (caps.now() - WHEN),
+              abs(caps.now() - WHEN) <= 1)
+        check("and says so: %r" % msg, "system clock set from" in msg)
+        check("status reads caps' clock", extrtc.status(r)["synced"])
+        caps.set_epoch(WHEN + 100)       # as NTP / a browser would
+        before = bus.writes
+        msg = extrtc.sync(r, "system")
+        check("trust=system writes caps' time to the chip: %r" % msg,
+              bus.writes > before
+              and abs(r.read_epoch() - (WHEN + 100)) <= 1)
+    finally:
+        sys.modules["rtc"] = _FakeRTCModule
+        caps.HAS_RTC = caps_has_rtc
+        extrtc.time = time
+        extrtc.CAPS_CLOCK = False
+
     print("collector and node copies are identical")
     here = os.path.dirname(__file__)
     with open(os.path.join(here, "..", "collector", "extrtc.py"), "rb") as f:

@@ -1,0 +1,1446 @@
+{
+  "date": "2026-10-24",
+  "issue": "https://github.com/tyeth/circuitpython/issues/43",
+  "pull_request": "https://github.com/tyeth/circuitpython/pull/32",
+  "builds": {
+    "pins": {
+      "circuitpython": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+      "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+    },
+    "images": {
+      "picow": {
+        "board": "raspberrypi_rpi_pico_w_zephyr",
+        "artifacts": {
+          "bin": {
+            "bytes": 1252824,
+            "sha256": "1476d122a9b486e2f5f90b0eb3030c1ff36a784363cdff8f48c90d098896009a"
+          },
+          "elf": {
+            "bytes": 23544716,
+            "sha256": "62ebd4f378a2612a22ccfcd2a30754b05c24f9ca0efa1aa0446adf2433cfdd24"
+          },
+          "map": {
+            "bytes": 3169761,
+            "sha256": "f97fea84153903236e97e9f35ec7fcf8d96133849f4c0112e618f7d1a781e9b0"
+          },
+          "config": {
+            "bytes": 86189,
+            "sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false
+      },
+      "pico2": {
+        "board": "raspberrypi_rpi_pico2_w_zephyr",
+        "artifacts": {
+          "bin": {
+            "bytes": 1209212,
+            "sha256": "18a4b2477971d86e12c63801c8f8ffde214392ed0c078052d923e78db236bd06"
+          },
+          "elf": {
+            "bytes": 24269500,
+            "sha256": "4ec9483e094968231ca0cca5d254f8944c65b96c0a528129ab8b2ef8c2d98b28"
+          },
+          "map": {
+            "bytes": 3109267,
+            "sha256": "51f2b705551e135cd708c2179feea7d65bd60111aea02a03657b8d7a796f9eb1"
+          },
+          "config": {
+            "bytes": 88576,
+            "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+          }
+        },
+        "normal_workflow_symbols": [
+          "supervisor_start_bluetooth",
+          "supervisor_start_bluetooth_file_transfer",
+          "supervisor_start_bluetooth_serial"
+        ],
+        "diagnostic_hooks_present": false
+      }
+    },
+    "hardware_qualification": "Pico W and Pico 2 MSC comparisons passed; Pico 2 original restoration failure followed by separately verified recovery",
+    "production_devices": "retain 9e153ad624"
+  },
+  "native": {
+    "candidate": {
+      "revision": "working-tree",
+      "source_sha256": {
+        "ports/zephyr-cp/supervisor/usb.c": "b97d33dd9fed32b32afc3fdf701ede5170bcf1f9559cda7f8e642f909d267a17",
+        "supervisor/shared/flash.c": "8f867ac339524f26662f0a504f3f6d96fb7b0cdb6f2435a8582bd956b9254772",
+        "extmod/vfs_fat_diskio.c": "502938d65aa80bf5699033522e1aecd177e4094fd3b0e8984e8bb3560ddc7b28"
+      },
+      "checks": 56,
+      "failures": 0,
+      "results": [
+        {
+          "max_sector_size": 512,
+          "case": "read_ok",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_overflow",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_readonly",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_overflow",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "mbr_single",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "mbr_multi_rejected",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "real_partition_written",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "middle_cached_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "outside_cache_unchanged",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "crosses_fatbase",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "reserved_only_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "last_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "successful_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "error_sync_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "prior_success_then_error",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "ioctl_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "ioctl_success",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_read",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_write",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_ioctl",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "removed_media_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "variable_sector_cache",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_ok",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_overflow",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_readonly",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_overflow",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "mbr_single",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "mbr_multi_rejected",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "real_partition_written",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "middle_cached_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "outside_cache_unchanged",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "crosses_fatbase",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "reserved_only_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "last_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "successful_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "error_sync_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "prior_success_then_error",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "ioctl_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "ioctl_success",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_read",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_write",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_ioctl",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "removed_media_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "variable_sector_cache",
+          "returncode": 0
+        }
+      ],
+      "raw_json_sha256": "942ce711553c49348adc077c6ad6ce40e152ac8c97083a3118d4dbfb2554f208"
+    },
+    "baseline": {
+      "revision": "0d545efdcf",
+      "source_sha256": {
+        "ports/zephyr-cp/supervisor/usb.c": "d11e0ea1c10c3b465ca3d828ec04c4e38dfa98ae515d3e41db5d8614aed8a678",
+        "supervisor/shared/flash.c": "8f867ac339524f26662f0a504f3f6d96fb7b0cdb6f2435a8582bd956b9254772",
+        "extmod/vfs_fat_diskio.c": "502938d65aa80bf5699033522e1aecd177e4094fd3b0e8984e8bb3560ddc7b28"
+      },
+      "checks": 56,
+      "failures": 34,
+      "results": [
+        {
+          "max_sector_size": 512,
+          "case": "read_ok",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_overflow",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "read_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_capacity_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_readonly",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_bounds",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "write_overflow",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "mbr_single",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "mbr_multi_rejected",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "real_partition_written",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "middle_cached_sector",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "outside_cache_unchanged",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "crosses_fatbase",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "reserved_only_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "last_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "successful_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "error_sync_no_reload",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "prior_success_then_error",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "ioctl_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "ioctl_success",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_read",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_write",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "absent_ioctl",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "removed_media_sync",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 512,
+          "case": "variable_sector_cache",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_ok",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_bounds",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_overflow",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "read_capacity_failure",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_capacity_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_readonly",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_bounds",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "write_overflow",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "mbr_single",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "mbr_multi_rejected",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "real_partition_written",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "middle_cached_sector",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "outside_cache_unchanged",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "crosses_fatbase",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "reserved_only_no_reload",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "last_sector",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "successful_sync",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "error_sync_no_reload",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "prior_success_then_error",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "ioctl_failure",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "ioctl_success",
+          "returncode": 0
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_read",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_write",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "absent_ioctl",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "removed_media_sync",
+          "returncode": 1
+        },
+        {
+          "max_sector_size": 4096,
+          "case": "variable_sector_cache",
+          "returncode": 0
+        }
+      ],
+      "raw_json_sha256": "bb50d0df5fffd87ea4dbd6b32de5f0952cdf6bd5d7a536dd289ed6d84632c4b4"
+    }
+  },
+  "physical": {
+    "board": "raspberrypi_rpi_pico_w_zephyr",
+    "transport": "direct Linux USB",
+    "job": "db7eec98-1c7d-4069-9194-51db1852c361",
+    "finished_utc": "2026-10-24T01:39:56.845732+00:00",
+    "status": "passed_and_restored",
+    "baseline_revision": "9e153ad624",
+    "candidate_revision": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+    "scopes": {
+      "baseline": {
+        "status": "passed",
+        "disk_bytes": 520704,
+        "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "final_disk_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "disk_restored_verified": true,
+        "autoreload_restored": true,
+        "commands": [
+          {
+            "label": "synthetic_mbr_multi",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a000000000000000800",
+              "lba": 0,
+              "bytes": 4096,
+              "payload_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+              "sense": ""
+            }
+          }
+        ],
+        "reads": [
+          {
+            "bytes": 520704,
+            "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977"
+          },
+          {
+            "bytes": 520704,
+            "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+            "changed_sectors": []
+          }
+        ],
+        "temporary_busy_guard_samples": 1
+      },
+      "candidate": {
+        "status": "passed",
+        "disk_bytes": 520704,
+        "backup_sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+        "final_disk_sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+        "disk_restored_verified": true,
+        "autoreload_restored": true,
+        "commands": [
+          {
+            "label": "synthetic_mbr_multi",
+            "scsi": {
+              "status": 2,
+              "masked_status": 1,
+              "msg_status": 0,
+              "sb_len_wr": 18,
+              "host_status": 0,
+              "driver_status": 8,
+              "resid": 4096,
+              "duration": 4,
+              "info": 1,
+              "command": "2a000000000000000800",
+              "lba": 0,
+              "bytes": 4096,
+              "payload_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+              "sense": "700003000000000a000000000c0000000000"
+            }
+          },
+          {
+            "label": "real_partition_multi",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a000000000100000800",
+              "lba": 1,
+              "bytes": 4096,
+              "payload_sha256": "cdb0e7193b3d57dc8fb6b8737a2c9794456aac04addb9632da621608ba0ac3f0",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a000000002b00000200",
+              "lba": 43,
+              "bytes": 1024,
+              "payload_sha256": "905c1114e1b3c0f3f9fe59af1c53a76cfba246db4c6e1d064f70cf7656b5dc95",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 0,
+              "info": 0,
+              "command": "2a000000002b00000200",
+              "lba": 43,
+              "bytes": 1024,
+              "payload_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a000000002f00000200",
+              "lba": 47,
+              "bytes": 1024,
+              "payload_sha256": "1edc35e168c3dcecbb3ff7737ff102ef3d53863f9550512fdd0523bab988901d",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a000000002f00000200",
+              "lba": 47,
+              "bytes": 1024,
+              "payload_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a00000003f700000200",
+              "lba": 1015,
+              "bytes": 1024,
+              "payload_sha256": "f119e1fd90d82a7bf22895d64bf7c307d68c9380a53087b67df0d0db3a8bcdf0",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a00000003f700000200",
+              "lba": 1015,
+              "bytes": 1024,
+              "payload_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+              "sense": ""
+            }
+          }
+        ],
+        "reads": [
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378"
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "78279f311c8cdf1508f1f1e85c91d6d0f3fb6465f1c3db71391a79684dd56d27",
+            "changed_sectors": [
+              43,
+              44
+            ]
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "787882fd289425a5b95512e4b629800860f5ec6c822d2d23473eb82c4b95ee14",
+            "changed_sectors": [
+              47,
+              48
+            ]
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "3cb2d25b7585fd4c43619edbfe8da999ba518bbbce6973a8cdbcfd1b619d357c",
+            "changed_sectors": [
+              1015,
+              1016
+            ]
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 520704,
+            "sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+            "changed_sectors": []
+          }
+        ],
+        "temporary_busy_guard_samples": 8,
+        "free_sector_transaction": {
+          "geometry": {
+            "fat_type": "FAT12",
+            "cluster_count": 980,
+            "free_clusters": 974,
+            "data_start_lba": 37,
+            "spans": [
+              {
+                "lba": 43,
+                "sectors": 2
+              },
+              {
+                "lba": 47,
+                "sectors": 2
+              },
+              {
+                "lba": 1015,
+                "sectors": 2
+              }
+            ]
+          },
+          "checks": [
+            {
+              "lba": 43,
+              "bytes": 1024,
+              "pattern_exact": true
+            },
+            {
+              "lba": 47,
+              "bytes": 1024,
+              "pattern_exact": true
+            },
+            {
+              "lba": 1015,
+              "bytes": 1024,
+              "pattern_exact": true
+            }
+          ],
+          "restore_verified": true,
+          "disk_bytes": 520704,
+          "before_sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378",
+          "after_sha256": "67ee0cd75cc0bab54d70616ecaa44dbd289cba003e053d8af022105093569378"
+        }
+      }
+    },
+    "flash": {
+      "original_backup_bytes": 2097152,
+      "original_backup_sha256": "1707e2b3745b852e53ce952a3cbfbe3e6f2c6b523bd61c6764883415880c3b41",
+      "install": {
+        "status": "verified",
+        "before_sha256": "1707e2b3745b852e53ce952a3cbfbe3e6f2c6b523bd61c6764883415880c3b41",
+        "expected_sha256": "501a11a8720f3a88434ecfc9ed938626173d583073f966faaf3a606b839bbaac",
+        "code_bytes": 1253376,
+        "whole_flash_verified": true
+      },
+      "restore": {
+        "status": "verified",
+        "before_sha256": "939cbd632747ecce09c18e091c7bcaeca8580df209a0f7e1e2da82bbf4b25d93",
+        "expected_sha256": "258407464fa2db1982ccd070bbef9565031994d8c01202288e58393a2ea10688",
+        "code_bytes": 1253376,
+        "whole_flash_verified": true
+      },
+      "whole_flash_matches_pretest": false,
+      "production_restored": true
+    },
+    "restored_radio_counts": [
+      [
+        76,
+        78
+      ],
+      [
+        75,
+        74
+      ],
+      [
+        83,
+        80
+      ]
+    ],
+    "stable_ble_identity": true,
+    "bindings_restored": true,
+    "bridge_untouched": true,
+    "recovery_required": false,
+    "usb_recovery_required": false,
+    "raw_manifest_sha256": "6b8c310a5a346f14a751ef35bd9c85708331551313b66dbdf8c0d5667bc0aed4"
+  },
+  "preserved_failure": {
+    "job": "ee5d9682-4588-4989-8cd0-3b3eb6ad8225",
+    "cause": "Exclusive block-owner guard stopped before post-write read; no read mismatch established.",
+    "firmware_written": false,
+    "final_disk_matches_backup": true,
+    "bindings_and_autoreload_restored": true,
+    "raw_manifest_sha256": "f3a53f84ae4df9c247a1ed4666bd1cdee824a7b38ef9cf6b05d47f719b2168fe"
+  },
+  "limits": [
+    "No physical injected read/absent-media failure",
+    "Synthetic MBR multi-sector rejection policy unchanged",
+    "CP42 and Pico2/S31 latency remain unresolved",
+    "Whole-flash restoration preserves runtime tail and is not bit-identical to pretest",
+    "Pico 2 storage subtests passed; original job remains failed and separate firmware recovery passed"
+  ],
+  "physical_pico2": {
+    "board": "raspberrypi_rpi_pico2_w_zephyr",
+    "transport": "S31 USB/IP to Linux",
+    "comparison_job": "ed9ebdcc-0002-428d-a685-a75b04d5ddd9",
+    "comparison_job_result": "fail",
+    "comparison_finished_utc": "2026-10-24T01:57:32.122819+00:00",
+    "baseline_revision": "9e153ad624",
+    "candidate_revision": "5f73172d46cd6c49f9b08570fe793bf1d12b7768",
+    "candidate_checks_passed": true,
+    "scopes": {
+      "baseline": {
+        "status": "passed",
+        "disk_bytes": 2617856,
+        "backup_sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+        "final_disk_sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+        "disk_restored_verified": true,
+        "autoreload_restored": true,
+        "commands": [
+          {
+            "label": "synthetic_mbr_multi",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 12,
+              "info": 0,
+              "command": "2a000000000000000800",
+              "lba": 0,
+              "bytes": 4096,
+              "payload_sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+              "sense": ""
+            }
+          }
+        ],
+        "reads": [
+          {
+            "bytes": 2617856,
+            "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535"
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+            "changed_sectors": []
+          }
+        ],
+        "temporary_busy_guard_samples": 4
+      },
+      "candidate": {
+        "status": "passed",
+        "disk_bytes": 2617856,
+        "backup_sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+        "final_disk_sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+        "disk_restored_verified": true,
+        "autoreload_restored": true,
+        "commands": [
+          {
+            "label": "synthetic_mbr_multi",
+            "scsi": {
+              "status": 2,
+              "masked_status": 1,
+              "msg_status": 0,
+              "sb_len_wr": 18,
+              "host_status": 0,
+              "driver_status": 8,
+              "resid": 4096,
+              "duration": 16,
+              "info": 1,
+              "command": "2a000000000000000800",
+              "lba": 0,
+              "bytes": 4096,
+              "payload_sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+              "sense": "700003000000000a000000000c0000000000"
+            }
+          },
+          {
+            "label": "real_partition_multi",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a000000000100000800",
+              "lba": 1,
+              "bytes": 4096,
+              "payload_sha256": "af01f39f88c51afe9c110fa0966fe293df6906a46e036280d56ed064719c7b0d",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a00000000ba00000200",
+              "lba": 186,
+              "bytes": 1024,
+              "payload_sha256": "905c1114e1b3c0f3f9fe59af1c53a76cfba246db4c6e1d064f70cf7656b5dc95",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a00000000ba00000200",
+              "lba": 186,
+              "bytes": 1024,
+              "payload_sha256": "bc4805ca1831a977357dc04040c9414e3f752bc3409554072b545f3926376e8a",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a00000000bf00000200",
+              "lba": 191,
+              "bytes": 1024,
+              "payload_sha256": "1edc35e168c3dcecbb3ff7737ff102ef3d53863f9550512fdd0523bab988901d",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 4,
+              "info": 0,
+              "command": "2a00000000bf00000200",
+              "lba": 191,
+              "bytes": 1024,
+              "payload_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a00000013ee00000200",
+              "lba": 5102,
+              "bytes": 1024,
+              "payload_sha256": "f119e1fd90d82a7bf22895d64bf7c307d68c9380a53087b67df0d0db3a8bcdf0",
+              "sense": ""
+            }
+          },
+          {
+            "label": "free_sector_pattern_or_restore",
+            "scsi": {
+              "status": 0,
+              "masked_status": 0,
+              "msg_status": 0,
+              "sb_len_wr": 0,
+              "host_status": 0,
+              "driver_status": 0,
+              "resid": 0,
+              "duration": 8,
+              "info": 0,
+              "command": "2a00000013ee00000200",
+              "lba": 5102,
+              "bytes": 1024,
+              "payload_sha256": "5f4ecdb7b71c3e403983fe405cddcdc2f2576b655fdb3e80d94a6f7c32e58bc2",
+              "sense": ""
+            }
+          }
+        ],
+        "reads": [
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f"
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "28cec3de28250ff314ec4e6b5623d77bb7db8f15c65e88c1a049ea7e80fa1e94",
+            "changed_sectors": [
+              186,
+              187
+            ]
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "19f1488c116ef8d178cda577882f7594b6f24b3b94ef774dafee124515e33bce",
+            "changed_sectors": [
+              191,
+              192
+            ]
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "811680bf93f722da47b86863177bed938fec4df9d99a9b01e93fd3b7778a4939",
+            "changed_sectors": [
+              5102,
+              5103
+            ]
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          },
+          {
+            "bytes": 2617856,
+            "sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+            "changed_sectors": []
+          }
+        ],
+        "temporary_busy_guard_samples": 32,
+        "free_sector_transaction": {
+          "geometry": {
+            "fat_type": "FAT12",
+            "cluster_count": 2531,
+            "free_clusters": 2459,
+            "sectors_per_cluster": 2,
+            "filesystem_sectors": 5104,
+            "partition_sectors": 5112,
+            "data_start_lba": 42,
+            "spans": [
+              {
+                "lba": 186,
+                "sectors": 2
+              },
+              {
+                "lba": 191,
+                "sectors": 2
+              },
+              {
+                "lba": 5102,
+                "sectors": 2
+              }
+            ]
+          },
+          "checks": [
+            {
+              "lba": 186,
+              "bytes": 1024,
+              "pattern_exact": true
+            },
+            {
+              "lba": 191,
+              "bytes": 1024,
+              "pattern_exact": true
+            },
+            {
+              "lba": 5102,
+              "bytes": 1024,
+              "pattern_exact": true
+            }
+          ],
+          "restore_verified": true,
+          "disk_bytes": 2617856,
+          "before_sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f",
+          "after_sha256": "7e0a850f00e5d513cb30359e29f041722d7bcd03d32c5f7c36bb61606089947f"
+        }
+      }
+    },
+    "install": {
+      "status": "verified",
+      "before_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+      "expected_sha256": "3e47ae232e7c1e41bf4d3d129ccbde83f37899c4adc45e9af7b76802d44679ed",
+      "code_bytes": 1212416,
+      "whole_flash_verified": true
+    },
+    "original_backup_bytes": 4194304,
+    "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+    "restoration_failure": "Expected ROM identity assertion during reattachment, before restore directory/read/write; mismatched tuple was not captured.",
+    "recovery_job": "161b9b39-6be4-4589-959d-bccac0192801",
+    "recovery_job_result": "pass",
+    "recovery_finished_utc": "2026-10-24T02:01:42.160180+00:00",
+    "restore": {
+      "status": "verified",
+      "before_sha256": "eb0f2a25436e0573db43bfbaabbd7d9ad61658cd15df82b3ef149dbb93e4717b",
+      "expected_sha256": "3268e4530429f08d960ab57a5266b484f6eef680ea3618b921b70f9781755e11",
+      "code_bytes": 1212416,
+      "whole_flash_verified": true
+    },
+    "whole_flash_matches_pretest": false,
+    "restored_radio_counts": [
+      [
+        64,
+        76
+      ],
+      [
+        59,
+        71
+      ],
+      [
+        57,
+        76
+      ]
+    ],
+    "stable_ble_identity": true,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_reset_observed": false,
+    "recovery_required": false,
+    "comparison_record_sha256": "c7c62178b236dc8d09d60103ebe1cb03569af00fd2b45163b1486cade095bc45",
+    "recovery_record_sha256": "c8c3c38c810c7f56fa2bfb822e772155ce3a656c8d5814df85fce405b3e180d9"
+  }
+}

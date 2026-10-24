@@ -1,0 +1,39 @@
+{
+  "source_pins": {
+    "circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+    "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+  },
+  "board": "raspberrypi_rpi_pico2_w_zephyr",
+  "identical_configuration_except": {
+    "CONFIG_UDC_RPI_PICO_STACK_SIZE": [
+      "512",
+      "2048"
+    ]
+  },
+  "artifacts": [
+    {
+      "usb_worker_stack_bytes": 512,
+      "firmware_bytes": 1209352,
+      "firmware_sha256": "105e30390aa33e8c4c0c33f30c3baaedc873f088384d09f22fbc5ff609c9d170",
+      "config_sha256": "38ea92270eb9557d41ab141fec21ae9c2dc96b76cb874603c54cb1f4622c5ca2",
+      "elf_sha256": "911f39172e7d303b1b6c009307c3b5a6c29deb267f525d24eaa696f65f233e5c",
+      "physically_installed": true,
+      "currently_installed": false,
+      "bounded_workload_status": "passed"
+    },
+    {
+      "usb_worker_stack_bytes": 2048,
+      "firmware_bytes": 1209352,
+      "firmware_sha256": "15ad24e790489783a213e6571a5c830807a22c2af6efd31a2942a940e09919bc",
+      "config_sha256": "f782bb1cfef78b5cd88ccacbb9ce7d3612a3ffbda280469bbcd524ea89322c55",
+      "elf_sha256": "bb77fcc726d97dc0a63120ba9f580664188923db55a9a739582b95688979fc20",
+      "physically_installed": true,
+      "currently_installed": false,
+      "bounded_workload_status": "passed"
+    }
+  ],
+  "scope": "Both temporary diagnostic images physically verified and exercised; original production firmware restored with exact full-flash match. Short read-only MSC/radio workload, not general USB qualification.",
+  "hardware_evidence": "pico2-usb-stack-comparison-2026-10-23.json"
+}

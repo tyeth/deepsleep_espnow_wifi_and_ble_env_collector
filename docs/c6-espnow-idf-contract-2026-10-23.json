@@ -1,0 +1,259 @@
+{
+  "status": "reproduced_in_standalone_idf",
+  "board": "Adafruit Feather ESP32-C6 4MB Flash No PSRAM",
+  "idf_commit": "29d36039e564db6df505d0582b94b230a17e63f3",
+  "diagnostic_image_sha256": "925eb18053b5eedd183e11597e9323c3c086b2b5816b048e5f252a27b15bac32",
+  "diagnostic_image_bytes": 872576,
+  "send_results": [
+    {
+      "mode": "broadcast_only",
+      "call": "null_before",
+      "round": 0,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "explicit_broadcast",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "null_after",
+      "round": 0,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_before",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "explicit_unicast",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_after",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_before",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_broadcast",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_unicast",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_after",
+      "round": 0,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "null_before",
+      "round": 1,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "explicit_broadcast",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "null_after",
+      "round": 1,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_before",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "explicit_unicast",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_after",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_before",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_broadcast",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_unicast",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_after",
+      "round": 1,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "null_before",
+      "round": 2,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "explicit_broadcast",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "broadcast_only",
+      "call": "null_after",
+      "round": 2,
+      "result": 12393,
+      "name": "ESP_ERR_ESPNOW_NOT_FOUND"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_before",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "explicit_unicast",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "unicast_only",
+      "call": "null_after",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_before",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_broadcast",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "explicit_unicast",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    },
+    {
+      "mode": "mixed",
+      "call": "null_after",
+      "round": 2,
+      "result": 0,
+      "name": "ESP_OK"
+    }
+  ],
+  "delivery_measured": false,
+  "rounds": 3,
+  "whole_flash_restore_verified": true,
+  "flash_bytes_verified": 4194304,
+  "restored_runtime_version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+  "imports_after": {},
+  "host_transaction_failure_controls_passed": 6,
+  "prior_failures": [
+    {
+      "kind": "stale_preimage",
+      "firmware_written": false
+    },
+    {
+      "kind": "capture_missed_first_records",
+      "records_captured": 28,
+      "complete_rounds": 2,
+      "whole_flash_restored": true,
+      "runtime_verified": true
+    },
+    {
+      "kind": "interrupt_console_panic",
+      "radio_results": 0,
+      "whole_flash_restored": true,
+      "runtime_verified": true
+    }
+  ],
+  "limits": [
+    "Mixed-list recipient set and actual delivery not captured",
+    "No before/after IDF version regression claim",
+    "Other chip families not independently run"
+  ],
+  "documentation_commit": "e46718f34b321ae8021a19b99d80b45bdcd2a3a7",
+  "source_sha256": {
+    "CMakeLists.txt": "ea91db602f11ff48c815bc1c71613a725aa666d9b8db4d95ef4405ed7646c6fe",
+    "main/CMakeLists.txt": "d847207329cfd2bad08482bdbb64b7e58d6283ca6605f97cfcec519bf2c003af",
+    "main/main.c": "641641a5d357e6e517d007a680ec53dc369913ba21c6b374ce6e7f0ec7cea616",
+    "sdkconfig.defaults": "032ccf8069bbb5f6a184ad1c5252ddb645866f7f8fc8791bfbe5771eb48203d7",
+    "partitions.csv": "dc56f98d182a0020ea566686f5d7d39c40d17fa5651c459ae525349268dab51d"
+  },
+  "sdkconfig_sha256": "893287ec36017a6743634dfa337ed207465fee5fc79e7d1c542f93834df0e785"
+}

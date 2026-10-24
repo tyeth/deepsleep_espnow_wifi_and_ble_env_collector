@@ -1,0 +1,83 @@
+{
+  "checked_utc": "2026-10-23T10:05:19.340462+00:00",
+  "scope": "Pi 6 and S31 leaf-port inventory; not firmware or peripheral qualification",
+  "previously_off_leaf_ports_checked": 8,
+  "previously_off_ports_with_no_enumeration": 2,
+  "observed_products": [
+    {
+      "product": "Adafruit Feather ESP32S3 4MB Flash 2MB PSRAM",
+      "vid": "239a",
+      "pid": "811c"
+    },
+    {
+      "product": "Metro ESP32-S3",
+      "vid": "239a",
+      "pid": "0145"
+    },
+    {
+      "product": "Debug Probe (CMSIS-DAP)",
+      "vid": "2e8a",
+      "pid": "000c"
+    },
+    {
+      "product": "CP2102N USB to UART Bridge Controller",
+      "vid": "10c4",
+      "pid": "ea60"
+    },
+    {
+      "product": "Adafruit Metro M4 Airlift Lite",
+      "vid": "239a",
+      "pid": "8037"
+    },
+    {
+      "product": "CP2102N USB to UART Bridge Controller",
+      "vid": "10c4",
+      "pid": "ea60"
+    }
+  ],
+  "direct_preexisting_board_identities": [
+    "Raspberry Pi Pico W",
+    "Feather ESP32 V2 (previous runtime identity; USB serial adapter)"
+  ],
+  "preexisting_bridge_board": "Raspberry Pi Pico 2 W",
+  "c6_identified": false,
+  "c6_limit": "USB adapters retain prior ROM-identified C5/C61 mapping; no fresh ROM access in this inventory",
+  "original_inventory_restored": true,
+  "imports_empty": true,
+  "bridge_reset_observed": false,
+  "configured_sensor_models": [
+    "apds9999",
+    "as7331",
+    "bme280",
+    "bmp280",
+    "bmp388",
+    "bmp580",
+    "bmp581",
+    "bmp585",
+    "ds2484",
+    "ens160",
+    "hdc302x",
+    "lps28dfw",
+    "max44009",
+    "pmsa003i",
+    "scd30",
+    "sgp30",
+    "sgp40",
+    "sgp41",
+    "spa06_003",
+    "stcc4",
+    "tmp119",
+    "vcnl4030",
+    "vcnl4200"
+  ],
+  "sensor_mux_status": "status connection closed; topology request timed out; no usable live response",
+  "sensor_limit": "Configured models are not physical presence proof; no sensor or RTC register accesses or mux route changes performed",
+  "next_hardware_action": "User will connect Feather C6 with JD79667/RTC/SCD41 rig; identify its actual board and port before flashing",
+  "evidence_sha256": {
+    "remaining-port-inventory-job.json": "166037aae40c667fcea3fa36a959d68535bd027252e1bda1fea67f77b18509d6",
+    "remaining-inventory-20261023-job.json": "2c0c8627846c7dd60f95134b1f8a255dbb8eba8a3b9effef215284be423c1779",
+    "remaining-strands-20261023.json": "c2521ee4b79b0d4ea3579b8b173c4db3848a09af531a35e3704f5053b00f2c97",
+    "remaining-targets-20261023.json": "0539997103f54a5d00fe8df95e93513ab9b044701bb6fc10a4c9af1de5207cca",
+    "remaining-mux-status-job.json": "01c2db2fd915035101bac09c254646d5cf64bb38ce05f7ccc2476a90301a2609"
+  }
+}

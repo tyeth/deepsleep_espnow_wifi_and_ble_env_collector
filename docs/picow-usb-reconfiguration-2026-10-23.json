@@ -1,0 +1,75 @@
+{
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "transport": "direct Linux USB; no S31 import",
+  "baseline": {
+    "revision": "9e153ad624",
+    "status": "failed",
+    "successful_reconfigurations": 1,
+    "failed_reconfiguration": 2,
+    "cdc_survived_initial_msc_failure": true,
+    "later_usb_device_lost": true,
+    "kernel_errors": [
+      -110,
+      -71,
+      -22
+    ],
+    "candidate_flashed_in_failed_job": false,
+    "storage_writes": false,
+    "initial_disk_bytes": 520704,
+    "initial_disk_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+    "kernel_recovery_observed": true,
+    "agent_power_cycle_issued": false,
+    "separate_recovery_radio_checks": 3
+  },
+  "candidate": {
+    "revision": "6839890534556b06b8b3d7c491e36fd2005b2483",
+    "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+    "image_bytes": 1252688,
+    "image_sha256": "2910af3498123383a9087be24120ba5572adb0ee01b3524b16a395bc19d23ce7",
+    "status": "passed",
+    "reconfigurations": 4,
+    "exact_whole_disk_reads": 8,
+    "disk_bytes": 520704,
+    "disk_sha256": "1187ac82d027054b610641a3c595155015f4a86406b0df053d3e829b0a53d30c",
+    "cdc_before_and_after_each": true,
+    "radio_checks": 3
+  },
+  "restoration": {
+    "original_firmware_restored": true,
+    "full_backup_bytes": 2097152,
+    "install_whole_flash_verified": true,
+    "restore_whole_flash_verified": true,
+    "restore_snapshot_matches_original_backup": false,
+    "restored_radio_checks": 3,
+    "host_bindings_restored": true,
+    "bridge_unchanged": true,
+    "flash_audit": {
+      "original_code_restored": true,
+      "runtime_tail_preserved": true,
+      "whole_flash_matches_original": false,
+      "programmed_code_bytes": 1253376,
+      "changed_bytes_outside_code": 10,
+      "changed_4k_blocks": [
+        1597440
+      ],
+      "filesystem_offset": 1576960,
+      "filesystem_file_count": 8,
+      "file_set_unchanged": true,
+      "changed_file_count": 1,
+      "boot_out_changed": true,
+      "other_changed_file_count": 0,
+      "boot_out_old_revision": true,
+      "boot_out_candidate_revision": true,
+      "device_access": false,
+      "file_contents_printed": false
+    }
+  },
+  "host_transaction_controls": 8,
+  "limits": [
+    "bounded four-cycle comparison",
+    "no physical USB toggle capture",
+    "earlier idle failure not causally established",
+    "mounted file writes and full composite capacity not qualified",
+    "production rollout pending"
+  ]
+}

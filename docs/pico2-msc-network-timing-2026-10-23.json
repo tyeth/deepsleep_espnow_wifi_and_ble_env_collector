@@ -1,0 +1,479 @@
+{
+  "status": "read_failed_capture_and_decode_completed",
+  "firmware": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "usbmon_capture_sha256": "819da757bcba1abff92f2820507c7bd052add96b8274cc47be45aec3165b3130",
+  "network_capture_sha256": "1fe137bc4f01025d0dcaf022cbe1664c354ad178291cf913b3d6187bdc29451e",
+  "usbmon_packets": 146,
+  "network_packets_captured": 1785,
+  "network_packets_received_by_filter": 1824,
+  "kernel_drops_both_captures": 0,
+  "truncated_packets": 0,
+  "session_count": 1,
+  "host_decoder_controls": 9,
+  "reads": [
+    {
+      "label": "first-4096",
+      "status": "passed",
+      "seconds": 0.064721,
+      "returncode": 0,
+      "bytes": 4096,
+      "sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+      "cdc_after": true
+    },
+    {
+      "label": "first-65536",
+      "status": "passed",
+      "seconds": 0.165106,
+      "returncode": 0,
+      "bytes": 65536,
+      "sha256": "fe5b5e93b25c00af2a0d5174a4dd138ee39ebd1947f0e9eb321b8dc87c4c9f01",
+      "cdc_after": true
+    },
+    {
+      "label": "disk-0",
+      "status": "failed",
+      "seconds": 50.055327,
+      "returncode": -9,
+      "bytes": 262144,
+      "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4"
+    }
+  ],
+  "network_read_timing": [
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005273,
+      "reply_delivery_seconds": 0.00045,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005877,
+      "reply_delivery_seconds": 0.000565,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00535,
+      "reply_delivery_seconds": 0.00057,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005222,
+      "reply_delivery_seconds": 0.000488,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005695,
+      "reply_delivery_seconds": 0.000562,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005959,
+      "reply_delivery_seconds": 0.000576,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005831,
+      "reply_delivery_seconds": 0.000538,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.006148,
+      "reply_delivery_seconds": 0.000403,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.006682,
+      "reply_delivery_seconds": 0.000628,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005954,
+      "reply_delivery_seconds": 0.000302,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00694,
+      "reply_delivery_seconds": 0.000676,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005464,
+      "reply_delivery_seconds": 0.00052,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005947,
+      "reply_delivery_seconds": 0.000589,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005813,
+      "reply_delivery_seconds": 0.000325,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005378,
+      "reply_delivery_seconds": 0.000488,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005837,
+      "reply_delivery_seconds": 0.000312,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.0055,
+      "reply_delivery_seconds": 0.000557,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005638,
+      "reply_delivery_seconds": 0.000336,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005684,
+      "reply_delivery_seconds": 0.000598,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.006029,
+      "reply_delivery_seconds": 0.00029,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.006103,
+      "reply_delivery_seconds": 0.000302,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00585,
+      "reply_delivery_seconds": 0.000304,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00599,
+      "reply_delivery_seconds": 0.000613,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005435,
+      "reply_delivery_seconds": 0.000481,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005727,
+      "reply_delivery_seconds": 0.000589,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005673,
+      "reply_delivery_seconds": 0.000574,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005461,
+      "reply_delivery_seconds": 0.000589,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005252,
+      "reply_delivery_seconds": 0.000463,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005652,
+      "reply_delivery_seconds": 0.000463,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005994,
+      "reply_delivery_seconds": 0.000279,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005611,
+      "reply_delivery_seconds": 0.000565,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005352,
+      "reply_delivery_seconds": 0.000368,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005306,
+      "reply_delivery_seconds": 0.000566,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00584,
+      "reply_delivery_seconds": 0.000487,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005484,
+      "reply_delivery_seconds": 0.000611,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005467,
+      "reply_delivery_seconds": 0.000577,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005627,
+      "reply_delivery_seconds": 0.000492,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005883,
+      "reply_delivery_seconds": 0.000474,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005819,
+      "reply_delivery_seconds": 0.000572,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.006112,
+      "reply_delivery_seconds": 0.000582,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005751,
+      "reply_delivery_seconds": 0.00053,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 8192,
+      "actual_bytes": 8192,
+      "status": 0,
+      "first_reply_delay": 0.009937,
+      "reply_delivery_seconds": 0.001489,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005511,
+      "reply_delivery_seconds": 0.000346,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00518,
+      "reply_delivery_seconds": 0.000352,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005598,
+      "reply_delivery_seconds": 0.000485,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.00535,
+      "reply_delivery_seconds": 0.000464,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 4096,
+      "actual_bytes": 4096,
+      "status": 0,
+      "first_reply_delay": 0.005519,
+      "reply_delivery_seconds": 0.000592,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": 65536,
+      "status": 0,
+      "first_reply_delay": 0.069811,
+      "reply_delivery_seconds": 0.008779,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": 65536,
+      "status": 0,
+      "first_reply_delay": 0.069567,
+      "reply_delivery_seconds": 0.009356,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": 65536,
+      "status": 0,
+      "first_reply_delay": 10.037075,
+      "reply_delivery_seconds": 0.009708,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": 65536,
+      "status": 0,
+      "first_reply_delay": 14.023629,
+      "reply_delivery_seconds": 0.009651,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": 65536,
+      "status": 0,
+      "first_reply_delay": 14.023845,
+      "reply_delivery_seconds": 0.008658,
+      "earlier_byte_late_seconds": 0.0
+    },
+    {
+      "requested_bytes": 65536,
+      "actual_bytes": null,
+      "status": null,
+      "first_reply_delay": null,
+      "reply_delivery_seconds": null,
+      "earlier_byte_late_seconds": null
+    }
+  ],
+  "imports_detached": true,
+  "original_port_state_restored": true,
+  "bridge_restarted": false,
+  "limits": [
+    "Host-interface capture timing, not device or bridge processing timestamps",
+    "One read remains pending at capture end",
+    "No direct-USB comparison or bridge completion/segment timing",
+    "Request-path delay or bridge queuing before the first reply remains possible",
+    "No proof of common cause with Pico W issue42"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "status": "passed",
+  "scope": "Real BlueZ central, NUS transfer, disconnect and adapter toggle; no display or WiFi traffic load",
+  "setup": {
+    "version": "3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+    "wifi": true,
+    "espnow": true
+  },
+  "unpaced": {
+    "output": "UNPACED_SENT 10240\r\n",
+    "expected_bytes": 10240,
+    "received_bytes": 10240,
+    "expected_sha256": "b5a6278ab4e1876b1217737985a6b13c92b55e2009eea10c0876f706a3286665",
+    "received_sha256": "b5a6278ab4e1876b1217737985a6b13c92b55e2009eea10c0876f706a3286665",
+    "exact": true
+  },
+  "disconnect": {
+    "elapsed": 2.539063,
+    "sent": 14280,
+    "last_write": 0,
+    "connected": false,
+    "central_received_bytes": 13560,
+    "host_return_after_disconnect_s": 2.1994403910066467,
+    "burst_running_when_disconnect_requested": true
+  },
+  "reconnect": {
+    "expected_bytes": 1024,
+    "received_bytes": 1024,
+    "exact": true,
+    "no_stale_bytes_before_write": true,
+    "output": "RECONNECT_SENT\r\n"
+  },
+  "post_session_toggle": "POST_SESSION_TOGGLE 59 True\r\n",
+  "cleanup": "BLE_SESSION_CLEANUP True\r\n",
+  "bleak_reported_mtu": 23,
+  "negotiated_mtu_verified": false,
+  "mtu_warning": "BlueZ backend returned its default MTU; not a negotiated MTU measurement.",
+  "board": "adafruit_feather_esp32s3_4mbflash_2mbpsram",
+  "completed_utc": "2026-10-22T23:40:59.358367+00:00",
+  "firmware_writes": false,
+  "original_port_state_restored": true,
+  "private_evidence_sha256": "b000442f69077d37834fa6d12a41f1fafede8b406131eb0fc8bee130a7e2376f"
+}

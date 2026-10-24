@@ -1,0 +1,942 @@
+{
+  "firmware": "9e153ad624",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "kernel": "6.18.50+rpt-rpi-v8",
+  "result": "stall_not_reproduced",
+  "root_cause_established": false,
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "captures": [
+    {
+      "label": "traced_marker_after_close",
+      "finished_utc": "2026-10-23T21:05:39.008287+00:00",
+      "bindings_restored": true,
+      "bridge_untouched": true,
+      "rounds": [
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.03087,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "1d65132d77e9e2fd072e82b30ab3a73c07893d07a75774e2c9fce119b8b402d9",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 63,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 4,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 3,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.031158,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "ebb302e7895130dc48bc83e9954410fae69f6a7f723610ba412f9be781f39c2c",
+          "trace_lines": 283,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 147,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 61,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 62,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030598,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "b0cc8ac4559f69c27f5d764aca27c765888b9df5a2603007c71ff85e0bd91034",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 35,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 13,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 21,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030212,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "88db5acd9668fc84d91bf24b4a9cc5e6e6b82c0dc7b30cd409c42337c4bf1ad0",
+          "trace_lines": 303,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 204,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 61,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 24,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030218,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "2ff7a7b7b3dd5b01f23140cfffa0417cfc7f8ec6cdaa8b07edf4fe3f8dff2c96",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 35,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 12,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 23,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "dtr_off",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030531,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "d5a85f32cc2b28eaed58852bd5b3fc3b4819eac41b29c1a7ebe60545bc7d86ef",
+          "trace_lines": 111,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 58,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 5,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 34,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030389,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "b269865eabbfecc949b932453330dd111765d2b99a5392e5569ffe35490aa70e",
+          "trace_lines": 95,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 67,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 12,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 3,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        }
+      ],
+      "trace_instance_removed": true
+    },
+    {
+      "label": "traced_marker_retained_repeat",
+      "finished_utc": "2026-10-23T21:06:39.548367+00:00",
+      "bindings_restored": true,
+      "bridge_untouched": true,
+      "rounds": [
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030821,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "7be6d0c196f70d9808921f5785602581c2f7a9b652dc0fe0b2a9724343ab923c",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 56,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 3,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 12,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.031059,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "9024d45c8dee7dbe849f7f10990c634af43997c64bae3d49397db15deea4265e",
+          "trace_lines": 287,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 230,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 24,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 19,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030639,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "afa67ae588a4251237ff3e3c3972e9067670f941f7785ba3f10bbaa867869322",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 33,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 33,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 3,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.0304,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "54696931424eefd316d918d0110c7939a7cfeda947195069e81b20469afc6964",
+          "trace_lines": 303,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 193,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 66,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 30,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030831,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "828296efc1cb04eef98e40b769a5e87aa00e260b02d52dd8bd505ab31b696c43",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 33,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 35,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 3,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030835,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "a93a3594db9f92375f64cf9dd8a640c6dc98fa5d742f8e6f95f8acba447644c8",
+          "trace_lines": 303,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 245,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 40,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 4,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030374,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "acd5b8adc036f0b282f3171e03b15a6d47a4fc559f352880614b75744062ff40",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 54,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 13,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030921,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "dd71ead806bb7e72939db340907fc77ae3977d48958a8638c080ab2747fb9087",
+          "trace_lines": 303,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 188,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 82,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 20,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030539,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "11a5bc5a3049e66f27ed78942fd9ac04f24bd690faa56d6c1b64319f812f3f02",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 35,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 33,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "dtr_off",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030983,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "24d74dfbd6e61af99208304c4d2953d2d5eabf337c4c6dd04e939600e322d487",
+          "trace_lines": 111,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 47,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 7,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 43,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030589,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "fe1b58a43050d01401ce32deb28e380983c5ff3b29130a616aea5dadc33bb112",
+          "trace_lines": 83,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 45,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 22,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        }
+      ],
+      "trace_instance_removed": true
+    },
+    {
+      "label": "traced_no_marker_after_close",
+      "finished_utc": "2026-10-23T21:07:43.686857+00:00",
+      "bindings_restored": true,
+      "bridge_untouched": true,
+      "rounds": [
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030466,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "e858e15f288ad5640538c4806a3c1e4c3e220f8b146350ab1ddf0fe4a58c08af",
+          "trace_lines": 82,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 38,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 22,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 10,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030824,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "23629aea097653fc18c17c1d7d16c959cc9dcadb066979dde4a2241d84e2ae92",
+          "trace_lines": 284,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 176,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 22,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 72,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.034304,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "8a44169d769594abc4b4ee90d57548bd08d34ff2d13e5f6ca2dfa9c1e4e41ef7",
+          "trace_lines": 82,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 59,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 10,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.030848,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "d12a7a7cd202d4da1c205815783f3042132bc40c89ed0311028278a51c0763c0",
+          "trace_lines": 302,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 190,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 40,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 59,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030418,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "fa66673e3748fb80eca21a331986bbffb6a5a330845ef3e1bb2a47d470f1de37",
+          "trace_lines": 82,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 35,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 34,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "dtr_off",
+          "reopen_delay_seconds": 3,
+          "host_read_seconds": 0.03056,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "8b89579a51805169c5f26ff3c28ba626a78c136ae7b45620e43a68a3869318ee",
+          "trace_lines": 110,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 51,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 44,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 1,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030563,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+          "trace_sha256": "40eeb08c529f610670570f2bff074b817b41cff4dc3bed8e3d4ab06663042a2d",
+          "trace_lines": 82,
+          "trace_counts": {
+            "cpu0": {
+              "entries": 57,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu1": {
+              "entries": 2,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu2": {
+              "entries": 11,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            },
+            "cpu3": {
+              "entries": 0,
+              "overrun": 0,
+              "commit overrun": 0,
+              "dropped events": 0
+            }
+          }
+        }
+      ],
+      "trace_instance_removed": true
+    },
+    {
+      "label": "original_untraced_control",
+      "finished_utc": "2026-10-23T21:08:23.162510+00:00",
+      "bindings_restored": true,
+      "bridge_untouched": true,
+      "rounds": [
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.042184,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 1,
+          "host_read_seconds": 0.030946,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.0305,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "closed",
+          "reopen_delay_seconds": 4,
+          "host_read_seconds": 0.031004,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.030179,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "dtr_off",
+          "reopen_delay_seconds": 4,
+          "host_read_seconds": 0.030404,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        },
+        {
+          "mode": "open",
+          "reopen_delay_seconds": 0,
+          "host_read_seconds": 0.059003,
+          "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+        }
+      ]
+    }
+  ],
+  "total_reads": 32,
+  "closed_console_reads": 10,
+  "traced_reads": 25,
+  "untraced_reads": 7
+}

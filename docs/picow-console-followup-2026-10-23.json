@@ -1,0 +1,275 @@
+{
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "firmware": "9e153ad624",
+  "connection": "direct Linux xHCI USB",
+  "flash_writes": false,
+  "filesystem_writes": false,
+  "bindings_restored_after_each_completed_probe": true,
+  "usb_power_policy": "Pico and two parent hubs already on; on was reapplied and restored",
+  "runtime_pm": "All supported sampled nodes active with zero suspended time, including before reopen during stalls",
+  "power_rows": [
+    {
+      "phase": "original",
+      "mode": "open",
+      "host_read_seconds": 0.03944,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "original",
+      "mode": "closed",
+      "host_read_seconds": 0.030166,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "original",
+      "mode": "closed",
+      "host_read_seconds": 3.075041,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "forced_on",
+      "mode": "open",
+      "host_read_seconds": 0.030733,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "forced_on",
+      "mode": "closed",
+      "host_read_seconds": 0.034703,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "forced_on",
+      "mode": "closed",
+      "host_read_seconds": 3.07422,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "restored",
+      "mode": "open",
+      "host_read_seconds": 0.030624,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "restored",
+      "mode": "closed",
+      "host_read_seconds": 3.073773,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "phase": "restored",
+      "mode": "closed",
+      "host_read_seconds": 0.048208,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    }
+  ],
+  "control_rows": [
+    {
+      "mode": "open",
+      "reopen_delay_seconds": 0,
+      "host_read_seconds": 0.030674,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "mode": "sham",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 0.059327,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "mode": "get_status",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 4.06599,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": -1,
+        "errno": 110,
+        "data": []
+      }
+    },
+    {
+      "mode": "get_status",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 4.06635,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": -1,
+        "errno": 110,
+        "data": []
+      }
+    },
+    {
+      "mode": "get_status",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 0.030511,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": 2,
+        "errno": 0,
+        "data": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "mode": "set_lines",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 0.030011,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": -1,
+        "errno": 16,
+        "data": []
+      }
+    },
+    {
+      "mode": "set_lines",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 4.066117,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": -1,
+        "errno": 16,
+        "data": []
+      }
+    },
+    {
+      "mode": "set_lines",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 4.067129,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "control": {
+        "result": -1,
+        "errno": 16,
+        "data": []
+      }
+    },
+    {
+      "mode": "sham",
+      "reopen_delay_seconds": 4,
+      "host_read_seconds": 4.066455,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    },
+    {
+      "mode": "open",
+      "reopen_delay_seconds": 0,
+      "host_read_seconds": 0.030517,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290"
+    }
+  ],
+  "activity_rows": [
+    {
+      "mode": "sleep",
+      "closed": false,
+      "host_read_seconds": 0.030772,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.001224,
+      "iterations": 0
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "host_read_seconds": 0.035849,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 0
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "host_read_seconds": 0.031836,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 47516
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "host_read_seconds": 3.066915,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 0
+    },
+    {
+      "mode": "busy",
+      "closed": false,
+      "host_read_seconds": 0.06084,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.000734,
+      "iterations": 47537
+    }
+  ],
+  "execution_progress_rows": [
+    {
+      "mode": "sleep",
+      "closed": false,
+      "host_read_seconds": 0.031648,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.003664,
+      "iterations": 723,
+      "maximum_iteration_gap_seconds": 0.0144043
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "host_read_seconds": 3.132556,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.000244,
+      "iterations": 17478,
+      "maximum_iteration_gap_seconds": 0.008056642
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "host_read_seconds": 0.031883,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.001224,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.015625
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "host_read_seconds": 0.031603,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.0,
+      "iterations": 17465,
+      "maximum_iteration_gap_seconds": 0.005371094
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "host_read_seconds": 3.067893,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.003906,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.01586914
+    },
+    {
+      "mode": "busy",
+      "closed": true,
+      "host_read_seconds": 3.066931,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.001224,
+      "iterations": 17472,
+      "maximum_iteration_gap_seconds": 0.0078125
+    },
+    {
+      "mode": "sleep",
+      "closed": true,
+      "host_read_seconds": 0.060044,
+      "read_sha256": "57ac6bef0289292d1ead8e17b500c718ce726b7760a8e35f147ddcea4f81c290",
+      "target_seconds": 8.003906,
+      "iterations": 722,
+      "maximum_iteration_gap_seconds": 0.012939456
+    }
+  ],
+  "control_limit": "Interface-recipient SET_CONTROL_LINE_STATE rejected by bound Linux driver with EBUSY; no device-level result",
+  "kernel_followup": "After closure, host reset and descriptor timeouts were observed, followed by host-initiated port power-cycle and same-device enumeration",
+  "first_pm_fixture": "Failed before changes on unsupported ancestor autosuspend attribute; retained and corrected",
+  "other_failed_attempts": "Missing/disappearing-device guards and first strict GET_STATUS timeout assertion retained",
+  "whole_mcu_freeze_supported": false,
+  "root_cause_established": false,
+  "firmware_fix_or_rollout": false
+}

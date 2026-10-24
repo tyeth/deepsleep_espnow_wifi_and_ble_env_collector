@@ -32,26 +32,28 @@ EOT = b"\x04"
 
 
 class Repl:
-    def __init__(self, port, baud=115200):
+    def __init__(self, port, baud=115200, uart_bridge=False):
         # Open without asserting RTS: on the ESP32-C6's USB-Serial/JTAG port the default
         # DTR+RTS toggle at open resets the chip (rst:0x15). DTR alone is needed so
         # CircuitPython treats the console as connected.
         self.s = serial.Serial()
         self.s.port, self.s.baudrate, self.s.timeout = port, baud, 2
-        self.s.dtr = True
+        # External UART bridges wire DTR/RTS to the ESP boot/reset circuit.
+        # Native USB consoles instead require DTR to report a connected host.
+        self.s.dtr = not uart_bridge
         self.s.rts = False
         self.s.open()
         time.sleep(0.3)
         self.s.reset_input_buffer()
 
-    def _read_until(self, token, timeout=10):
+    def _read_until(self, token, timeout=10, count=1):
         buf = b""
         end = time.time() + timeout
         while time.time() < end:
-            chunk = self.s.read(256)
+            chunk = self.s.read(max(1, min(4096, self.s.in_waiting)))
             if chunk:
                 buf += chunk
-                if token in buf:
+                if buf.count(token) >= count:
                     return buf
         raise TimeoutError("waiting for %r, got %r" % (token, buf[-200:]))
 
@@ -77,7 +79,7 @@ class Repl:
     def exec(self, code, timeout=20):
         """Run code in raw mode; returns stdout, raises on traceback."""
         self.s.write(code.encode() + EOT)
-        out = self._read_until(EOT + EOT, timeout=timeout)
+        out = self._read_until(EOT, timeout=timeout, count=2)
         # raw repl frames: "OK<stdout>\x04<stderr>\x04>"
         body = out.split(b"OK", 1)[-1]
         stdout, _, rest = body.partition(EOT)
@@ -129,11 +131,13 @@ def main():
     ap.add_argument("files", nargs="*")
     ap.add_argument("--dest", default="/", help="remote directory (default /)")
     ap.add_argument("--ls", action="store_true", help="list files and exit")
+    ap.add_argument("--uart", action="store_true",
+                    help="external UART bridge: keep DTR and RTS deasserted")
     ap.add_argument("--reset", action="store_true",
                     help="soft-reboot (ctrl-D) after deploy")
     args = ap.parse_args()
 
-    repl = Repl(args.port)
+    repl = Repl(args.port, uart_bridge=args.uart)
     repl.enter_raw()
     try:
         if args.ls:

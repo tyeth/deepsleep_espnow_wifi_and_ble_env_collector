@@ -1,0 +1,63 @@
+{
+  "completed_utc": "2026-10-23T00:28:16.157097+00:00",
+  "scope": "Pico 2 W Zephyr AP and direct-UART Feather ESP32 V2 station, channel 1",
+  "source_revisions": {
+    "circuitpython": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+    "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+  },
+  "station_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80; dirty runtime banner",
+  "baseline": {
+    "image_sha256": "a96af77f5183a3602abc9e3356665fd632f9fd7b4e4fa599a48ed1abee6a2a3c",
+    "main_priority": 0,
+    "socket_service_priority": 15,
+    "dhcp_returned_by_host_deadline": false,
+    "host_deadline_seconds": 25,
+    "static_ping_seconds": 0.011,
+    "discover_processing_delay_after_ap_start_seconds": 28.971,
+    "private_job_sha256": "69aec79b7916e36f992ad91de2627df8c307ff246dcc21c8ddd11fa14852ed9c"
+  },
+  "same_image_sleep_control": {
+    "pico_sleep_seconds_per_observation": 2,
+    "dhcp_lease_observed": true,
+    "connect_completed": true,
+    "private_job_sha256": "0c20b14f696ac773dddc13058524ef8a5323b98b5dd9cf0c00cf237c330bdb44"
+  },
+  "priority_candidate": {
+    "image_sha256": "31a4d4cae8203c076d9e82f7303f808f579c8a6fba96c103c2de6b955082e7a2",
+    "only_config_difference": "CONFIG_NET_SOCKETS_SERVICE_THREAD_PRIO=15 -> 0",
+    "timeslice_ms": 20,
+    "raw_repl_dhcp_passed": true,
+    "busy_loop_seconds": 15,
+    "busy_loop_iterations": 1266409,
+    "busy_loop_connect_elapsed_seconds": 4.467002,
+    "lease_received_before_busy_loop_finished": true,
+    "private_job_sha256": "550f0223e89c6f70446737c2d6443da1b0a6b84f72667a36c8eb196788994674",
+    "busy_private_job_sha256": "7326c56a58235bd4343ac896d89e06ff9207b7bfb6d5dd65542250e4fe9080f2"
+  },
+  "production_fix": {
+    "commit": "6b117bdce576abf927554a4946b8610149150aa0",
+    "change": "Default NET_SOCKETS_SERVICE_THREAD_PRIO to MAIN_THREAD_PRIORITY when NETWORKING is enabled",
+    "hardware_image_note": "Physical comparison used the same priority value as a configuration override on clean 7d4 source; do not relabel it as a 6b117 production-image test",
+    "production_builds": "Both Pico variants passed; manifest firmware-pico-socket-priority-6b117-2026-10-23.json",
+    "physical_qualification": "pico2-production-ap-qualification-2026-10-23.json",
+    "pico_w_physical_qualification": "picow-production-ap-qualification-2026-10-23.json"
+  },
+  "cleanup": "All four recorded diagnostic runs stopped the AP and station, restored DHCP client state, detached USB imports and restored original port state",
+  "stack_observations": {
+    "udc_thread_bytes_used_v2": 256,
+    "udc_thread_bytes_used_v3": 248,
+    "udc_stack_bytes": 2048,
+    "socket_service_peak_bytes_with_debug": 2184,
+    "socket_service_stack_bytes": 2400,
+    "qualification": "Limited CDC/AP workload; no 512-byte physical comparison or concurrent MSC stress yet"
+  },
+  "diagnostic_correction": "The first instrumented image requested DHCP debug level 4 but global LOG_MAX_LEVEL=2 suppressed it. Corrected baseline raised the ceiling to 4; compiled debug strings and runtime messages were verified.",
+  "limits": [
+    "Both Pico production images pass channels 1/6/11 and departure; station lifecycle API no-op remains CP fork issue40",
+    "No C6 radio-memory or sustained coexistence claim",
+    "ESP connect timeout while DHCP is unavailable remains separate upstream issue #7557",
+    "USB stack-default change not justified by this measurement alone"
+  ]
+}

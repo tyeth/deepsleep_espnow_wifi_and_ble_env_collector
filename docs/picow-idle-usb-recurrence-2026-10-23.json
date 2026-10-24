@@ -1,0 +1,40 @@
+{
+  "observed_utc": "2026-10-23T04:48:36Z",
+  "device": "directly attached Pico W",
+  "runtime_after_recovery": "9e153ad624",
+  "symptom": "USB descriptor timeouts and failed re-enumeration; device absent from final inventory",
+  "kernel_error_codes": [
+    -110,
+    -71,
+    -22
+  ],
+  "reenumerated_utc": "2026-10-23T04:39:06Z",
+  "last_failed_enumeration_utc": "2026-10-23T04:41:55Z",
+  "bridge_during_failure": {
+    "revision": "bec1d71",
+    "uptime_s": 708,
+    "api_healthy": true,
+    "active_soak_units": 0,
+    "usbip_imports": 0
+  },
+  "recovery": "Guarded ganged hub off/on requests with all ports restored on; no mounted downstream filesystem or active serial reader",
+  "runtime_verification": {
+    "status": "passed",
+    "devices": {
+      "picow": "RUNTIME raspberrypi_rpi_pico_w_zephyr 3.4.0; CircuitPython 11.0.0-alpha.2-32-g9e153ad624 on 2026-10-23\r\nUPTIME 12805.66\r\n",
+      "feather": "RUNTIME adafruit_feather_esp32_v2 3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23\r\r\nUPTIME 5.148\r\r\n"
+    },
+    "reset_requested": false,
+    "bridge_uptime": 922,
+    "bridge_reset_since_last_snapshot": false,
+    "finished_utc": "2026-10-23T04:52:09.895092+00:00"
+  },
+  "root_cause_established": false,
+  "cold_boot_proven": false,
+  "private_raw_evidence_sha256": {
+    "s31-demand-final-inventory-job.json": "d29abd072d9f11c8cd6699055e100a8e074e7b9e5d58ce6418509aad71400442",
+    "direct-usb-after-comparison-job.json": "2908c8dd64479e7ce6f21edce42fc25d3c98eb392ed6a73546521bba4e2a8d64",
+    "picow-idle-hub-recovery-job.json": "3ada63e45e6f66a52182bc9f5c02f93e2237f8178972223f6bc3ff9b74fa5b00",
+    "picow-idle-recovery-runtime-job.json": "93e07c3c545ce75e7eb978f257245bcdbdbbaeba097549134d961fcabecf7ed3"
+  }
+}

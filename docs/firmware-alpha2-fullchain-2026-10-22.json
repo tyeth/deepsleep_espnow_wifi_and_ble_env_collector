@@ -1,0 +1,414 @@
+[
+  {
+    "file": "espressif_esp32c5_devkitc_1_n8r8-alpha2-fullchain.bin",
+    "bytes": 2274240,
+    "sha256": "663c9bc6f3da18e69946f7acd0fe2c1e2100c216f179d3dccddd8485d6fcd52c",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "espressif_esp32c5_devkitc_1_n8r8",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": true,
+    "application_bytes": 2208704,
+    "smallest_app_slot_bytes": 3145728,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 3145728
+      },
+      {
+        "name": "ota_1",
+        "offset": 3211264,
+        "size": 3145728
+      },
+      {
+        "name": "user_fs",
+        "offset": 6356992,
+        "size": 2031616
+      }
+    ]
+  },
+  {
+    "file": "espressif_esp32c61_devkitc_1_n8r2-alpha2-fullchain.bin",
+    "bytes": 2132416,
+    "sha256": "58d5d48d3673c2fa4fb4510edba08618ad88b05e33d47805d557a442debdc982",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "espressif_esp32c61_devkitc_1_n8r2",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": true,
+    "application_bytes": 2066880,
+    "smallest_app_slot_bytes": 2097152,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 2097152
+      },
+      {
+        "name": "ota_1",
+        "offset": 2162688,
+        "size": 2097152
+      },
+      {
+        "name": "user_fs",
+        "offset": 4259840,
+        "size": 4128768
+      }
+    ]
+  },
+  {
+    "file": "adafruit_feather_esp32c6_4mbflash_nopsram-alpha2-fullchain.bin",
+    "bytes": 2273312,
+    "sha256": "18c47811a0935be61a4c1ba652d239aa040161dcc1b55a8bd4ce02be6b48fcbe",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "adafruit_feather_esp32c6_4mbflash_nopsram",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2207776,
+    "smallest_app_slot_bytes": 2883584,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 2883584
+      },
+      {
+        "name": "user_fs",
+        "offset": 2949120,
+        "size": 1245184
+      }
+    ]
+  },
+  {
+    "file": "adafruit_feather_esp32s3_nopsram-alpha2-fullchain.bin",
+    "bytes": 2106528,
+    "sha256": "d0613511297f06f8f31b7fa8a9e1dbca34cfbf71137fc7ced443fedf5f3bea21",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "adafruit_feather_esp32s3_nopsram",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2040992,
+    "smallest_app_slot_bytes": 2097152,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 2097152
+      },
+      {
+        "name": "ota_1",
+        "offset": 2162688,
+        "size": 2097152
+      },
+      {
+        "name": "uf2",
+        "offset": 4259840,
+        "size": 262144
+      },
+      {
+        "name": "user_fs",
+        "offset": 4521984,
+        "size": 3866624
+      }
+    ]
+  },
+  {
+    "file": "adafruit_feather_esp32s3_4mbflash_2mbpsram-alpha2-fullchain.bin",
+    "bytes": 2062256,
+    "sha256": "ef75c2e593ab2c7746f157afe579dc8af104a097cae02fadb3807c39e0edacbb",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "adafruit_feather_esp32s3_4mbflash_2mbpsram",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 1996720,
+    "smallest_app_slot_bytes": 2883584,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 2883584
+      },
+      {
+        "name": "uf2",
+        "offset": 2949120,
+        "size": 262144
+      },
+      {
+        "name": "ffat",
+        "offset": 3211264,
+        "size": 983040
+      }
+    ]
+  },
+  {
+    "file": "adafruit_metro_esp32s3-alpha2-fullchain.bin",
+    "bytes": 2172432,
+    "sha256": "5328e033e33d0f4b1d39b171b24bfcd6b9b20f7ae0bc09d0a628bf90740fc7ce",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "adafruit_metro_esp32s3",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2106896,
+    "smallest_app_slot_bytes": 3145728,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 3145728
+      },
+      {
+        "name": "uf2",
+        "offset": 4259840,
+        "size": 262144
+      },
+      {
+        "name": "ota_1",
+        "offset": 4521984,
+        "size": 3145728
+      },
+      {
+        "name": "user_fs",
+        "offset": 7667712,
+        "size": 9109504
+      }
+    ]
+  },
+  {
+    "file": "adafruit_feather_esp32_v2-alpha2-fullchain.bin",
+    "bytes": 2175456,
+    "sha256": "b393922d552551a2f097eea8c9a27607579a873328617e231a042b4c21935183",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "adafruit_feather_esp32_v2",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2109920,
+    "smallest_app_slot_bytes": 3145728,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 3145728
+      },
+      {
+        "name": "ota_1",
+        "offset": 3211264,
+        "size": 3145728
+      },
+      {
+        "name": "user_fs",
+        "offset": 6356992,
+        "size": 2031616
+      }
+    ]
+  },
+  {
+    "file": "espressif_esp32c6_devkitc_1_n8-alpha2-fullchain.bin",
+    "bytes": 2272976,
+    "sha256": "71acd526a60eeaf839f15501f627908cdf8502fcd379757f50bd8e9990f29327",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "espressif_esp32c6_devkitc_1_n8",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2207440,
+    "smallest_app_slot_bytes": 3145728,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 3145728
+      },
+      {
+        "name": "ota_1",
+        "offset": 3211264,
+        "size": 3145728
+      },
+      {
+        "name": "user_fs",
+        "offset": 6356992,
+        "size": 2031616
+      }
+    ]
+  },
+  {
+    "file": "espressif_esp32s3_devkitc_1_n8-alpha2-fullchain.bin",
+    "bytes": 2105824,
+    "sha256": "4f3ac127d89e5cce802ab866317091d8746bfa77a1c597094188552a666af24d",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "espressif_esp32s3_devkitc_1_n8",
+    "integration_revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "build_version": "11.0.0-alpha.2-15-gcb5301b6fb-dirty",
+    "flash_offset": 0,
+    "uart_bridge_variant": false,
+    "application_bytes": 2040288,
+    "smallest_app_slot_bytes": 2097152,
+    "partitions": [
+      {
+        "name": "nvs",
+        "offset": 36864,
+        "size": 20480
+      },
+      {
+        "name": "otadata",
+        "offset": 57344,
+        "size": 8192
+      },
+      {
+        "name": "ota_0",
+        "offset": 65536,
+        "size": 2097152
+      },
+      {
+        "name": "ota_1",
+        "offset": 2162688,
+        "size": 2097152
+      },
+      {
+        "name": "uf2",
+        "offset": 4259840,
+        "size": 262144
+      },
+      {
+        "name": "user_fs",
+        "offset": 4521984,
+        "size": 3866624
+      }
+    ]
+  },
+  {
+    "file": "picow-zephyr-alpha2-fullchain.bin",
+    "bytes": 1252192,
+    "sha256": "29b990ca834a233c411a9fb468fc84b64a05bb9bf221e75417535f993a264da5",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "picow",
+    "integration_revision": "e4553033a1765caaa7a814db14bcd84567b5838a",
+    "hal_infineon_revision": "12f662c34e21e7c1addd3f7aad0488d35bffd8c2",
+    "flash_offset": 268435456
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-fullchain.bin",
+    "bytes": 1208552,
+    "sha256": "668739c69a037b02cbe5347ebe7616ac1117b52fedb1325c7e0dfec98a67726f",
+    "tls_in_bytes": 16384,
+    "tls_out_bytes": 8192,
+    "validation": "Build only; hardware validation pending.",
+    "board": "pico2w",
+    "integration_revision": "e4553033a1765caaa7a814db14bcd84567b5838a",
+    "hal_infineon_revision": "12f662c34e21e7c1addd3f7aad0488d35bffd8c2",
+    "flash_offset": 268435456
+  }
+]

@@ -1,0 +1,111 @@
+{
+  "revision": "83526b03c034fee9452505069aded739b55d5dcb",
+  "firmware": "cb5301b6fb",
+  "deployment": {
+    "job": "21821c61-4fee-481e-b322-d1d549aa2446",
+    "finished_utc": "2026-10-22T19:47:50.376824+00:00",
+    "changed": [
+      "/www/index.html",
+      "/www/prompt_backend.js",
+      "/www/sw.js"
+    ],
+    "device_readback_verified": true,
+    "resume_requested": true
+  },
+  "https": {
+    "job": "c91c6a77-7690-46aa-97da-effad15aa203",
+    "finished_utc": "2026-10-22T19:49:28.378783+00:00",
+    "normal_ca_trust": true,
+    "hostname_checking": true,
+    "wrong_hostname_rejected": true,
+    "tls_version": "TLSv1.2",
+    "leaf_der_sha256": "d1b8cc627565bc70b227803fdd99974fa97d36826af4e5703cb88ede40c5cc29",
+    "assets": [
+      {
+        "name": "index.html",
+        "bytes": 105587,
+        "sha256": "8f0469d951695a2cc80f9cb1f7471e6113376ecaf814209400578eefc75bcbfb"
+      },
+      {
+        "name": "sw.js",
+        "bytes": 4365,
+        "sha256": "2b2f91f028dab44b55081359e947c186b031271204b3d2422e7287ba4cb6039f"
+      },
+      {
+        "name": "manifest.json",
+        "bytes": 468,
+        "sha256": "ade05f4d4b6b2b6e1a7caaf4668a66d8647f55853c88214c93a89c8f4a5cd483"
+      },
+      {
+        "name": "icon.svg",
+        "bytes": 491,
+        "sha256": "8ace37ee6f20990c1ace7464b18e7073ad1243b163c1817ae6c7b9fdff3da8ad"
+      },
+      {
+        "name": "ai_tools.js",
+        "bytes": 14054,
+        "sha256": "3923c26a9ae7bfc505012418d33fd69e7a1e3c039795e36a907c77a46a7aa2be"
+      },
+      {
+        "name": "webmcp.js",
+        "bytes": 2199,
+        "sha256": "4ce99170805fc96b529c106b25fd25ae5bb3e8fb845694d27ec935dbbf02d30d"
+      },
+      {
+        "name": "prompt_backend.js",
+        "bytes": 8429,
+        "sha256": "bbb3809bb7017a3a83e44f2a13fff57106d5142ab9897f81d683b4ce63fe99c0"
+      }
+    ]
+  },
+  "browser": {
+    "job": "b9356c37-fe93-4271-bdf2-88908080ac64",
+    "verified_utc": "2026-10-22T19:59:48Z",
+    "engine": "HeadlessChrome/155.0.0.0",
+    "isolated_context": true,
+    "ignore_https_errors": false,
+    "secure_context": true,
+    "webmcp_api": "document.modelContext.registerTool",
+    "experimental_webmcp_flags": true,
+    "registered_tools": [
+      "envhub_dataset",
+      "envhub_query"
+    ],
+    "app_cache_names": [
+      "envhub-v21"
+    ],
+    "dataset": {
+      "rows": 697,
+      "days": 1,
+      "sources": [
+        "bench-c61-sim",
+        "local"
+      ],
+      "from": "2026-10-22 01:38",
+      "to": "2026-10-22 19:57",
+      "tzOffsetMin": 0
+    },
+    "grouped_rows": [
+      [
+        "bench-c61-sim",
+        497,
+        616
+      ],
+      [
+        "local",
+        200,
+        616
+      ]
+    ],
+    "write_rejection": "SELECT only",
+    "row_count_after_rejected_write": 697,
+    "native_prompt_api_present": true,
+    "native_prompt_inference_tested": false
+  },
+  "limitations": [
+    "This functional check does not extend the completed eight-hour soaks to the newly installed portal assets.",
+    "Measurements are synthetic bench data, not sensor-accuracy validation.",
+    "Mobile model retention and inference were tested separately in the Android emulator; this browser check does not download the fallback model.",
+    "The first combined browser-startup job timed out; its browser remained alive and subsequent fresh snapshots and native tool calls succeeded. No cause is asserted."
+  ]
+}

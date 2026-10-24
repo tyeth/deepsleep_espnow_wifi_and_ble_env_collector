@@ -1,0 +1,190 @@
+{
+  "scope": "Pico W temporary workflow-disabled diagnostic, forced software error returns after actual successful operations",
+  "unfaulted_original_diagnostic": {
+    "status": "passed_and_restored",
+    "image_sha256": "0e6e568ac2267cbd56ef186303bb93b6d185d05017f0f5926a32ecae4da74fed",
+    "faults": [],
+    "completion_snapshot": "(1, 0, 0, 0, 0, 0, 1, 1, True)",
+    "ble_scan_counts": [
+      78,
+      68,
+      74
+    ],
+    "production_restored": true,
+    "restored_radio_counts": [
+      [
+        62,
+        81
+      ],
+      [
+        55,
+        71
+      ],
+      [
+        56,
+        82
+      ]
+    ],
+    "whole_image_bit_identical_to_pretest": false
+  },
+  "single_ready_error_original_diagnostic": {
+    "status": "failed",
+    "image_sha256": "0e6e568ac2267cbd56ef186303bb93b6d185d05017f0f5926a32ecae4da74fed",
+    "faults": [
+      {
+        "stage": 3,
+        "expected_errno": "EIO",
+        "wifi_scan_count": 58,
+        "snapshot": "(1, 1, 0, 3, 0, 179, 1, 0, False)"
+      }
+    ],
+    "completion_snapshot": null,
+    "ble_scan_counts": [],
+    "production_restored": false,
+    "restored_radio_counts": [],
+    "whole_image_bit_identical_to_pretest": false
+  },
+  "single_failure_capture": {
+    "hal_counters": [
+      2,
+      1,
+      0,
+      3,
+      0,
+      179,
+      2,
+      1
+    ],
+    "psp_exception_frame": [
+      "0x3",
+      "0x96",
+      "0x0",
+      "0x3",
+      "0x3",
+      "0x1008c57b",
+      "0x10014e24",
+      "0x1000000"
+    ],
+    "stack_opcode": "0x1009",
+    "saved_caller": "0x1002cea9"
+  },
+  "single_failure_separate_recovery": {
+    "status": "passed",
+    "whole_expected_flash_verified": true,
+    "restored_radio_counts": [
+      [
+        62,
+        76
+      ],
+      [
+        56,
+        74
+      ],
+      [
+        66,
+        77
+      ]
+    ]
+  },
+  "three_errors_with_guard": {
+    "status": "passed_and_restored",
+    "image_sha256": "f44ef03fc330d130f8d8d183605d555b943984df70e5a648c5a364dd00bce4a0",
+    "faults": [
+      {
+        "stage": 3,
+        "expected_errno": "EIO",
+        "wifi_scan_count": 65,
+        "snapshot": "(1, 1, 0, 3, 0, 179, 1, 0, False)"
+      },
+      {
+        "stage": 4,
+        "expected_errno": "ETIMEDOUT",
+        "wifi_scan_count": 63,
+        "snapshot": "(2, 2, 0, 4, 0, 179, 1, 0, False)"
+      },
+      {
+        "stage": 5,
+        "expected_errno": "ETIMEDOUT",
+        "wifi_scan_count": 71,
+        "snapshot": "(3, 3, 0, 5, 0, 179, 1, 0, False)"
+      }
+    ],
+    "completion_snapshot": "(4, 3, 0, 5, 0, 179, 1, 1, True)",
+    "ble_scan_counts": [
+      80,
+      88,
+      86
+    ],
+    "production_restored": true,
+    "restored_radio_counts": [
+      [
+        58,
+        65
+      ],
+      [
+        62,
+        63
+      ],
+      [
+        78,
+        75
+      ]
+    ],
+    "whole_image_bit_identical_to_pretest": false
+  },
+  "unfaulted_with_guard": {
+    "status": "passed_and_restored",
+    "image_sha256": "f44ef03fc330d130f8d8d183605d555b943984df70e5a648c5a364dd00bce4a0",
+    "faults": [],
+    "completion_snapshot": "(1, 0, 0, 0, 0, 0, 1, 1, True)",
+    "ble_scan_counts": [
+      83,
+      90,
+      80
+    ],
+    "production_restored": true,
+    "restored_radio_counts": [
+      [
+        68,
+        65
+      ],
+      [
+        67,
+        80
+      ],
+      [
+        65,
+        74
+      ]
+    ],
+    "whole_image_bit_identical_to_pretest": false
+  },
+  "candidate_build": {
+    "bin": {
+      "bytes": 1248352,
+      "sha256": "f44ef03fc330d130f8d8d183605d555b943984df70e5a648c5a364dd00bce4a0"
+    },
+    "elf": {
+      "bytes": 23486644,
+      "sha256": "1d2009d5c5095419ad12acc18405c09f6bc778e8616881aa9c98417cfd228df1"
+    },
+    "map": {
+      "bytes": 3159105,
+      "sha256": "4975cc3b88be4657faa297a35325ab90ae0da1cfbf79391462c201b025c1f4e2"
+    }
+  },
+  "native_controls": {
+    "cases": 12,
+    "ready_error_retries": 2,
+    "status": "passed",
+    "scope": "actual init function with mocked operations; no physical root-cause proof",
+    "original_sha256": "a3c8bc06ceb9d7c4838c0f187404a65cc5b45f8661bb7c4cf72ea5136c599377",
+    "candidate_sha256": "16d6b61a1826c142a2ebc5a46264e9308010cfa929fba9db109f91529f6a3a20"
+  },
+  "remaining": [
+    "production HAL patch/integration",
+    "normal automatic BLE workflow qualification",
+    "Pico 2 retry qualification",
+    "natural hardware fault recovery"
+  ]
+}

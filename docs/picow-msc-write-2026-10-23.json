@@ -1,0 +1,65 @@
+{
+  "status": "bounded_pass",
+  "board": "Raspberry Pi Pico W",
+  "circuitpython_commit": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "runtime_version": "3.4.0; CircuitPython 11.0.0-alpha.2-32-g9e153ad624 on 2026-10-23",
+  "connection": "direct Linux USB, not USB/IP",
+  "disk_bytes": 520704,
+  "geometry": {
+    "fat_type": "FAT12",
+    "cluster_count": 980,
+    "free_clusters": 974,
+    "data_start_lba": 37,
+    "spans": [
+      {
+        "lba": 43,
+        "sectors": 2
+      },
+      {
+        "lba": 47,
+        "sectors": 2
+      },
+      {
+        "lba": 1015,
+        "sectors": 2
+      }
+    ]
+  },
+  "checks": [
+    {
+      "lba": 43,
+      "bytes": 1024,
+      "pattern_exact": true
+    },
+    {
+      "lba": 47,
+      "bytes": 1024,
+      "pattern_exact": true
+    },
+    {
+      "lba": 1015,
+      "bytes": 1024,
+      "pattern_exact": true
+    }
+  ],
+  "whole_disk_restored": true,
+  "before_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+  "after_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+  "cdc_checks_passed": 3,
+  "pattern_writes": 3,
+  "restore_writes": 3,
+  "bytes_per_write": 1024,
+  "autoreload_restored": true,
+  "host_transaction_controls_passed": 9,
+  "kernel_log_sha256": "ce2ffdc9fe8f4ccc1609fa15a9b30b2c9b868cfeabf72a61bb2bff27a038603d",
+  "kernel_usb_errors_observed": false,
+  "filesystem_metadata_written": false,
+  "firmware_written": false,
+  "limits": [
+    "No mounted-file creation, flush/remount or hard-reset test",
+    "No concurrent Wi-Fi/BLE workload",
+    "No idle-reenumeration reliability conclusion",
+    "No S31 bridge or Pico 2 write qualification",
+    "Logical 4 KiB boundary, not an independently measured physical flash erase boundary"
+  ]
+}

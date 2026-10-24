@@ -1,0 +1,49 @@
+{
+  "checked_utc": "2026-10-22T17:43:55.988548+00:00",
+  "scope": "Native real PSA ECDH with actual TLS premaster header; no network handshake or DUT access",
+  "revisions": {
+    "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "mbedtls": "098e120afb51877ed814bdc04443890ae12e0642",
+    "tf_psa_crypto": "fa92349590a54959ee2efc21b668e5afdb144726"
+  },
+  "upstream_header_blobs": {
+    "mbedtls_ssl_h": "00e28442d68132b662e392261d41bc901dfd538a",
+    "tf_psa_crypto_ecp_h": "def23afef026625a812f14d91b352ff139c3ba1d"
+  },
+  "upstream_urls": [
+    "https://github.com/Mbed-TLS/mbedtls/blob/development/include/mbedtls/ssl.h",
+    "https://github.com/zephyrproject-rtos/mbedtls/blob/zephyr_mbedtls_v4.1.1/include/mbedtls/ssl.h",
+    "https://github.com/zephyrproject-rtos/TF-PSA-Crypto/blob/zephyr_tf-psa-crypto_v1.1.1/drivers/builtin/include/mbedtls/private/ecp.h"
+  ],
+  "scenarios": [
+    {
+      "provider": "p256m",
+      "control": {
+        "capacity": 32,
+        "status": 0,
+        "output_bytes": 32
+      },
+      "tls_premaster": {
+        "capacity": 1,
+        "status": -138
+      },
+      "result": "expected_failure_reproduced",
+      "handler_sha256": "be0fc0bd865d76ff4be6b85a0af9806f43fd84651c81589dbbcc35b2ba44a462"
+    },
+    {
+      "provider": "builtin",
+      "control": {
+        "capacity": 32,
+        "status": 0,
+        "output_bytes": 32
+      },
+      "tls_premaster": {
+        "capacity": 32,
+        "status": 0
+      },
+      "result": "passed",
+      "handler_sha256": "80df50866751449d24374199fa441f155a1a9f9e88f02afdca377d9af7cfe763"
+    }
+  ],
+  "conclusion": "Issue remains reproducible; retain p256-m-disabled firmware workaround. No new full TLS handshake proof claimed."
+}

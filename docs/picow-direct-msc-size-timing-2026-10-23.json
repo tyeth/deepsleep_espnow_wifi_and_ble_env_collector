@@ -1,0 +1,85 @@
+{
+  "firmware": "3.4.0; CircuitPython 11.0.0-alpha.2-32-g9e153ad624 on 2026-10-23",
+  "board": "Pico W",
+  "transport": "direct Linux USB host",
+  "status": "passed",
+  "disk_bytes": 520704,
+  "runtime_readonly": true,
+  "reads": [
+    {
+      "label": "full-4096-before",
+      "seconds": 1.11714,
+      "returncode": 0,
+      "bytes": 520704,
+      "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+      "cdc_after": true
+    },
+    {
+      "label": "full-65536",
+      "seconds": 1.018847,
+      "returncode": 0,
+      "bytes": 520704,
+      "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+      "cdc_after": true
+    },
+    {
+      "label": "full-4096-after",
+      "seconds": 1.119596,
+      "returncode": 0,
+      "bytes": 520704,
+      "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+      "cdc_after": true
+    }
+  ],
+  "whole_disk_equal": true,
+  "target_msc_commands": 298,
+  "all_target_msc_csw_status_and_residue_zero": true,
+  "read10_by_requested_bytes": {
+    "512": {
+      "count": 26,
+      "seconds_min": 0.00156,
+      "seconds_max": 0.002219
+    },
+    "4096": {
+      "count": 252,
+      "seconds_min": 0.007146,
+      "seconds_max": 0.008436
+    },
+    "57856": {
+      "count": 1,
+      "seconds_min": 0.105618,
+      "seconds_max": 0.105618
+    },
+    "65536": {
+      "count": 7,
+      "seconds_min": 0.11617,
+      "seconds_max": 0.119606
+    }
+  },
+  "all_65536_read10_seconds": [
+    0.11617,
+    0.118989,
+    0.119553,
+    0.11945,
+    0.119233,
+    0.119606,
+    0.11912
+  ],
+  "usbmon_packets": 1853,
+  "usbmon_sha256": "81dd89c0564fd9b66364979bbef6a3c01b67320524d0c085301e4e5c2e50b280",
+  "capture_kernel_drops": 0,
+  "truncated_packets": 0,
+  "pending_urb_count": 0,
+  "target_error_completion_counts": {
+    "-2": 17
+  },
+  "bindings_unchanged": true,
+  "bridge_untouched": true,
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "limits": [
+    "Different board and disk geometry from Pico 2 over S31; not a same-device transport comparison",
+    "Open raw-REPL console throughout; does not disprove intermittent closed-console issue42",
+    "Original firmware only; no latest-candidate or write qualification"
+  ]
+}

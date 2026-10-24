@@ -1,0 +1,207 @@
+{
+  "verified_utc": "2026-10-22T19:45:36Z",
+  "verification_job": "d4c35e76-f9e7-452b-9bd6-d4835a536be3",
+  "services_verified_inactive_successful": true,
+  "active_envhub_services": [],
+  "firmware_during_runs": {
+    "collector": "cb5301b6fb",
+    "node": "2a7f9987f3",
+    "feather_esp32_v2": "4730c980ca",
+    "pico_w": "7d4ef1aac7"
+  },
+  "collector_portal_during_runs": "a53f1378ef6a9c6a31b83524259200bfc91d12df",
+  "reports": [
+    {
+      "evidence_directory": "overnight-fullchain-02",
+      "recorder_status": "passed",
+      "evidence_verdict": "consistent",
+      "mode": "collector_node_application",
+      "elapsed_s": 28800.5,
+      "duration_s": 28800.0,
+      "metrics": {
+        "confirmations": 236,
+        "sleep_requests": 237,
+        "true_sleep_wakes": 236,
+        "collector_starts": 1,
+        "fatal_lines": 0,
+        "http_ok": 958,
+        "http_errors": 1,
+        "ble_ok": 225,
+        "ble_errors": 0,
+        "max_delivery_gap_s": 122.921,
+        "max_http_gap_s": 31.173,
+        "max_ble_gap_s": 132.993,
+        "ble_free_bytes": {
+          "samples": 225,
+          "first": 3980464,
+          "last": 3978000,
+          "minimum": 3977792,
+          "maximum": 3980464,
+          "delta": -2464
+        },
+        "sensor": "sim"
+      },
+      "issues": [],
+      "sha256": {
+        "status.json": "66d472a32ea70cb26cedc45ed3568397ea2499f7d41640e85a2474ac569dac9e",
+        "manifest.json": "65c906071b30fadb79232d2ec0c8baab40d1022fd657194858d96f839f29fb28",
+        "c5.log": "c10b21158c565e313262ccdd1079e9d7facd4a2993b3b996d6cf0fe611c210a6",
+        "c61.log": "1376752870cc875a098b09555f9cdbba671f82e73dd8e43508456664d2e55fd6",
+        "http.jsonl": "b92f2bf4c3821a20eaba49db8f1118f20544c4f3296956e213983c0024e77979",
+        "ble.jsonl": "c62c4c2d8c91bed1490a9edbe56e8cce00481ce41129e6610fd616030d0bdfa1"
+      },
+      "note": "Live snapshots are provisional. Service shutdown must be checked separately."
+    },
+    {
+      "evidence_directory": "feather-radio-overnight-03",
+      "recorder_status": "passed",
+      "evidence_verdict": "consistent",
+      "mode": "wifi_ble_scan",
+      "elapsed_s": 28800.0,
+      "duration_s": 28800.0,
+      "metrics": {
+        "cycles": 960,
+        "seconds": {
+          "samples": 960,
+          "first": 5.007,
+          "last": 5.009766,
+          "minimum": 5.0,
+          "maximum": 5.019532,
+          "delta": 0.0027660000000002682
+        },
+        "wifi": {
+          "samples": 960,
+          "first": 3,
+          "last": 3,
+          "minimum": 1,
+          "maximum": 3,
+          "delta": 0
+        },
+        "ble": {
+          "samples": 960,
+          "first": 27,
+          "last": 29,
+          "minimum": 0,
+          "maximum": 33,
+          "delta": 2
+        },
+        "gc_allocated": {
+          "samples": 960,
+          "first": 3056,
+          "last": 3088,
+          "minimum": 1984,
+          "maximum": 3200,
+          "delta": 32
+        },
+        "gc_free_estimate": {
+          "samples": 960,
+          "first": 2069264,
+          "last": 2069232,
+          "minimum": 2069120,
+          "maximum": 2070336,
+          "delta": -32
+        },
+        "max_cycle_gap_s": 30.01,
+        "memory_note": "GC free is a port estimate, not measured physical free RAM."
+      },
+      "issues": [],
+      "sha256": {
+        "status.json": "4ae7d528e4858346e8779d4c056d65a3864ea7a18c6e41ee86e95e395f680c6d",
+        "cycles.jsonl": "345a005f9c1a12fd5b4324560cbe8745937495c790629771fb6c4e180354c0dc"
+      },
+      "note": "Live snapshots are provisional. Service shutdown must be checked separately."
+    },
+    {
+      "evidence_directory": "https-fullchain-overnight-02",
+      "recorder_status": "passed",
+      "evidence_verdict": "consistent",
+      "mode": "trusted_https",
+      "elapsed_s": 28800.0,
+      "duration_s": 28800,
+      "metrics": {
+        "cycles": 240,
+        "errors": 0,
+        "seconds": {
+          "samples": 240,
+          "first": 1.199,
+          "last": 1.2,
+          "minimum": 1.148,
+          "maximum": 2.079,
+          "delta": 0.0009999999999998899
+        },
+        "max_cycle_gap_s": 120.832
+      },
+      "issues": [],
+      "sha256": {
+        "status.json": "64a6e03648b6d37c77291d5f24e8ddb03bfd45a42bf7474589af53a40523459c",
+        "cycles.jsonl": "9f892d976d5a1771a31748ef261f263a0622e131031c9b56faf9de07bdb1e607"
+      },
+      "note": "Live snapshots are provisional. Service shutdown must be checked separately."
+    },
+    {
+      "evidence_directory": "pico-rx-7d4-twohour-01",
+      "recorder_status": "passed",
+      "evidence_verdict": "consistent",
+      "mode": "wifi_ble_scan",
+      "elapsed_s": 7200.0,
+      "duration_s": 7200.0,
+      "metrics": {
+        "cycles": 240,
+        "seconds": {
+          "samples": 240,
+          "first": 5.819992,
+          "last": 5.770508,
+          "minimum": 5.705568,
+          "maximum": 6.622316,
+          "delta": -0.04948399999999964
+        },
+        "wifi": {
+          "samples": 240,
+          "first": 48,
+          "last": 68,
+          "minimum": 31,
+          "maximum": 80,
+          "delta": 20
+        },
+        "ble": {
+          "samples": 240,
+          "first": 25,
+          "last": 25,
+          "minimum": 23,
+          "maximum": 26,
+          "delta": 0
+        },
+        "gc_allocated": {
+          "samples": 240,
+          "first": 2048,
+          "last": 2032,
+          "minimum": 2032,
+          "maximum": 2208,
+          "delta": -16
+        },
+        "gc_free_estimate": {
+          "samples": 240,
+          "first": 71424,
+          "last": 71440,
+          "minimum": 71264,
+          "maximum": 71440,
+          "delta": 16
+        },
+        "max_cycle_gap_s": 30.77,
+        "memory_note": "GC free is a port estimate, not measured physical free RAM."
+      },
+      "issues": [],
+      "sha256": {
+        "status.json": "f844c7e96e3736318cfd7163e9440503cf74ad0200cdb44ee40a911f882a8747",
+        "cycles.jsonl": "911c62e42c50a86f6413c5cba75baf71de44e1191102c7f2fdb2fe689a9a78ff"
+      },
+      "note": "Live snapshots are provisional. Service shutdown must be checked separately."
+    }
+  ],
+  "pico_run_sha256": "a119c4a3b5d3114e5445c9d2213674bbdf9e3a801a846d31702613a74b645594",
+  "failed_pico_predecessor": {
+    "verdict": "failed",
+    "status_sha256": "bafaa2841a50cfc0be9f3acc904bd85cee64ce443925185633c0db1ad3d08434"
+  },
+  "scope": "Three eight-hour runs plus the separate two-hour Pico replacement. Synthetic node measurements. Subsequent firmware/portal changes and other physical boards are not qualified by these runs."
+}

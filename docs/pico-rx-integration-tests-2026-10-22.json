@@ -1,0 +1,19 @@
+{
+  "circuitpython_inputs": {
+    "circuitpython": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+    "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+  },
+  "command": "make -j4 test TEST_BOARDS='native_nrf5340bsim native_nrf54lm20bsim' PYTEST_ARGS='tests/bsim/test_bsim_ble_scan.py -rs'",
+  "cp_version_environment": "",
+  "ble_cases": 10,
+  "ble_passed": 10,
+  "ble_seconds": 39.54,
+  "build_tool_cases": 85,
+  "build_tool_passed": 85,
+  "build_tool_seconds": 1.2,
+  "input_pins_and_tracked_cleanliness_verified_before_and_after": true,
+  "log_sha256": "2e91c6f4e7f0601f899cbac8ca2dc39807824479f257f8644c7cd914ddafb428",
+  "scope": "CircuitPython BLE scan integration on two Nordic simulators and build tooling; not CYW43 hardware or an overnight soak."
+}

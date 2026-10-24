@@ -1,0 +1,428 @@
+{
+  "status": "combined_candidate_passed_and_production_restored",
+  "upstream_issue": "https://github.com/zephyrproject-rtos/zephyr/issues/121843",
+  "bridge_commit": "bec1d71e1379e08e279327bdb222b3207456cebe",
+  "pico2_commit": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "zephyr_commit": "7379648278ab49e391af00f1a62ec73387d4c519",
+  "baseline_and_workaround": {
+    "ordinary_reimport": {
+      "job_result": "fail",
+      "rounds": [
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": []
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": []
+        },
+        {
+          "msc_status": "failed",
+          "msc_stage": "disk_enumeration",
+          "read_bytes": null,
+          "read_sha256": null,
+          "cdc_after": "passed",
+          "control_requests": []
+        },
+        {
+          "msc_status": "failed",
+          "msc_stage": "disk_enumeration",
+          "read_bytes": null,
+          "read_sha256": null,
+          "cdc_after": "passed",
+          "control_requests": []
+        }
+      ],
+      "pcap_sha256": "e639ad4653435c4cc122d0b8f7afcda4d11431376894a3725aa35861f3001ba2",
+      "pcap_bytes": 547926,
+      "imports_ports_defaults_restored": true,
+      "bridge_reboot_observed": false
+    },
+    "clear_halt_before_import": {
+      "job_result": "pass",
+      "rounds": [
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        }
+      ],
+      "pcap_sha256": "725ff538912c49b51b17f2a962b4ec863a37c9c79643d11da39bb3cbe13a71ed",
+      "pcap_bytes": 1217076,
+      "imports_ports_defaults_restored": true,
+      "bridge_reboot_observed": false
+    },
+    "matched_get_status": {
+      "job_result": "fail",
+      "rounds": [
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0,
+              "halt_status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0,
+              "halt_status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "failed",
+          "msc_stage": "disk_enumeration",
+          "read_bytes": null,
+          "read_sha256": null,
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0,
+              "halt_status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0,
+              "halt_status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "failed",
+          "msc_stage": "disk_enumeration",
+          "read_bytes": null,
+          "read_sha256": null,
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0,
+              "halt_status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0,
+              "halt_status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "failed",
+          "msc_stage": "disk_enumeration",
+          "read_bytes": null,
+          "read_sha256": null,
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0,
+              "halt_status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0,
+              "halt_status": 0
+            }
+          ]
+        }
+      ],
+      "pcap_sha256": "a0d583e3113e7248a2bb6be08e61bfdc912b8a4f0a31c9c5a7eef7785c643d25",
+      "pcap_bytes": 450960,
+      "imports_ports_defaults_restored": true,
+      "bridge_reboot_observed": false
+    },
+    "clear_halt_repeated": {
+      "job_result": "pass",
+      "rounds": [
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        },
+        {
+          "msc_status": "read_passed",
+          "msc_stage": "uncached_read",
+          "read_bytes": 4096,
+          "read_sha256": [
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+            "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+          ],
+          "cdc_after": "passed",
+          "control_requests": [
+            {
+              "endpoint": 2,
+              "status": 0
+            },
+            {
+              "endpoint": 131,
+              "status": 0
+            }
+          ]
+        }
+      ],
+      "pcap_sha256": "fc6c6e7e103290b90b882c8713370dd0b21b2395dd808c319b39e4bc2483cb5a",
+      "pcap_bytes": 1212126,
+      "imports_ports_defaults_restored": true,
+      "bridge_reboot_observed": false
+    }
+  },
+  "candidate": {
+    "source_sha256": "173b334e8bdd0dc6b705f4428264efcf860e806fe9b71cef3654a25075c650f0",
+    "artifacts": {
+      "bin": {
+        "bytes": 1209028,
+        "sha256": "fd46449b5cfacae2ffe5057bb10f88d37a31490a4b94283a6d951d76add4d443"
+      },
+      "elf": {
+        "bytes": 24262800,
+        "sha256": "9ad0049a5ff14de2cf5af1653d2f6cb344abdc665ba4efd84fdb13fee8794869"
+      },
+      "config": {
+        "bytes": 88576,
+        "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+      }
+    },
+    "job_result": "fail",
+    "error": "SerialTimeoutException('Write timeout')",
+    "msc_statuses": [
+      "not_reached"
+    ],
+    "cdc_statuses": [
+      "initial_probe_failed"
+    ],
+    "pcap_sha256": "95306c923ba953a6456bb13b4aec5c473d55f7642857c89449d4c18d7b98fcfc",
+    "production_restored": true,
+    "whole_flash_matches_pretest": true,
+    "restored_radio_checks": 3,
+    "bridge_reboot_observed": false
+  },
+  "native_controls": {
+    "cases": 11,
+    "baseline_failures": 2,
+    "candidate_failures": 0
+  },
+  "limits": [
+    "No physical USB DATA0/DATA1 capture",
+    "No direct-host Pico reconfiguration comparison",
+    "No full MSC/HID simultaneous capacity qualification",
+    "No idle, mounted-file write, long-term or production rollout qualification",
+    "Candidate is a temporary diagnostic; installed production remains unchanged"
+  ],
+  "upstream_related_cdc_issue": "https://github.com/zephyrproject-rtos/zephyr/issues/122768",
+  "integration": {
+    "zephyr_commits": [
+      "83219a3ef462e38b9ee76e34dcbb8c2ce255c406",
+      "c6200e80ea6973b092da3c30c672901cc1951fc2"
+    ],
+    "circuitpython": "6839890534556b06b8b3d7c491e36fd2005b2483"
+  },
+  "combined_candidate": {
+    "job_result": "pass",
+    "changes": [
+      {
+        "path": "subsys/usb/device_next/usbd_ch9.c",
+        "original_sha256": "65ca0a0f0a08b9054bb2f896b69bd49fe28463920d3ad7abcca9507723329a2f",
+        "candidate_sha256": "173b334e8bdd0dc6b705f4428264efcf860e806fe9b71cef3654a25075c650f0"
+      },
+      {
+        "path": "subsys/usb/device_next/class/usbd_cdc_acm.c",
+        "original_sha256": "e2f7b8c8e505980c5a115b73498165eff7f6beb38e388e448c2828c4f26ea382",
+        "candidate_sha256": "582134c1d1ab4521e0821ecdc3625b38150ba2bc753d60e375b11be14e104f18"
+      }
+    ],
+    "artifacts": {
+      "bin": {
+        "bytes": 1209068,
+        "sha256": "912447bc7a048477cb0e7511b272cf314a920c8c127a9e59311963c4d3b93b24"
+      },
+      "elf": {
+        "bytes": 24262692,
+        "sha256": "f0dc2b0d027f40d5b80cfe1c45c6159b5dabdb31d25b102d4ab9f59aa7c86025"
+      },
+      "config": {
+        "bytes": 88576,
+        "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+      }
+    },
+    "msc_statuses": [
+      "read_passed",
+      "read_passed",
+      "read_passed",
+      "read_passed"
+    ],
+    "cdc_statuses": [
+      "passed",
+      "passed",
+      "passed",
+      "passed"
+    ],
+    "first_inquiry_each_round": {
+      "data_bytes": 36,
+      "csw_bytes": 13,
+      "csw_tag": 1
+    },
+    "pcap_sha256": "05afdadf907c1362cd6e52b7fb336ccae7c3566db0762dbe9e45797f6f490920",
+    "production_restored": true,
+    "whole_flash_matches_pretest": true,
+    "restored_radio_checks": 3,
+    "bridge_reboot_observed": false,
+    "native_cdc_controls": {
+      "cases": 12,
+      "baseline_failures": 2,
+      "candidate_failures": 0
+    }
+  }
+}

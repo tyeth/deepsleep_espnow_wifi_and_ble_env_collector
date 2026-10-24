@@ -1,0 +1,45 @@
+{
+  "source_head": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+  "source_sha256": {
+    "ports/espressif/common-hal/espnow/ESPNow.c": "28259b96cd2bc8aa922c27c9a15d19ca6f7ea9e90baf297cfe7aa6eb9681253c",
+    "py/ringbuf.c": "960ef0398c1b28bac4ac4b64956ed77cc268e96f971ddea1be49d3522878e944",
+    "py/ringbuf.h": "2eaabdd9347d52d2acee49c1e905f27733f44b2e36ecb4f36379817fc78a7298"
+  },
+  "generated_c_sha256": "e5af805305bffe3b094acdbe752eb77ed66af5e7a05886a729c5e11cfb73a49f",
+  "checks": [
+    "PASS sequential_complete_packet",
+    "PASS exact_capacity_includes_mac",
+    "PASS insufficient_capacity_drops_whole_packet",
+    "REPRODUCED header_visible_before_packet_complete_and_followup_invalid",
+    "PASS_fresh_buffer_recovers_sequential_control"
+  ],
+  "scope": "Actual callback, read and ringbuf source; injected deterministic scheduling after header publication. No physical incidence or production fix claimed.",
+  "verified_utc": "2026-10-23T00:49:40.677955+00:00",
+  "upstream_main_blob_identity_matches": {
+    "ports/espressif/common-hal/espnow/ESPNow.c": "eb3b57174a3d88252a639a209ac9671c9ac8c19e",
+    "py/ringbuf.c": "b81f671fdd9e2724f5ff711b79a2c9e2dd4235cf",
+    "py/ringbuf.h": "52f50cd9c0bd73f520a4b0d5758abf3b0d5b745f"
+  },
+  "upstream_issues": [
+    {
+      "number": 9816,
+      "state": "open",
+      "url": "https://github.com/adafruit/circuitpython/issues/9816"
+    },
+    {
+      "number": 7903,
+      "state": "open",
+      "url": "https://github.com/adafruit/circuitpython/issues/7903"
+    },
+    {
+      "number": 9380,
+      "state": "open",
+      "url": "https://github.com/adafruit/circuitpython/issues/9380"
+    }
+  ],
+  "application_fault_injection_tests_passed": 8,
+  "application_source_sha256": {
+    "collector/net_espnow.py": "05c39fb6b065dcf172950d5667814a80ec398a1ca2be182038bb01bb1cad78dd",
+    "node/nodemain.py": "66cac9ef4525d856ed73feadf66efe90d5a918c297208d7a0e5006fdb73207bd"
+  }
+}

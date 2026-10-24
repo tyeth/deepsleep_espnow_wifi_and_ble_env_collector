@@ -1,0 +1,90 @@
+{
+  "circuitpython": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+  "esp_idf": "29d36039e564db6df505d0582b94b230a17e63f3",
+  "checkout_status": [
+    " M frozen/Adafruit_CircuitPython_MPU6050",
+    " M ports/atmel-samd/peripherals",
+    " M ports/raspberrypi/lib/Pico-PIO-USB",
+    " M ports/raspberrypi/sdk",
+    "?? ports/broadcom/"
+  ],
+  "mpu6050_frozen_head": "d30ee1fa5f49b62b4df382ea5310a77fa39d6bd9",
+  "artifacts": [
+    {
+      "board": "adafruit_feather_esp32_v2",
+      "installed": true,
+      "files": [
+        {
+          "name": "firmware.bin",
+          "bytes": 2175568,
+          "sha256": "940edaedfb2a724720e28741fc3deb41863c0f9ff8d1d296bc15542e1ec56adc"
+        },
+        {
+          "name": "firmware.elf",
+          "bytes": 14985768,
+          "sha256": "336830f9aa0afa1eb9d6223853c35090ce89f3d94a13ab68a09cc433a08c9e58"
+        },
+        {
+          "name": "genhdr/mpversion.h",
+          "bytes": 669,
+          "sha256": "a168ad12259d4052a4040265a4cb040f750a21680dc7ae9ac4c52ac7df5b4a58"
+        },
+        {
+          "name": "esp-idf/sdkconfig",
+          "bytes": 94348,
+          "sha256": "0fa12fde5a171751403fb53f06489595f833b39971de9dc09ca7d458a27b729b"
+        },
+        {
+          "name": "common-hal/espnow/ESPNow.o",
+          "bytes": 11984,
+          "sha256": "6dcec22e6c840f639c07d587312f6005807955cccdba84d2292ab9df98b0d7d4"
+        },
+        {
+          "name": "bindings/espnow/ESPNow.o",
+          "bytes": 16232,
+          "sha256": "c36252e6c92684feea475f127dd6a609926d740fea948293e4b25ce644c2bfd2"
+        }
+      ],
+      "embedded_version": "11.0.0-alpha.2-16-gea06dcb44e-dirty",
+      "physical_qualification": "espnow-physical-comparison-2026-10-23.json"
+    },
+    {
+      "board": "adafruit_feather_esp32c6_4mbflash_nopsram",
+      "installed": true,
+      "files": [
+        {
+          "name": "firmware.bin",
+          "bytes": 2273408,
+          "sha256": "743dec7b10f9c7c96fca82158487df2233e1e83f597ae62ed5bdcdf9ca9bfd32"
+        },
+        {
+          "name": "firmware.elf",
+          "bytes": 16881216,
+          "sha256": "fe4ea0789331a4081e396af41571842ea9dad0583034684d4f3584e518fe59a1"
+        },
+        {
+          "name": "genhdr/mpversion.h",
+          "bytes": 669,
+          "sha256": "a168ad12259d4052a4040265a4cb040f750a21680dc7ae9ac4c52ac7df5b4a58"
+        },
+        {
+          "name": "esp-idf/sdkconfig",
+          "bytes": 99301,
+          "sha256": "4a9a4cf8868989c0a2879a37ce93b2f853ca8f0d01c599df847a4a559eb80b78"
+        },
+        {
+          "name": "common-hal/espnow/ESPNow.o",
+          "bytes": 7736,
+          "sha256": "9184302dc06165914086553c1b622ad0c225a5a268ad82b6ac9d88fdbcc728eb"
+        },
+        {
+          "name": "bindings/espnow/ESPNow.o",
+          "bytes": 11908,
+          "sha256": "93fd2f69be9ec60b7a5dddaf524e8818737b99742f3b0da5ca4ca8d1e08c190c"
+        }
+      ],
+      "embedded_version": "11.0.0-alpha.2-16-gea06dcb44e-dirty",
+      "physical_qualification": "c6-targeted-qualification-2026-10-23.json"
+    }
+  ]
+}

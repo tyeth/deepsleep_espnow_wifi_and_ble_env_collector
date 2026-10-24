@@ -1,0 +1,44 @@
+{
+  "pins": {
+    "circuitpython": "6839890534556b06b8b3d7c491e36fd2005b2483",
+    "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+  },
+  "images": {
+    "raspberrypi_rpi_pico2_w_zephyr": {
+      "bin": {
+        "bytes": 1209068,
+        "sha256": "c32dbc54a53cd8cb9b416af0898ba987af1688ec3fdcf06aff079051bdba124d"
+      },
+      "elf": {
+        "bytes": 24269728,
+        "sha256": "4036b2672b56a7cf31a12c1db9863e6bf5d43d50da48807255e0815c8c2adee7"
+      },
+      "config": {
+        "bytes": 88576,
+        "sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0"
+      }
+    },
+    "raspberrypi_rpi_pico_w_zephyr": {
+      "bin": {
+        "bytes": 1252688,
+        "sha256": "2910af3498123383a9087be24120ba5572adb0ee01b3524b16a395bc19d23ce7"
+      },
+      "elf": {
+        "bytes": 23545116,
+        "sha256": "4c42a3585c8469aae9aec389eab0e6dcbe78ac01f176729b7b6ec7c4f93eb43a"
+      },
+      "config": {
+        "bytes": 86189,
+        "sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d"
+      }
+    }
+  },
+  "builds_passed": true,
+  "actual_checkouts_verified_clean": true,
+  "deployment": "Pico W production attempt failed initial storage; original 9e153ad624 restored and verified. Pico 2 rollout not attempted; both production boards remain 9e153ad624.",
+  "hardware_qualification": "Pico W actual build passes four direct reconfigurations and radios; Pico 2 actual build passes initial/final single MSC+CDC controls but fails mixed CDC/MSC in both orders; earlier identical-source diagnostic passes four single USB/IP imports",
+  "latest_official_release_checked": "11.0.0-alpha.2 on 2026-10-23",
+  "rollout_blocker": "https://github.com/tyeth/circuitpython/issues/42"
+}

@@ -35,7 +35,14 @@ is read-only (a computer holding CIRCUITPY) still gets every reading.
 
 import os
 import struct
-import time
+
+import caps
+
+# The time module -- or, on a port with no RTC (the Pico 2 W), caps'
+# stand-in whose time()/localtime() work there. The same object as
+# `import time` on every ESP32, and the name a host test swaps for a fake
+# clock (tools/test_datastore_sync.py).
+time = caps.time
 
 # Ring record: ts(I) src(B) flags(B) tc*100(h) rh*100(H) co2(H)
 #              pm25*10(H) voc(H) nox(H) vb_mv(H)

@@ -7,7 +7,7 @@
 #   MPY_CROSS=/path/to/mpy-cross tools/build_bundle.sh
 #
 # Without MPY_CROSS it downloads Adafruit's static Linux x86-64 mpy-cross for
-# CP_VERSION (default 11.0.0-alpha.1; any tag published on S3 works). Set
+# CP_VERSION (default 11.0.0-alpha.2; any tag published on S3 works). Set
 # MPY_CROSS_RUN instead to take the `mpy-cross` artifact from a
 # tyeth/circuitpython Actions run (needs `gh` authenticated, and the artifact
 # expires after 90 days). CP 11 still emits mpy v6.3, the same as 10.x, so
@@ -20,7 +20,7 @@ set -u
 cd "$(dirname "$0")/.."
 BUILD=${BUILD_DIR:-build}
 VENV=${VENV:-venv}
-CP_VERSION=${CP_VERSION:-11.0.0-alpha.1}
+CP_VERSION=${CP_VERSION:-11.0.0-alpha.2}
 MPY_CROSS_RUN=${MPY_CROSS_RUN:-}
 
 if [ -z "${MPY_CROSS:-}" ]; then

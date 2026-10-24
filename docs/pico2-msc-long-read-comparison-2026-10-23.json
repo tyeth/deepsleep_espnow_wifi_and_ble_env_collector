@@ -1,0 +1,234 @@
+{
+  "status": "unresolved_on_original_and_latest_candidate",
+  "board": "Raspberry Pi Pico 2 W",
+  "connection": "Linux USB/IP through ESP32-S31 and three hubs",
+  "original_circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "candidate_circuitpython": "0d545efdcf74fdefef66190236f8707ac2b545c5",
+  "candidate_zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+  "candidate_hal_pico": "de12fc2a0f756d889cc13c129622ddb663025d29",
+  "candidate_sha256": "fe0c3194104c4a3fe119e745e7e330946ef96fbaa5908f13f9d7c724bd196de7",
+  "disk_bytes": 2617856,
+  "geometry": {
+    "bytes_per_sector": 512,
+    "sectors_per_cluster": 2,
+    "partition_start_lba": 1,
+    "partition_sectors": 5112,
+    "bpb_total_sectors": 5104,
+    "fats": 1,
+    "fat_sectors": 8
+  },
+  "original_untraced": {
+    "reads": [
+      {
+        "label": "first-4096",
+        "status": "passed",
+        "seconds": 0.06464,
+        "returncode": 0,
+        "bytes": 4096,
+        "sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+        "cdc_after": true
+      },
+      {
+        "label": "first-65536",
+        "status": "passed",
+        "seconds": 0.164787,
+        "returncode": 0,
+        "bytes": 65536,
+        "sha256": "fe5b5e93b25c00af2a0d5174a4dd138ee39ebd1947f0e9eb321b8dc87c4c9f01",
+        "cdc_after": true
+      },
+      {
+        "label": "disk-0",
+        "status": "failed",
+        "seconds": 122.534978,
+        "returncode": 124,
+        "bytes": 589824,
+        "sha256": "f93b5bbd5d61ecd42a92bd480dcf9c6eccc106a35f23bce9ba94f47f23be8132"
+      }
+    ],
+    "uart_bytes": 563,
+    "uart_sha256": "5214a516a35537aa994b8785effcff00f123c5e2036705715a33aa5575699944",
+    "hcd_exhaustion_messages": 0
+  },
+  "original_traced": {
+    "reads": [
+      {
+        "label": "first-4096",
+        "status": "passed",
+        "seconds": 0.064652,
+        "returncode": 0,
+        "bytes": 4096,
+        "sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+        "cdc_after": true
+      },
+      {
+        "label": "first-65536",
+        "status": "passed",
+        "seconds": 0.164837,
+        "returncode": 0,
+        "bytes": 65536,
+        "sha256": "fe5b5e93b25c00af2a0d5174a4dd138ee39ebd1947f0e9eb321b8dc87c4c9f01",
+        "cdc_after": true
+      },
+      {
+        "label": "disk-0",
+        "status": "failed",
+        "seconds": 50.043518,
+        "returncode": -9,
+        "bytes": 262144,
+        "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4"
+      }
+    ],
+    "timing": {
+      "packets": 161,
+      "truncated_packets": 0,
+      "msc_commands": 20,
+      "msc_without_status_at_capture_end": 1,
+      "slow_commands": [
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 10.050785
+        },
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 14.037131
+        },
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 14.037062
+        }
+      ]
+    },
+    "capture_sha256": "fd29b7efa8463b8206343e63739da99987f9c168a54b5c32f6ef6b94d34b1918",
+    "capture_drops": 0,
+    "capture_cleanup_error_preserved": "PermissionError(13, 'Permission denied')",
+    "separate_capture_cleanup_verified": true
+  },
+  "candidate": {
+    "reads": [
+      {
+        "label": "first-4096",
+        "status": "passed",
+        "seconds": 0.065259,
+        "returncode": 0,
+        "bytes": 4096,
+        "sha256": "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+        "cdc_after": true
+      },
+      {
+        "label": "first-65536",
+        "status": "passed",
+        "seconds": 0.165838,
+        "returncode": 0,
+        "bytes": 65536,
+        "sha256": "e934be0d57047bda3e44e6fab271a0e07772cf7f889d039d638dda37bffb56e2",
+        "cdc_after": true
+      },
+      {
+        "label": "disk-0",
+        "status": "failed",
+        "seconds": 50.05586,
+        "returncode": -9,
+        "bytes": 262144,
+        "sha256": "dbb902b21251d96df16c41207d92d858fae6a2a6be1ac9570516a9b8305d922b"
+      }
+    ],
+    "timing": {
+      "packets": 115,
+      "truncated_packets": 0,
+      "msc_commands": 20,
+      "msc_without_status_at_capture_end": 1,
+      "slow_commands": [
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 10.049942
+        },
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 14.037057
+        },
+        {
+          "opcode": "0x28",
+          "expected_bytes": 65536,
+          "csw_status": 0,
+          "residue": 0,
+          "seconds": 14.037235
+        }
+      ]
+    },
+    "capture_sha256": "1a3aa8fe791e85652fb79d0d501b08e3abcb8e7ac415a4ae557657e643ae9890",
+    "capture_drops": 0,
+    "normal_ble_passed": true,
+    "radio_counts": [
+      [
+        0,
+        67,
+        82
+      ],
+      [
+        1,
+        64,
+        85
+      ],
+      [
+        2,
+        61,
+        85
+      ]
+    ]
+  },
+  "restoration": {
+    "fresh_backup_bytes": 4194304,
+    "fresh_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+    "installed_whole_expected_sha256": "8e25cd76cf4fee3578d389c14d8fe15378793e35b63350124722aeb258d2480b",
+    "restored_whole_expected_sha256": "35f2a0e9440e7e4f18651431f6d95b33f6b2a692e63f4bd2b9f5e869d36504de",
+    "whole_expected_image_verified": true,
+    "whole_image_identical_to_pretest": false,
+    "original_code_restored": true,
+    "runtime_data_retained": true,
+    "restored_radio_counts": [
+      [
+        0,
+        62,
+        80
+      ],
+      [
+        1,
+        68,
+        83
+      ],
+      [
+        2,
+        55,
+        78
+      ]
+    ],
+    "original_port_state_restored": true,
+    "imports_detached": true,
+    "bridge_restarted": false
+  },
+  "limits": [
+    "No direct-USB Pico 2 comparison",
+    "No proof of common cause with direct Pico W issue 42",
+    "No storage pattern or mounted-filesystem writes performed",
+    "Small reads do not qualify full disk access",
+    "Candidate has prior radio-cycle workload and a firmware/ROM transition; this is not a single-change causal experiment",
+    "Runtime storage data differs between firmware runs; no cross-firmware whole-disk equality claimed",
+    "USBmon measures host requests, not electrical USB packets or individual bridge transfer segments"
+  ]
+}

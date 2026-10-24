@@ -10,13 +10,17 @@ OS captive-portal probes (handled as HTTP routes in net_wifi.py).
 
 STA (home WiFi) and AP run concurrently -- the single radio forces the AP
 onto the STA channel when both are up, which is fine: ESP-NOW nodes
-channel-hunt to find us anyway.
+channel-hunt to find us anyway. Not on the Pico 2 W (zephyr-cp): its WiFi
+driver runs one interface for both and AP+STA is -EBUSY, so hubmain only
+enables this when no station joined (caps.APSTA).
 
 The DNS responder is a minimal non-blocking UDP answerer: every A query
 gets the AP's IPv4. Poll it from the main loop.
 """
 
 import wifi
+
+import caps
 
 try:
     import socketpool
@@ -54,6 +58,11 @@ class CaptivePortal:
                     wifi.radio.start_dhcp_ap()
                 except (AttributeError, RuntimeError):
                     pass
+                if caps.AP_VERIFY and not wifi.radio.ap_active:
+                    # zephyr-cp before tyeth/circuitpython#22: start_ap()
+                    # is a stub that returns having started nothing
+                    raise RuntimeError("start_ap() returned but ap_active "
+                                       "is False: no softAP in this firmware")
                 self.ap_active = True
                 print("AP up: %s @ %s" % (ssid, wifi.radio.ipv4_address_ap))
             except (RuntimeError, ValueError, OSError,

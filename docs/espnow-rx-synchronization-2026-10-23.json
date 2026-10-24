@@ -1,0 +1,52 @@
+{
+  "verified_utc": "2026-10-23T01:52:18.511691+00:00",
+  "candidate": {
+    "revision": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+    "source_sha256": {
+      "ports/espressif/common-hal/espnow/ESPNow.c": "9274fcab852f2d91a3909d0d2a87ad9339021a8d6667a19074a2fb389af9937c",
+      "py/ringbuf.c": "960ef0398c1b28bac4ac4b64956ed77cc268e96f971ddea1be49d3522878e944",
+      "py/ringbuf.h": "2eaabdd9347d52d2acee49c1e905f27733f44b2e36ecb4f36379817fc78a7298"
+    },
+    "generated_c_sha256": "72a81c0d29a0aafb2474501386721e4f460f0ea3f2362ae95cefdef1d85b1ddd",
+    "expected_race": false,
+    "returncode": 0,
+    "checks": [
+      "PASS empty_read_unlocks",
+      "PASS zero_one_maximum_payload_exact_capacity",
+      "PASS insufficient_capacity_drops_whole_packet_and_unlocks",
+      "PASS reader_waits_for_complete_packet",
+      "PASS readiness_waits_for_complete_packet",
+      "PASS producer_waits_for_complete_dequeue",
+      "PASS wraparound_variable_lengths",
+      "PASS_invalid_callback_lengths_drop_and_unlock",
+      "PASS malformed_header_and_truncation_raise_after_unlock",
+      "PASS concurrent_20000_packets_integrity_order_accounting delivered=3384 dropped=16616"
+    ],
+    "stderr": "",
+    "scope": "Actual packet/ring-buffer source with pthread critical sections, deterministic scheduling and concurrent integrity tests; not physical incidence data"
+  },
+  "baseline": {
+    "revision": "cb5301b6fb9ede7442d84e8aba72baad87430a80",
+    "source_sha256": {
+      "ports/espressif/common-hal/espnow/ESPNow.c": "28259b96cd2bc8aa922c27c9a15d19ca6f7ea9e90baf297cfe7aa6eb9681253c",
+      "py/ringbuf.c": "960ef0398c1b28bac4ac4b64956ed77cc268e96f971ddea1be49d3522878e944",
+      "py/ringbuf.h": "2eaabdd9347d52d2acee49c1e905f27733f44b2e36ecb4f36379817fc78a7298"
+    },
+    "generated_c_sha256": "252660a89a3a4a73148217b311d4d159481a4d55c4521042dcee2928bc2c3626",
+    "expected_race": true,
+    "returncode": 0,
+    "checks": [
+      "PASS empty_read_unlocks",
+      "PASS zero_one_maximum_payload_exact_capacity",
+      "PASS insufficient_capacity_drops_whole_packet_and_unlocks",
+      "REPRODUCED partial_header_read_and_corrupt_followup_on_baseline"
+    ],
+    "stderr": "",
+    "scope": "Actual packet/ring-buffer source with pthread critical sections, deterministic scheduling and concurrent integrity tests; not physical incidence data"
+  },
+  "physical_tested": true,
+  "installed": true,
+  "build_manifest": "firmware-espnow-rx-ea06-2026-10-23.json",
+  "physical_scope": "Feather ESP32 V2 receiver only; C6 remains build-only",
+  "physical_evidence": "espnow-physical-comparison-2026-10-23.json"
+}

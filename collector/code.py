@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Adafruit Industries
 # SPDX-License-Identifier: MIT
 """
-code.py - start the hub. The hub itself is hubmain.
+code.py - start the hub. The hub itself is hubmain; hubgate, which this
+imports, checks there is room for it first and then imports it.
 
 Why this file is one line: on the ESP32-C6 the *compiled body of code.py* is
 resident before its first statement runs, and it is large enough to deny
@@ -27,6 +28,12 @@ What does help is never compiling it on the device. A module ships as
 board as source and letting CircuitPython compile it there fails exactly
 the way the old code.py did -- verified on the bench, and note that a soft
 reload appears to succeed, so only a hard reset tells you the truth.
+
+The same goes for anything that has to run BEFORE hubmain loads -- the
+free-heap check that turns a Raspberry Pi Pico W away with a sentence
+instead of a MemoryError traceback. It lives in `hubgate.py`, shipped as
+`hubgate.mpy` beside `hubmain.mpy`, not here: a few lines of logic in
+this file were exactly the growth the C6 cannot afford.
 """
 
-import hubmain  # noqa: F401
+import hubgate  # noqa: F401

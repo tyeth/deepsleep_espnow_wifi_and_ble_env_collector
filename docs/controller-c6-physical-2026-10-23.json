@@ -1,0 +1,100 @@
+{
+  "trace": [
+    {
+      "elapsed_s": 0.1576732620014809,
+      "method": "GET",
+      "status": 200,
+      "resource": "target_presence"
+    },
+    {
+      "elapsed_s": 0.17059282900299877,
+      "method": "POST",
+      "status": 200,
+      "resource": "target_off"
+    },
+    {
+      "elapsed_s": 0.1853771590103861,
+      "method": "GET",
+      "status": 200,
+      "resource": "hubs",
+      "hub_count": 3,
+      "target_found": true,
+      "target_power": "off",
+      "target_enabled": false
+    },
+    {
+      "elapsed_s": 0.19373383501078933,
+      "method": "GET",
+      "status": 404,
+      "resource": "target_presence"
+    },
+    {
+      "elapsed_s": 30.21097523800563,
+      "method": "POST",
+      "status": 200,
+      "resource": "target_on"
+    },
+    {
+      "elapsed_s": 30.22612858300272,
+      "method": "GET",
+      "status": 200,
+      "resource": "hubs",
+      "hub_count": 3,
+      "target_found": true,
+      "target_power": "on",
+      "target_enabled": false
+    },
+    {
+      "elapsed_s": 30.82277318999695,
+      "method": "GET",
+      "status": 200,
+      "resource": "hubs",
+      "hub_count": 2,
+      "target_found": false
+    },
+    {
+      "elapsed_s": 31.404062343004625,
+      "method": "GET",
+      "status": 200,
+      "resource": "hubs",
+      "hub_count": 3,
+      "target_found": true,
+      "target_power": "off",
+      "target_enabled": false
+    },
+    {
+      "elapsed_s": 31.939082968005096,
+      "method": "GET",
+      "status": 200,
+      "resource": "hubs",
+      "hub_count": 3,
+      "target_found": true,
+      "target_power": "on",
+      "target_enabled": true
+    },
+    {
+      "elapsed_s": 31.95814567100024,
+      "method": "GET",
+      "status": 200,
+      "resource": "target_presence"
+    }
+  ],
+  "bridge_uptime_before": 6111,
+  "bridge_uptime_after": 6145,
+  "runtime_after": {
+    "board": "adafruit_feather_esp32c6_4mbflash_nopsram",
+    "uptime_s": 7.21,
+    "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23"
+  },
+  "imports_after": {},
+  "candidate": "6ca2f2dffa7dcc6ea0094744f77433f13e7aa278",
+  "candidate_file_sha256": "b54450c92231f4cb30a4e7d0200689ab81a5a0581995c5a4b18f8cf2b59cc982",
+  "settings_before": {
+    "enforce_per_port_switching": false,
+    "restore_port_power": false,
+    "enum_timeout_ms": 0,
+    "enum_timeout_overrides": []
+  },
+  "candidate_returned": true,
+  "service_deployed": false
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "file": "picow-zephyr-alpha2-singlemsc.bin",
+    "bytes": 1252176,
+    "sha256": "17f2ce1fc5084c6290f4021a23bb569cfd7accb7a88d2da8b31d3a748917f1ff",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "picow-zephyr-alpha2-singlemsc.uf2",
+    "bytes": 2504704,
+    "sha256": "0288189085496b275ae4397eb54653dbd14dc5982fd249d7c1a08f7e5630c194",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "picow-zephyr-alpha2-singlemsc.elf",
+    "bytes": 23533088,
+    "sha256": "57d6ba0c0711ab9fc67b5e38085e4180a657e7ec7ad676cef8604630bbaa5256",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "picow-zephyr-alpha2-singlemsc.map",
+    "bytes": 3169521,
+    "sha256": "aab271460b2fbd3ac10735ee21b7e5c35b686527f6ea461e2b9748a899b4aefe",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-singlemsc.bin",
+    "bytes": 1208580,
+    "sha256": "f7e9477a13b2ce7c20778779af0ec051c5c7794bc634483b91b09f9d7aec11ab",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-singlemsc.uf2",
+    "bytes": 2417664,
+    "sha256": "4a14bcd1b5825655f0bada2d9298c78c39586dd0a57aece47efbfd19bb904159",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-singlemsc.elf",
+    "bytes": 24257988,
+    "sha256": "b908ae96a32792c8aa3c9d74436805ab151a78771ae6fe97058feb77c1d96c11",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-singlemsc.map",
+    "bytes": 3109105,
+    "sha256": "b7d12aef17444764fabbc8c8ea7966525d092f4cbf34d94475a9b5820ca643a7",
+    "integration_revision": "1609ec9b0b697b44039a11b1667f344cf99bd725",
+    "zephyr_revision": "ea703e85b630897a5df75f4156f22f72edd5a81d",
+    "hal_infineon_revision": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "manifest_requested_zephyr_revision": "560a6a2f4a448c6be36c6c9ec69905243725e9ee",
+    "provenance_correction": "2026-10-22: build-local checkout was stale; preserved ELF lacks BT wake guard. See ble-startup-and-build-provenance-2026-10-22.md."
+  }
+]

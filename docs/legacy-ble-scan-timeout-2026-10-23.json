@@ -1,0 +1,229 @@
+{
+  "status": "timeout_ignored_reproduced_and_production_restored",
+  "finished_utc": "2026-10-23T11:03:43.428859+00:00",
+  "build": {
+    "source_pins": {
+      "circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+      "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "board": "rpi_pico2/rp2350a/m33/w",
+    "firmware_sha256": "09605ed45ae3b558f915854dce9d1a9d574b939cd2eba647b9792a1646dd8475",
+    "firmware_bytes": 413456,
+    "config_sha256": "aaf4b5fac0c8c67abacb7c2936308e16f3edcdc718f3ae601a288f8e2d89ac68",
+    "elf_sha256": "4e94b980c1a80b75414c09ad10d0f0914a4c497f40f49bfb60af2da5712850ac",
+    "source_sha256": {
+      "app.overlay": "0f4524d08514161e9b87aaac742be7029234a131520ad3fa764573099ea45acd",
+      "CMakeLists.txt": "1f552243be67148e0b92100d3bdaf0a252148e1744152611914eefcea9f0a772",
+      "prj.conf": "464a69cd9ade3ce4c62ff2326aa4e3c4d91b2fc40f529d60e746a30554e3aec0",
+      "src/main.c": "a7c867a06582c6836ec3f507fae89ac5719f7377b3555c4a1df67223b328a137"
+    },
+    "runtime_tested": true,
+    "persistent_storage_enabled": false
+  },
+  "cases": [
+    {
+      "case": 0,
+      "timeout_units": 300,
+      "reports": 58,
+      "late": 23,
+      "callbacks": 0,
+      "stop_err": 0,
+      "post_stop": 0
+    },
+    {
+      "case": 1,
+      "timeout_units": 0,
+      "reports": 54,
+      "late": 23,
+      "callbacks": 0,
+      "stop_err": 0,
+      "post_stop": 0
+    },
+    {
+      "case": 2,
+      "timeout_units": 300,
+      "reports": 57,
+      "late": 26,
+      "callbacks": 0,
+      "stop_err": 0,
+      "post_stop": 0
+    }
+  ],
+  "samples": [
+    {
+      "case": 0,
+      "elapsed_ms": 1022,
+      "reports": 10,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 0,
+      "elapsed_ms": 2023,
+      "reports": 20,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 0,
+      "elapsed_ms": 3023,
+      "reports": 30,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 0,
+      "elapsed_ms": 4024,
+      "reports": 40,
+      "late": 5,
+      "callbacks": 0
+    },
+    {
+      "case": 0,
+      "elapsed_ms": 5024,
+      "reports": 48,
+      "late": 13,
+      "callbacks": 0
+    },
+    {
+      "case": 0,
+      "elapsed_ms": 6024,
+      "reports": 58,
+      "late": 23,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 1021,
+      "reports": 8,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 2022,
+      "reports": 18,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 3022,
+      "reports": 27,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 4022,
+      "reports": 35,
+      "late": 4,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 5023,
+      "reports": 43,
+      "late": 12,
+      "callbacks": 0
+    },
+    {
+      "case": 1,
+      "elapsed_ms": 6023,
+      "reports": 54,
+      "late": 23,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 1022,
+      "reports": 10,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 2023,
+      "reports": 19,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 3023,
+      "reports": 27,
+      "late": 0,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 4024,
+      "reports": 37,
+      "late": 6,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 5024,
+      "reports": 48,
+      "late": 17,
+      "callbacks": 0
+    },
+    {
+      "case": 2,
+      "elapsed_ms": 6024,
+      "reports": 57,
+      "late": 26,
+      "callbacks": 0
+    }
+  ],
+  "late_report_threshold_ms": 3500,
+  "explicit_stop_observation": {
+    "settle_ms": 250,
+    "observation_ms": 750
+  },
+  "source_audit": {
+    "upstream_revision": "76280bce2a050376d57e14240687b5c283dea0e7",
+    "scan_blob": "9141a7dfbbd397c6532524b6521c33a289063e17",
+    "header_blob": "8c7002aeac5b81fc2ddb9d5eda2d3e7d3a58fe21",
+    "functions": {
+      "start_le_scan_legacy": {
+        "identical_to_current_upstream": false,
+        "tested_sha256": "f7bed25e5008775b472f1995ef288e0616cb2be42d334eaf942e6ed921a8a2e5",
+        "current_upstream_sha256": "d59cc7f2f486ccf7ef152dee7e6ffae51f8419582fea7b84a3e9bf0a3431d47f"
+      },
+      "valid_le_scan_param": {
+        "identical_to_current_upstream": false,
+        "tested_sha256": "31a3a55b2cfceadb3ef7b911c2b8010aa03ca09710010e926002b1e000b087da",
+        "current_upstream_sha256": "6ea5defff6937efded4a81c4074d8338936d7822f7fc156137b33e1208a3f077"
+      }
+    },
+    "timeout_doc_sha256": "5ef8b9ba80d5c37871181101516cf1f4b33d2311f4c4a3ebefc0d4b82c47028c",
+    "legacy_reads_timeout": false,
+    "public_timeout_contract_has_legacy_exception": false
+  },
+  "raw_console_sha256": "4b3e58f3e73daa68a02252bd482ae3897fe73126881d5cb61f387b0e6d75f30f",
+  "main_job_result": "failed_on_final_ROM_transition_after_reproduction",
+  "recovery": {
+    "separate_job_passed": true,
+    "full_flash_matches_pretest": true,
+    "production_runtime_verified": true,
+    "radio_cycles": 3,
+    "imports_detached": true,
+    "bridge_reset_observed": false,
+    "method": "Wait for full diagnostic console-ready banner and keep serial open after ROM command"
+  },
+  "limits": [
+    "Physical result is on pinned Zephyr 7379648278, not the current upstream main binary",
+    "No timer/validation fix is implemented; CircuitPython keeps its host-side deadline workaround",
+    "One Pico 2 W, passive legacy scanning, privacy disabled, no duplicate filter",
+    "The initial final ROM transition failed; its cause is not established by the successful handshake recovery"
+  ],
+  "evidence_sha256": {
+    "pico2-legacy-job.json": "c63de82ab08b17d8a58c673de787635a3c10b01c771bcb21887ac7bfa641a944",
+    "pico2-legacy-recovery-job.json": "e972e9f808c82e89cb38d2f0fd79a5e5c56f78ddee2c8c0454ae672ae7ae49ac",
+    "pico2-legacy-progress2-job.json": "9f84231913408a7b222dbc223cc20ecff4d0fe3192ff0b80b660ad7f7784c196"
+  }
+}

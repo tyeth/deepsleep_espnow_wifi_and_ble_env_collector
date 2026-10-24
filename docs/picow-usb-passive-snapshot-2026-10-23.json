@@ -1,0 +1,439 @@
+{
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "circuitpython_commit": "6839890534556b06b8b3d7c491e36fd2005b2483",
+  "zephyr_commit": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+  "hal_infineon_commit": "7f93dc60675126a63358ffa0780648d94fd2d634",
+  "hal_rpi_pico_commit": "725e9e429eab65eda01762a1af9016426dee00ac",
+  "diagnostic_artifacts": {
+    "bin": {
+      "bytes": 1253304,
+      "sha256": "f378038d7b7bab630540fd57807460bcf45f6451326ec80e59084ac2f0751ecf"
+    },
+    "elf": {
+      "bytes": 23549152,
+      "sha256": "68879fcd0133f0611091478d6aa10d1307f9d79ee13aa01e5c31ff48f678f9fe"
+    },
+    "map": {
+      "bytes": 3170779,
+      "sha256": "8322e9871f16a718b525ee56088f0c542004b608800364b2ec451f20f3ffcb04"
+    }
+  },
+  "snapshot_bytes": 816,
+  "thread_count": 17,
+  "samples_per_round": 20,
+  "nominal_sample_interval_seconds": 0.3,
+  "sampled_common_state": {
+    "udc_mutex_held": false,
+    "udc_events": 0,
+    "pending_new_transfers": 0,
+    "pending_finished_transfers": 0,
+    "buffer_status": 0,
+    "interrupt_status": 0,
+    "abort": 0,
+    "abort_done": 0,
+    "udc_wait": "driver event wait queue",
+    "usbd_wait": "USBD message queue",
+    "msc_wait": "MSC message queue",
+    "runtime_priorities": {
+      "udc": -8,
+      "usbd": -8,
+      "msc": -1,
+      "main": 14
+    },
+    "msc_out_endpoint": "0x02",
+    "msc_out_available": true,
+    "msc_out_halted": false,
+    "msc_out_queued_length": 0
+  },
+  "rounds": [
+    {
+      "index": 0,
+      "closed": false,
+      "disk_seconds": 0.030651,
+      "groups": [
+        {
+          "first_ms": 10980,
+          "last_ms": 11281,
+          "first_sof": 1055,
+          "last_sof": 1356,
+          "samples": 2,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 11584,
+          "last_ms": 11885,
+          "first_sof": 1658,
+          "last_sof": 1959,
+          "samples": 2,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 12187,
+          "last_ms": 12187,
+          "first_sof": 214,
+          "last_sof": 214,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 12488,
+          "last_ms": 13093,
+          "first_sof": 515,
+          "last_sof": 1120,
+          "samples": 3,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 13394,
+          "last_ms": 14300,
+          "first_sof": 1421,
+          "last_sof": 278,
+          "samples": 4,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 14602,
+          "last_ms": 15204,
+          "first_sof": 580,
+          "last_sof": 1182,
+          "samples": 3,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 15505,
+          "last_ms": 16112,
+          "first_sof": 1483,
+          "last_sof": 42,
+          "samples": 3,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 16413,
+          "last_ms": 16714,
+          "first_sof": 343,
+          "last_sof": 644,
+          "samples": 2,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "closed": true,
+      "disk_seconds": 0.060883,
+      "groups": [
+        {
+          "first_ms": 18485,
+          "last_ms": 18485,
+          "first_sof": 367,
+          "last_sof": 367,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 18786,
+          "last_ms": 18786,
+          "first_sof": 668,
+          "last_sof": 668,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 19092,
+          "last_ms": 20597,
+          "first_sof": 974,
+          "last_sof": 431,
+          "samples": 6,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 20900,
+          "last_ms": 22106,
+          "first_sof": 734,
+          "last_sof": 1940,
+          "samples": 5,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 22407,
+          "last_ms": 22407,
+          "first_sof": 193,
+          "last_sof": 193,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 22710,
+          "last_ms": 22710,
+          "first_sof": 495,
+          "last_sof": 495,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 23012,
+          "last_ms": 23313,
+          "first_sof": 798,
+          "last_sof": 1099,
+          "samples": 2,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 23615,
+          "last_ms": 23916,
+          "first_sof": 1400,
+          "last_sof": 1701,
+          "samples": 2,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 24218,
+          "last_ms": 24218,
+          "first_sof": 2003,
+          "last_sof": 2003,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "closed": true,
+      "disk_seconds": 3.125852,
+      "groups": [
+        {
+          "first_ms": 26013,
+          "last_ms": 26013,
+          "first_sof": 1751,
+          "last_sof": 1751,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 26314,
+          "last_ms": 26314,
+          "first_sof": 3,
+          "last_sof": 3,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 26615,
+          "last_ms": 29327,
+          "first_sof": 304,
+          "last_sof": 969,
+          "samples": 10,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 29629,
+          "last_ms": 30232,
+          "first_sof": 1270,
+          "last_sof": 1873,
+          "samples": 3,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 30533,
+          "last_ms": 30533,
+          "first_sof": 126,
+          "last_sof": 126,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 30834,
+          "last_ms": 31436,
+          "first_sof": 427,
+          "last_sof": 1029,
+          "samples": 3,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 31738,
+          "last_ms": 31738,
+          "first_sof": 1331,
+          "last_sof": 1331,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "closed": true,
+      "disk_seconds": 3.06667,
+      "groups": [
+        {
+          "first_ms": 33521,
+          "last_ms": 33521,
+          "first_sof": 1065,
+          "last_sof": 1065,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 33822,
+          "last_ms": 33822,
+          "first_sof": 1366,
+          "last_sof": 1366,
+          "samples": 1,
+          "sie_status": "0x40050001",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 34124,
+          "last_ms": 36834,
+          "first_sof": 1669,
+          "last_sof": 283,
+          "samples": 10,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 37135,
+          "last_ms": 37135,
+          "first_sof": 584,
+          "last_sof": 584,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 37438,
+          "last_ms": 38644,
+          "first_sof": 886,
+          "last_sof": 44,
+          "samples": 5,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 38946,
+          "last_ms": 39248,
+          "first_sof": 347,
+          "last_sof": 648,
+          "samples": 2,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "closed": false,
+      "disk_seconds": 0.059544,
+      "groups": [
+        {
+          "first_ms": 41050,
+          "last_ms": 41050,
+          "first_sof": 402,
+          "last_sof": 402,
+          "samples": 1,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 41351,
+          "last_ms": 41351,
+          "first_sof": 703,
+          "last_sof": 703,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 41653,
+          "last_ms": 41653,
+          "first_sof": 1005,
+          "last_sof": 1005,
+          "samples": 1,
+          "sie_status": "0x40050009",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 41954,
+          "last_ms": 43161,
+          "first_sof": 1306,
+          "last_sof": 465,
+          "samples": 5,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        },
+        {
+          "first_ms": 43462,
+          "last_ms": 45271,
+          "first_sof": 766,
+          "last_sof": 526,
+          "samples": 7,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x2440"
+        },
+        {
+          "first_ms": 45572,
+          "last_ms": 46777,
+          "first_sof": 827,
+          "last_sof": 2033,
+          "samples": 5,
+          "sie_status": "0x40050005",
+          "msc_out_buffer_control": "0x440"
+        }
+      ]
+    }
+  ],
+  "restoration": {
+    "original_code_restored": true,
+    "whole_expected_flash_verified": true,
+    "bit_identical_to_pretest_full_image": false,
+    "difference": "Runtime version metadata changed during temporary firmware use",
+    "radio_counts_wifi_ble": [
+      [
+        76,
+        64
+      ],
+      [
+        75,
+        73
+      ],
+      [
+        80,
+        70
+      ]
+    ],
+    "bindings_restored": true,
+    "bridge_untouched": true
+  },
+  "limits": [
+    "Sampling may miss short transitions",
+    "No electrical USB packet capture",
+    "Instrumentation may alter timing; two actual stalls were captured",
+    "Host and device causes remain unresolved"
+  ],
+  "root_cause_established": false,
+  "production_fix": false
+}

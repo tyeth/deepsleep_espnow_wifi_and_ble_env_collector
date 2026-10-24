@@ -1,0 +1,114 @@
+[
+  {
+    "file": "picow-zephyr-alpha2-version-d86.bin",
+    "bytes": 1252352,
+    "sha256": "9b94e04baee6941bb8d064bbacb0f9489cb51cf305dda654d9308a349e7c0399",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-version-d86.uf2",
+    "bytes": 2504704,
+    "sha256": "c1ca7af36ac23b9b4d0cdc39412a573764c588a4002c22517e8e2fcb8f7a3ce5",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-version-d86.elf",
+    "bytes": 23536260,
+    "sha256": "afbefe070954fde5c59aafbd85eaec93374bd990c8a8bae9fbf13e30e62f3ae8",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "picow-zephyr-alpha2-version-d86.map",
+    "bytes": 3169565,
+    "sha256": "8359ab73ae1a4e11de9fa6e8752625d8af53e0cd92dcb75bf407e102ea79eeff",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-version-d86.bin",
+    "bytes": 1208764,
+    "sha256": "f5b980f2307b3a4edca731b277c30e6b913c81c0dc84d555d7efde252b226255",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-version-d86.uf2",
+    "bytes": 2417664,
+    "sha256": "82eeafda3b8f594e77032a67ed47cb92dd4c16bd036ebd8ff5c56c333e52cdb3",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-version-d86.elf",
+    "bytes": 24261412,
+    "sha256": "1e8b135361f5ae11eb80b5f017f58b3d0e7ffe99b79add799053cc4b663a69c8",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  },
+  {
+    "file": "pico2w-zephyr-alpha2-version-d86.map",
+    "bytes": 3109032,
+    "sha256": "03bad229648530db8b4bdbf9ce025e184f5a7cc7c1dfe57acd71fc7b284e5716",
+    "actual_revisions": {
+      "circuitpython": "d86cb7ae956e953afb076cbb896a5a2934deb732",
+      "zephyr": "0589940bee3386b144961901717b2bce3576a2d6",
+      "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+      "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac"
+    },
+    "build_environment": {
+      "CP_VERSION": ""
+    }
+  }
+]

@@ -35,9 +35,15 @@ main loop.
 """
 
 import json
-import time
 
 import wifi
+
+import caps
+
+# The time module -- or, on a port with no RTC (the Pico 2 W), caps'
+# stand-in whose time()/localtime() work there. Same object as
+# `import time` on every ESP32.
+time = caps.time
 
 try:
     import socketpool
@@ -83,6 +89,12 @@ _IDLE_S = 8          # drop a plain connection that goes quiet this long
 _TLS_IDLE_NOREQ_S = 10    # TLS session with no request yet: the handshake itself spans ~2-3 s of polls on the C6
 _TLS_KEEPALIVE_S = 15     # TLS session that has served a request: keep for follow-ups (one handshake)
 _POLL_BUDGET_MS = 150  # max time spent in one poll()
+# Client connections at once. The ESP32's 10 lwIP sockets leave room for
+# 6; a board with fewer (zephyr-cp: CONFIG_NET_MAX_CONTEXTS=6 in total)
+# gets caps.MAX_SOCKETS less the :80 and :443 listeners and the captive
+# DNS socket, so accept() does not start failing at the fourth phone tab.
+# WebPortal works the figure out when it is built, after hubmain has had
+# the chance to apply a config.json "max_sockets" override.
 _MAX_CONNS = 6
 _ACCEPT_ERRS_BEFORE_RESTART = 5   # rebuild the listening socket after this many
 _TLS_MIN_FREE = 20 * 1024   # total free IDF heap needed before starting a TLS session
@@ -134,13 +146,14 @@ def sync_ntp():
     """
     global ntp_synced
     try:
-        import rtc
         import adafruit_ntp
         pool = socketpool.SocketPool(wifi.radio)
         # tz_offset=0 is adafruit_ntp's default; passed explicitly because
         # it is the whole point of the paragraph above.
         ntp = adafruit_ntp.NTP(pool, tz_offset=0, cache_seconds=3600)
-        rtc.RTC().datetime = ntp.datetime
+        # rtc.RTC().datetime = ... wherever there is an RTC; the caps
+        # offset clock on a port without one (caps.set_datetime)
+        caps.set_datetime(ntp.datetime)
         ntp_synced = True
         print("NTP synced (UTC)")
     except Exception as exc:  # NTP failure must never kill startup
@@ -259,6 +272,7 @@ class WebPortal:
         self._conns = []
         self._tls_pending = []   # accepted :443 sockets awaiting wrap_socket
         self._accept_errs = 0   # consecutive listener failures
+        self._max_conns = min(_MAX_CONNS, caps.MAX_SOCKETS - 3)
 
     # -- routing ------------------------------------------------------------
 
@@ -489,7 +503,7 @@ class WebPortal:
         # request. If a browser has taken them all, evict the one that has
         # been idle longest rather than refusing to accept -- a refused
         # connection is what makes a page half-load.
-        if len(self._conns) >= _MAX_CONNS:
+        if len(self._conns) >= self._max_conns:
             idle = [c for c in self._conns if c.keep and c.out is None
                     and not c.file]
             if idle:
@@ -501,7 +515,7 @@ class WebPortal:
                 except OSError:
                     pass
         # accept everything pending (non-blocking)
-        while len(self._conns) < _MAX_CONNS:
+        while len(self._conns) < self._max_conns:
             try:
                 sock, _addr = self.server.accept()
             except OSError as exc:

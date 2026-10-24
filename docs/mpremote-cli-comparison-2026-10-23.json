@@ -1,0 +1,53 @@
+{
+  "status": "passed",
+  "finished_utc": "2026-10-23T06:31:15.324572+00:00",
+  "upstream": "b70ae1aca657bb93e2857dac4e2a2d21a3803200",
+  "candidate": "9a9f267b3a2d6af31e2b4045ab8a89bb712c9f4a",
+  "firmware": "11.0.0-alpha.2-16-gea06dcb44e-dirty",
+  "board": "Feather ESP32 V2",
+  "invocation": "python -B -m mpremote connect <device> resume <commands>",
+  "transport": "unmodified stock SerialTransport",
+  "dependency": "platformdirs 4.5.1, isolated target directory",
+  "steps": [
+    {
+      "variant": "candidate",
+      "label": "runtime_and_absent_guard",
+      "returncode": 0
+    },
+    {
+      "variant": "baseline",
+      "label": "new_file_copy_expected_failure",
+      "returncode": 1
+    },
+    {
+      "variant": "candidate",
+      "label": "assert_still_absent",
+      "returncode": 0
+    },
+    {
+      "variant": "candidate",
+      "label": "new_file_copy",
+      "returncode": 0
+    },
+    {
+      "variant": "candidate",
+      "label": "overwrite_copy",
+      "returncode": 0
+    },
+    {
+      "variant": "candidate",
+      "label": "cleanup",
+      "returncode": 0
+    }
+  ],
+  "baseline_error": "mpremote: Error with transport:\nTraceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\nOSError: [Errno 2] No such file/directory\n\n\n",
+  "new_file_sha256": "5112d9de75960a4ccba1d80185c2c6e624e425308f7bd2c1a1ce4e450f39a361",
+  "overwrite_sha256": "eeb25e67928c107472f5fead3512754efb067f52fe2c66249d4aacb3376bac8e",
+  "remote_file_removed": true,
+  "soft_reset_requested": false,
+  "uptime_before": 5947.024,
+  "uptime_after": 5950.568,
+  "archive_sha256": "6bdd7424e98f76d4db924f6678148c5a1b25bd38e8b3bb7eb04f6eb83dd426fe",
+  "private_job_sha256": "f62270da66a42f9dc9d87b451eac7d3b20f9fcc957300eb62f6efbb4ab7bf517",
+  "full_micropython_hardware_suite_run": false
+}

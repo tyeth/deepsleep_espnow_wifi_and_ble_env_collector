@@ -9,11 +9,13 @@
  * Only active on secure origins (the GitHub Pages copy); the device-hosted
  * plain-http copy never registers it.
  */
-const CACHE = "envhub-v16";
+const CACHE = "envhub-v21";
 const SHELL = [
   "./",
   "./index.html",
   "./ai_tools.js",
+  "./prompt_backend.js",
+  "./webmcp.js",
   "./manifest.json",
   "./icon.svg",
   "./sample/days.json",
@@ -54,8 +56,9 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
+    // Model/runtime caches belong to their loaders, not the app-shell release.
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => /^envhub-v\d+$/.test(k) && k !== CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();

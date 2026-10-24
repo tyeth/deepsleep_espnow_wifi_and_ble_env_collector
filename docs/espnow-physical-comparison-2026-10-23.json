@@ -1,0 +1,377 @@
+{
+  "comparison_kind": "custom integration-commit comparison, not release-versus-hosted-CI matrix",
+  "baseline": {
+    "status": "traffic_failed",
+    "finished_utc": "2026-10-23T01:58:58.970279+00:00",
+    "receiver_revision": "cb5301b6fb",
+    "receiver_board": "adafruit_feather_esp32_v2",
+    "sender_board": "adafruit_feather_esp32s3_4mbflash_2mbpsram",
+    "sender_revision": "cb5301b6fb-dirty",
+    "receiver_banner": "CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22",
+    "phases": [
+      {
+        "channel": 1,
+        "broadcast": false,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 2.306641
+        },
+        "receiver": {
+          "polls": 32134,
+          "errors": [
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)"
+          ],
+          "invalid_buffer": 10,
+          "valid": 2,
+          "last_sequence": 1,
+          "foreign": 0,
+          "length_counts": [
+            1,
+            1,
+            0
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 161,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 5,
+          "elapsed": 0.507001
+        },
+        "traffic_passed": false,
+        "phase_cleanup_passed": true
+      },
+      {
+        "channel": 6,
+        "broadcast": true,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 1.6152344
+        },
+        "receiver": {
+          "polls": 32178,
+          "errors": [
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)"
+          ],
+          "invalid_buffer": 10,
+          "valid": 2,
+          "last_sequence": 1,
+          "foreign": 0,
+          "length_counts": [
+            1,
+            1,
+            0
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 103,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 5,
+          "elapsed": 0.5080004
+        },
+        "traffic_passed": false,
+        "phase_cleanup_passed": true
+      },
+      {
+        "channel": 11,
+        "broadcast": false,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 2.03711
+        },
+        "receiver": {
+          "polls": 32008,
+          "errors": [
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)",
+            "ValueError('Invalid buffer',)"
+          ],
+          "invalid_buffer": 10,
+          "valid": 0,
+          "last_sequence": -1,
+          "foreign": 0,
+          "length_counts": [
+            0,
+            0,
+            0
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 14,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 2,
+          "elapsed": 0.503998
+        },
+        "traffic_passed": false,
+        "phase_cleanup_passed": true
+      }
+    ],
+    "cleanup_passed": true,
+    "original_transport_restored": true
+  },
+  "candidate": {
+    "status": "passed",
+    "finished_utc": "2026-10-23T02:11:07.650155+00:00",
+    "receiver_revision": "ea06dcb44e",
+    "receiver_board": "adafruit_feather_esp32_v2",
+    "sender_board": "adafruit_feather_esp32s3_4mbflash_2mbpsram",
+    "sender_revision": "cb5301b6fb-dirty",
+    "receiver_banner": "CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+    "phases": [
+      {
+        "channel": 1,
+        "broadcast": false,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 2.28125
+        },
+        "receiver": {
+          "polls": 1418137,
+          "errors": [],
+          "invalid_buffer": 0,
+          "valid": 1000,
+          "last_sequence": 999,
+          "foreign": 0,
+          "length_counts": [
+            334,
+            333,
+            333
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 0,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 1000,
+          "elapsed": 25.0
+        },
+        "traffic_passed": true,
+        "phase_cleanup_passed": true
+      },
+      {
+        "channel": 6,
+        "broadcast": true,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 1.625
+        },
+        "receiver": {
+          "polls": 1423751,
+          "errors": [],
+          "invalid_buffer": 0,
+          "valid": 957,
+          "last_sequence": 999,
+          "foreign": 0,
+          "length_counts": [
+            321,
+            320,
+            316
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 0,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 957,
+          "elapsed": 25.000992
+        },
+        "traffic_passed": true,
+        "phase_cleanup_passed": true
+      },
+      {
+        "channel": 11,
+        "broadcast": false,
+        "sender": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 2.045899
+        },
+        "receiver": {
+          "polls": 1418603,
+          "errors": [],
+          "invalid_buffer": 0,
+          "valid": 1000,
+          "last_sequence": 999,
+          "foreign": 0,
+          "length_counts": [
+            334,
+            333,
+            333
+          ],
+          "read_failure": 0,
+          "remaining_bytes": 0,
+          "bad_payload": 0,
+          "order_errors": 0,
+          "read_success": 1000,
+          "elapsed": 25.00002
+        },
+        "traffic_passed": true,
+        "phase_cleanup_passed": true
+      }
+    ],
+    "cleanup_passed": true,
+    "original_transport_restored": true
+  },
+  "identical_harness_sha256": "4157a843979c0df826dda44ab29b9782a360a84dd53140bc3137198bcd8f4e87",
+  "private_evidence_sha256": {
+    "baseline": "ab2f8e35263b001174475ad0d17164d39050b4df7b5be8e9d711d6cacf0ed998",
+    "candidate": "da25ff6d8dd748a6da363b07a79847e0e69fbad546a69d30562bfcd99c4bedda",
+    "update": "5af4b23d04901aa5062f8dacdce7e45172728ac9b3372733849c1860cd2d6f5e"
+  },
+  "update": {
+    "new_image_sha256": "940edaedfb2a724720e28741fc3deb41863c0f9ff8d1d296bc15542e1ec56adc",
+    "backup_bytes": 8388608,
+    "backup_sha256": "839a060a50288d7dbb2d445518231019752e19d0f019befd105e5bf88bd8f016",
+    "offset": 65536,
+    "bytes": 2113536,
+    "expected_sha256": "c48d6e4658f9128fa9da73501f32327de61d4f14b25216fe4b6be73c7245529e",
+    "preserved_prefix_sha256": "b59b1e5ec3499ee059867272426b71686f3aef6922880b39e7cd5e2c3bd9d997",
+    "preserved_suffix_sha256": "491eb23105777ccdbec94cf1a15c243bdc87195dd4bf44867d9fa3292f6db828",
+    "partition_table_unchanged": true,
+    "active_ota": "ota_0",
+    "finished_utc": "2026-10-23T02:08:11.745857+00:00"
+  },
+  "limits": [
+    "One ESP32 receiver and one ESP32-S3 sender; not all ESP variants",
+    "Only short BLE scanning coexistence measured; no connected BLE/GATT, display/sensor or connected-client Wi-Fi load",
+    "Broadcast gaps persist in unpaced and 2 ms paced controls; BLE scan phase received 996/1000 with 7 sender failure callbacks; causes not isolated",
+    "No physical forced interleaving or callback-teardown fault injection",
+    "Older soaks retain their original revisions"
+  ],
+  "followup": {
+    "finished_utc": "2026-10-23T02:15:07.747650+00:00",
+    "phases": [
+      {
+        "channel": 6,
+        "broadcast": true,
+        "pacing_seconds": 0,
+        "ble_scan": false,
+        "tx": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 1.634766
+        },
+        "rx": {
+          "read_success": 948,
+          "valid": 948,
+          "order_errors": 0,
+          "invalid_buffer": 0,
+          "last_sequence": 999,
+          "bad_payload": 0,
+          "foreign": 0,
+          "read_failure": 0,
+          "elapsed": 25.001,
+          "polls": 1422100,
+          "errors": [],
+          "remaining_bytes": 0,
+          "length_counts": [
+            320,
+            317,
+            311
+          ],
+          "ble_advertisements": null
+        },
+        "traffic_passed": true
+      },
+      {
+        "channel": 6,
+        "broadcast": true,
+        "pacing_seconds": 0.002,
+        "ble_scan": false,
+        "tx": {
+          "send_success": 1000,
+          "send_failure": 0,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 3.677735
+        },
+        "rx": {
+          "read_success": 952,
+          "valid": 952,
+          "order_errors": 0,
+          "invalid_buffer": 0,
+          "last_sequence": 999,
+          "bad_payload": 0,
+          "foreign": 0,
+          "read_failure": 0,
+          "elapsed": 25.00001,
+          "polls": 1419857,
+          "errors": [],
+          "remaining_bytes": 0,
+          "length_counts": [
+            319,
+            318,
+            315
+          ],
+          "ble_advertisements": null
+        },
+        "traffic_passed": true
+      },
+      {
+        "channel": 11,
+        "broadcast": false,
+        "pacing_seconds": 0,
+        "ble_scan": true,
+        "tx": {
+          "send_success": 993,
+          "send_failure": 7,
+          "errors": [],
+          "submitted": 1000,
+          "elapsed": 5.073242
+        },
+        "rx": {
+          "read_success": 996,
+          "valid": 996,
+          "order_errors": 0,
+          "invalid_buffer": 0,
+          "last_sequence": 999,
+          "bad_payload": 0,
+          "foreign": 0,
+          "read_failure": 0,
+          "elapsed": 25.00201,
+          "polls": 1391083,
+          "errors": [],
+          "remaining_bytes": 0,
+          "length_counts": [
+            332,
+            331,
+            333
+          ],
+          "ble_advertisements": 13
+        },
+        "traffic_passed": true
+      }
+    ],
+    "cleanup_passed": true,
+    "transport_restored": true,
+    "private_job_sha256": "9b1318acc69655d1111efacd5e096b860121c5d87b216fd8382c36aa110be663",
+    "harness_sha256": "756ec9155db7f08b759ede4f6cf65ace91794be968373049c77ccdc2f5b05d32",
+    "interpretation": "No receive corruption or ring overflow; broadcast delivery gaps persist with 2 ms pacing; BLE scan coexistence is functional but not lossless"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "status": "mixed_load_failed_production_restored",
+  "bridge_revision": "bec1d71e1379e08e279327bdb222b3207456cebe",
+  "pico_revision": "6839890534556b06b8b3d7c491e36fd2005b2483",
+  "pico_image_sha256": "c32dbc54a53cd8cb9b416af0898ba987af1688ec3fdcf06aff079051bdba124d",
+  "metro_revision": "ea06dcb44e",
+  "physical_leaf_count": 3,
+  "hub_count": 3,
+  "rounds": [
+    {
+      "import_order": [
+        "pico2"
+      ],
+      "msc_status": "read_passed",
+      "disk_bytes": 2617856,
+      "read_sha256": [
+        "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+        "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+      ],
+      "console_results": {
+        "pico2": "passed"
+      }
+    },
+    {
+      "import_order": [
+        "pico2",
+        "metro_s3"
+      ],
+      "msc_status": "failed",
+      "disk_bytes": null,
+      "read_sha256": null,
+      "console_results": {
+        "pico2": "failed",
+        "metro_s3": "passed"
+      }
+    },
+    {
+      "import_order": [
+        "metro_s3",
+        "pico2"
+      ],
+      "msc_status": "failed",
+      "disk_bytes": null,
+      "read_sha256": null,
+      "console_results": {
+        "metro_s3": "passed",
+        "pico2": "failed"
+      }
+    },
+    {
+      "import_order": [
+        "pico2"
+      ],
+      "msc_status": "read_passed",
+      "disk_bytes": 2617856,
+      "read_sha256": [
+        "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2",
+        "d6995cdde5696faf0286ffe6ca46afaad322c141a8c063fb1666579e2fcfd4a2"
+      ],
+      "console_results": {
+        "pico2": "passed"
+      }
+    }
+  ],
+  "matches_prior_baseline_descriptors_and_admission": true,
+  "virtual_usb_resets_per_mixed_case": 4,
+  "production_restored": true,
+  "restored_radio_checks": 3,
+  "original_imports_ports_defaults_restored": true,
+  "bridge_reset_observed": false,
+  "full_backup_bytes": 4194304,
+  "install_full_readback_verified": true,
+  "restore_full_expected_image_verified": true,
+  "restoration_audit": {
+    "original_code_restored": true,
+    "runtime_tail_preserved": true,
+    "whole_flash_matches_original": false,
+    "code_bytes": 1212416,
+    "changed_bytes_outside_code": 10,
+    "only_known_revision_change": true,
+    "changed_4k_blocks": [
+      1601536
+    ],
+    "device_access": false,
+    "file_contents_printed": false
+  },
+  "live_channel_counter_captured": false,
+  "bridge_transfer_log_available": false,
+  "diagnostic_uart_opened": false
+}

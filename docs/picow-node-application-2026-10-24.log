@@ -1,0 +1,21 @@
+code.py output:
+node: no espnow/alarm on Zephyr -> node_lite (awake loop, BLE advertisements)
+node_lite: ble-XXXX reset: microcontroller.ResetReason.POWER_ON free: 77616
+  no espnow/alarm on this port: awake loop, BLE advertisement transport
+SIMULATED sensor: readings below are synthetic, not measurements
+sensor: sim
+read sq=1: {'pm25': 2.9, 'rh': 47.1, 'tc': 20.9, 'voc': 97, 'nox': 1, 'co2': 624} batt=None free=77280
+BLE advertising sq=1 for 2s
+idle 2s (awake: no deep sleep on this port)
+read sq=2: {'pm25': 2.5, 'rh': 46.7, 'tc': 20.8, 'voc': 99, 'nox': 1, 'co2': 604} batt=None free=77280
+BLE advertising sq=2 for 2s
+idle 2s (awake: no deep sleep on this port)
+read sq=3: {'pm25': 2.8, 'rh': 46.8, 'tc': 20.5, 'voc': 105, 'nox': 1, 'co2': 601} batt=None free=77312
+BLE advertising sq=3 for 2s
+idle 2s (awake: no deep sleep on this port)
+read sq=4: {'pm25': 2.4, 'rh': 46.7, 'tc': 20.2, 'voc': 101, 'nox': 2, 'co2': 609} batt=None free=77312
+BLE advertising sq=4 for 2s
+idle 2s (awake: no deep sleep on this port)
+read sq=5: {'pm25': 2.5, 'rh': 46.0, 'tc': 20.1, 'voc': 102, 'nox': 1, 'co2': 607} batt=None free=77280
+BLE advertising sq=5 for 2s
+idle 2s (awake: no deep sleep on this port)

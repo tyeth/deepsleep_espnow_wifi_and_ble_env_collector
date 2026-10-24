@@ -1,0 +1,87 @@
+{
+  "scope": "Exact C functions with injected hardware hooks; no physical fault injection",
+  "sources": {
+    "candidate": {
+      "commit": "725e9e429eab65eda01762a1af9016426dee00ac",
+      "function_sha256": "c023843f52f6094ee1fc5c5b7b4e65002b0f7acf2f43c80bf6bdeb274318f534"
+    },
+    "baseline": {
+      "commit": "cc2ea478cd42c70f17562f983e6cb0e5f520bdee",
+      "function_sha256": "3d99c334a5de508177e858e5955c62f91d0822f5424a36dce4f6c8b7feea43a1"
+    }
+  },
+  "startup": {
+    "candidate": [
+      {
+        "stage": 0,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 1,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 2,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 3,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 4,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 5,
+        "returncode": 0,
+        "stderr": ""
+      }
+    ],
+    "baseline": [
+      {
+        "stage": 0,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 1,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 2,
+        "returncode": 0,
+        "stderr": ""
+      },
+      {
+        "stage": 3,
+        "returncode": -6,
+        "stderr": "baseline: <temporary>/baseline.c:72: cyw43_btbus_init: Assertion `ret == CYBT_SUCCESS' failed."
+      },
+      {
+        "stage": 4,
+        "returncode": -6,
+        "stderr": "baseline: <temporary>/baseline.c:81: cyw43_btbus_init: Assertion `ret == 0' failed."
+      },
+      {
+        "stage": 5,
+        "returncode": -6,
+        "stderr": "baseline: <temporary>/baseline.c:86: cyw43_btbus_init: Assertion `ret == 0' failed."
+      }
+    ]
+  },
+  "cache": {
+    "function_sha256": "b2eab8becd665584e41ef43a2fb8c3348eb75c17250f803e0fabb8979cdca82c",
+    "returncode": 0,
+    "cases": 4,
+    "lost_write_divergence_reproduced": true,
+    "physical_lost_write_observed": false
+  },
+  "script_sha256": "84db26f77c697374c694870953fccd9ad5e70304f0f5ea4919489f499580d86b"
+}

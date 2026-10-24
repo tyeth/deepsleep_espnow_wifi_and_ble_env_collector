@@ -1,0 +1,72 @@
+{
+  "checked_utc": "2026-10-22T17:55:00Z",
+  "issue": "https://github.com/tyeth/circuitpython/issues/26",
+  "source": {
+    "baseline": {
+      "commit": "d53b2277cfad71589028e5da77c984c045db990d",
+      "source_blob": "6d306c2f0716e0ac8d415023631f970ba298c2d5",
+      "policy_sha256": "d697597c77a56fe2a0bd4ac264a8e210dfedcbce072fd4bcb565ab158dc95f1a"
+    },
+    "fixed": {
+      "commit": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+      "source_blob": "aee871e074b7c6ed7c741ab71ba28675ba6c41be",
+      "policy_sha256": "62b40718f3ae1ce3896a43e4ed6a2e2f2515d78827d0447d1b2c6d064e842f88"
+    }
+  },
+  "current_upstream_source_blob": "6d306c2f0716e0ac8d415023631f970ba298c2d5",
+  "current_upstream_source_checked_utc": "2026-10-22T17:54:55Z",
+  "zephyr_commit": "7379648278ab49e391af00f1a62ec73387d4c519",
+  "mbedtls_commit": "098e120afb51877ed814bdc04443890ae12e0642",
+  "tf_psa_crypto_commit": "fa92349590a54959ee2efc21b668e5afdb144726",
+  "platform": "native_sim/native/64",
+  "toolchain": "host/gnu",
+  "scenarios": 1,
+  "cases_passed": 8,
+  "cases_failed": 0,
+  "real_tls_handshakes": 14,
+  "build_errors": 0,
+  "warnings": 0,
+  "twister_wall_seconds": 23.16,
+  "baseline_default_without_client_certificate": -29824,
+  "fixed_default_without_client_certificate": 0,
+  "explicit_ca_without_client_certificate_both": -29824,
+  "explicit_ca_trusted_client_both": 0,
+  "explicit_ca_untrusted_client_both": -9984,
+  "client_wrong_hostname_both": -9984,
+  "client_untrusted_server_both": -9984,
+  "policy_lines": [
+    "POLICY fixed=0 ca_mode=0 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=-29824 client=-26880",
+    "POLICY fixed=0 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=0 hostname=envhub-test.invalid server=-30592 client=-9984",
+    "POLICY fixed=1 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=0 hostname=envhub-test.invalid server=-30592 client=-9984",
+    "POLICY fixed=0 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=1 hostname=wrong.invalid server=-30592 client=-9984",
+    "POLICY fixed=1 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=1 hostname=wrong.invalid server=-30592 client=-9984",
+    "POLICY fixed=0 ca_mode=1 client_cert=1 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=0 client=0",
+    "POLICY fixed=1 ca_mode=1 client_cert=1 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=0 client=0",
+    "POLICY fixed=0 ca_mode=1 client_cert=1 trusted_client=0 trusted_server=1 hostname=envhub-test.invalid server=-9984 client=-26880",
+    "POLICY fixed=1 ca_mode=1 client_cert=1 trusted_client=0 trusted_server=1 hostname=envhub-test.invalid server=-9984 client=-26880",
+    "POLICY fixed=0 ca_mode=1 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=-29824 client=-26880",
+    "POLICY fixed=1 ca_mode=1 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=-29824 client=-26880",
+    "POLICY fixed=1 ca_mode=0 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=0 client=0",
+    "POLICY fixed=0 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=0 client=0",
+    "POLICY fixed=1 ca_mode=2 client_cert=0 trusted_client=1 trusted_server=1 hostname=envhub-test.invalid server=0 client=0"
+  ],
+  "handler_log_sha256": "474548c3e129795d1859ceb413e9b7989c650ab7f814c3cbf1af7a598db364ad",
+  "fixture_sha256": {
+    "CMakeLists.txt": "057dcaeec9bee4a5072f22cf981875428ec638d6b27efcd97779645acfbd90ba",
+    "README.md": "964e83dafbe555300ef3cd5435d9febb02621868354881569277ff5e575a6956",
+    "prepare.py": "810edbc3b08f4e6065016552cc2ceb804a170f165bad353c19fb399bb319be41",
+    "prj.conf": "df5ca4c7bce4603f4d4e6cf7fca446bf38d2b993b54f6c757441c0b192fd5629",
+    "source-manifest.json": "37a2471bf132e723f18b75ea09fca6f27f33b521687cbe2ad48c620acd45235f",
+    "src/credentials.h": "62af240dd85a011f6c868989a76ae543646358a9f907412706f9fbe607e5ea81",
+    "src/main.c": "c9bea65bb1231d38952d5d2f9cbd2040c62618f83e4685016aed642bb817ce8d",
+    "src/policy.h": "ea209b91efbbdfae8fde964f0db2042c54129bda347c5000dbd63a34da0c6137",
+    "testcase.yaml": "2e7a0609e94b8c83af2a7d5e4b9b0ac5c2410464cd33a3342819be78e9ef4ede"
+  },
+  "boundaries": [
+    "Unmodified source policy extracts, real TLS and encrypted application data over memory transport.",
+    "Default root-bundle attachment replaced by fixture CA-chain attachment; compressed bundle storage not tested.",
+    "Not a physical board/socket/interpreter test.",
+    "Baseline failure is asserted explicitly; all-eight-pass means regression reproduced and fixed behavior validated.",
+    "Production firmware, pins, devices and active soaks unchanged."
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "upstream_revision": "4a5ce53302152058cac151cef6d5c528304d3437",
+  "source_sha256": "bdab0a5a3f5a8651177632d683863d085bef87a0dbfc10d40e26c852d69ffe0c",
+  "evidence": "actual driver executed with host EPaperDisplay/FourWire substitutes",
+  "hardware_test": false,
+  "upstream_cases": [
+    {
+      "reset_pin": true,
+      "explicit_timings": false,
+      "forwarded_timings": {},
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00\n"
+    },
+    {
+      "reset_pin": true,
+      "explicit_timings": true,
+      "forwarded_timings": {
+        "refresh_time": 20,
+        "seconds_per_frame": 20
+      },
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00\n"
+    },
+    {
+      "reset_pin": false,
+      "explicit_timings": false,
+      "forwarded_timings": {},
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00\n"
+    },
+    {
+      "reset_pin": false,
+      "explicit_timings": true,
+      "forwarded_timings": {
+        "refresh_time": 20,
+        "seconds_per_frame": 20
+      },
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00\n"
+    }
+  ],
+  "removed_print_control": [
+    {
+      "reset_pin": true,
+      "explicit_timings": false,
+      "forwarded_timings": {},
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": ""
+    },
+    {
+      "reset_pin": true,
+      "explicit_timings": true,
+      "forwarded_timings": {
+        "refresh_time": 20,
+        "seconds_per_frame": 20
+      },
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": ""
+    },
+    {
+      "reset_pin": false,
+      "explicit_timings": false,
+      "forwarded_timings": {},
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": ""
+    },
+    {
+      "reset_pin": false,
+      "explicit_timings": true,
+      "forwarded_timings": {
+        "refresh_time": 20,
+        "seconds_per_frame": 20
+      },
+      "start_sequence": "4d 01 78 00 02 cf 29 01 02 07 00 03 03 10 54 44 06 07 05 00 3f 0a 25 12 1a 50 01 37 60 02 02 02 61 04 00 b8 01 80 e7 01 1c e3 01 22 b4 01 d0 b5 01 03 e9 01 01 30 01 08 04 00",
+      "stdout": ""
+    }
+  ],
+  "attribute_error_reproduced": false,
+  "panel_timing_measured": false,
+  "conclusion": "Unconditional hex diagnostic reproduced. Removing only that print silences all four controls. Timing kwargs pass through; defaults are inherited.",
+  "frozen_build_revision": "4a5ce53302152058cac151cef6d5c528304d3437",
+  "frozen_build_source_sha256": "bdab0a5a3f5a8651177632d683863d085bef87a0dbfc10d40e26c852d69ffe0c",
+  "inherited_circuitpython_defaults": {
+    "refresh_time": 40,
+    "seconds_per_frame": 180
+  },
+  "defaults_source_revision": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+  "inherited_defaults_evidence": "Unmodified shared-bindings/epaperdisplay/EPaperDisplay.c argument table",
+  "exploratory_test_correction": "Initial test incorrectly assumed 61 sequence bytes; actual sequence is 58. Final control compares stdout with the exact sequence passed to EPaperDisplay."
+}

@@ -1,0 +1,91 @@
+--- a/shared-bindings/microcontroller/__init__.c
++++ b/shared-bindings/microcontroller/__init__.c
+@@ -179,0 +180,42 @@
++
++/* Temporary diagnostic module: counters and one-shot startup error selection. */
++#include <zephyr/bluetooth/bluetooth.h>
++#include <stdint.h>
++#include "py/obj.h"
++#include "py/runtime.h"
++extern void envhub_bt_fault_arm(uint32_t stage);
++extern void envhub_bt_fault_snapshot(uint32_t *out);
++static mp_obj_t envhub_fault_arm(mp_obj_t value) {
++    mp_int_t stage = mp_obj_get_int(value);
++    if (stage != 0 && stage != 3 && stage != 4 && stage != 5) {
++        mp_raise_ValueError(MP_ERROR_TEXT("Invalid stage"));
++    }
++    if (bt_is_ready()) {
++        mp_raise_ValueError(MP_ERROR_TEXT("Bluetooth already ready"));
++    }
++    envhub_bt_fault_arm(stage);
++    return mp_const_none;
++}
++static MP_DEFINE_CONST_FUN_OBJ_1(envhub_fault_arm_obj, envhub_fault_arm);
++static mp_obj_t envhub_fault_snapshot(void) {
++    uint32_t words[8];
++    mp_obj_t values[9];
++    envhub_bt_fault_snapshot(words);
++    for (size_t i = 0; i < 8; i++) {
++        values[i] = mp_obj_new_int_from_uint(words[i]);
++    }
++    values[8] = mp_obj_new_bool(bt_is_ready());
++    return mp_obj_new_tuple(9, values);
++}
++static MP_DEFINE_CONST_FUN_OBJ_0(envhub_fault_snapshot_obj, envhub_fault_snapshot);
++static const mp_rom_map_elem_t envhub_fault_globals_table[] = {
++    {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_envhub_bt_fault)},
++    {MP_ROM_QSTR(MP_QSTR_arm), MP_ROM_PTR(&envhub_fault_arm_obj)},
++    {MP_ROM_QSTR(MP_QSTR_snapshot), MP_ROM_PTR(&envhub_fault_snapshot_obj)},
++};
++static MP_DEFINE_CONST_DICT(envhub_fault_globals, envhub_fault_globals_table);
++const mp_obj_module_t envhub_bt_fault_module = {
++    .base = {&mp_type_module},
++    .globals = (mp_obj_dict_t *)&envhub_fault_globals,
++};
++MP_REGISTER_MODULE(MP_QSTR_envhub_bt_fault, envhub_bt_fault_module);
+--- a/ports/zephyr-cp/modules/hal/rpi_pico/src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus.c
++++ b/ports/zephyr-cp/modules/hal/rpi_pico/src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus.c
+@@ -102,0 +103,23 @@
++/* Temporary return-value fault injection after successful real hardware work. */
++#include <stdint.h>
++static volatile uint32_t envhub_bt_fault_words[8];
++void envhub_bt_fault_arm(uint32_t stage) {
++    envhub_bt_fault_words[2] = stage;
++}
++void envhub_bt_fault_snapshot(uint32_t *out) {
++    for (unsigned int i = 0; i < 8; i++) {
++        out[i] = envhub_bt_fault_words[i];
++    }
++}
++static cybt_result_t envhub_bt_fault_result(uint32_t stage, cybt_result_t actual) {
++    if (envhub_bt_fault_words[2] != stage || actual != CYBT_SUCCESS) {
++        return actual;
++    }
++    envhub_bt_fault_words[2] = 0;
++    envhub_bt_fault_words[1]++;
++    envhub_bt_fault_words[3] = stage;
++    envhub_bt_fault_words[4] = actual;
++    envhub_bt_fault_words[5] = CYBT_ERR_TIMEOUT;
++    return CYBT_ERR_TIMEOUT;
++}
++
+@@ -103,0 +127 @@
++    envhub_bt_fault_words[0]++;
+@@ -138,0 +163 @@
++    envhub_bt_fault_words[6]++;
+@@ -146,0 +172 @@
++    ret = envhub_bt_fault_result(3, ret);
+@@ -154,0 +181 @@
++    ret = envhub_bt_fault_result(4, ret);
+@@ -159,0 +187 @@
++    ret = envhub_bt_fault_result(5, ret);
+@@ -166,0 +195 @@
++    envhub_bt_fault_words[7]++;
+--- a/ports/zephyr-cp/cptools/build_circuitpython.py
++++ b/ports/zephyr-cp/cptools/build_circuitpython.py
+@@ -630 +630 @@
+-    circuitpython_flags.append(f"-DCIRCUITPY_BLE_FILE_SERVICE={1 if ble_workflow_enabled else 0}")
++    circuitpython_flags.append(f"-DCIRCUITPY_BLE_FILE_SERVICE=0")
+@@ -632 +632 @@
+-        f"-DCIRCUITPY_BLE_SERIAL_SERVICE={1 if ble_workflow_enabled else 0}"
++        f"-DCIRCUITPY_BLE_SERIAL_SERVICE=0"

@@ -33,6 +33,8 @@
   // page enforces the either/or: tool+query for a query, answer for the final prose)
   const TOOL_SCHEMA = {
     type: "object",
+    additionalProperties: false,
+    anyOf: [{required: ["tool", "query"]}, {required: ["answer"]}],
     properties: {
       tool: {type: "string", enum: ["sql"], description: "set to sql to request one query"},
       query: {type: "string", description: "one read-only SELECT (only with tool)"},

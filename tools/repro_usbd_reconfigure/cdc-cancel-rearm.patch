@@ -1,0 +1,31 @@
+--- a/subsys/usb/device_next/class/usbd_cdc_acm.c
++++ b/subsys/usb/device_next/class/usbd_cdc_acm.c
+@@ -283,6 +283,8 @@
+ 	const struct device *dev = usbd_class_get_private(c_data);
+ 	struct cdc_acm_uart_data *data = dev->data;
+ 	struct udc_buf_info *bi;
++	bool rearm_rx;
++	int ret;
+ 
+ 	bi = udc_get_buf_info(buf);
+ 	if (err) {
+@@ -354,7 +356,18 @@
+ 	}
+ 
+ ep_request_error:
+-	return usbd_ep_buf_free(uds_ctx, buf);
++	/* A configuration/interface reset can enable the class before the old
++	 * OUT cancellation completes. Return its buffer before restarting RX.
++	 */
++	rearm_rx = err == -ECONNABORTED &&
++			      bi->ep == cdc_acm_get_bulk_out(c_data);
++	ret = usbd_ep_buf_free(uds_ctx, buf);
++
++	if (rearm_rx) {
++		cdc_acm_work_submit(&data->rx_fifo_work);
++	}
++
++	return ret;
+ }
+ 
+ static void usbd_cdc_acm_update(struct usbd_class_data *const c_data,

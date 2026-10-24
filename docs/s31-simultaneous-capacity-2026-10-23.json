@@ -1,0 +1,393 @@
+{
+  "finished_utc": "2026-10-23T02:34:46.242453+00:00",
+  "bridge_revision": "74975412c1b04c0738dcf57ab03bae82bc8ac71f",
+  "pico2_revision": "6b117bdce5",
+  "s3_revision": "cb5301b6fb-dirty",
+  "job_id": "57bf4d6a-0c28-409c-b1e1-ebcb9fa96d75",
+  "test_sha256": "e930d99e72e68a3e9ca8790e61db7afb95d3dfd4da15fc6ed32ea373dd339f14",
+  "diagnostic_completed": true,
+  "simultaneous_console_passed": false,
+  "firmware_writes": false,
+  "transport_restored": true,
+  "bridge_reset": false,
+  "rounds": [
+    {
+      "order": [
+        "s3"
+      ],
+      "devices": {
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE adafruit_feather_esp32s3_4mbflash_2mbpsram 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        }
+      }
+    },
+    {
+      "order": [
+        "pico",
+        "s3"
+      ],
+      "devices": {
+        "pico": {
+          "descriptors_sha256": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 130,
+                  "type": 2
+                },
+                {
+                  "address": 1,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 2,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 3,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE raspberrypi_rpi_pico2_w_zephyr 3.4.0; CircuitPython 11.0.0-alpha.2-31-g6b117bdce5 on 2026-10-23\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        },
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "first_error": "TimeoutError(\"waiting for b'raw REPL', got b''\")",
+          "second_error": "TimeoutError(\"waiting for b'raw REPL', got b''\")"
+        }
+      }
+    },
+    {
+      "order": [
+        "s3",
+        "pico"
+      ],
+      "devices": {
+        "s3": {
+          "descriptors_sha256": "8145f861b845880903b87e0e0dd5ff39aa8eb61563da8d01b3ae773a794882f3",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 2,
+                  "type": 2
+                },
+                {
+                  "address": 130,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 3,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 4,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "first_probe": "CAPACITY_PROBE adafruit_feather_esp32s3_4mbflash_2mbpsram 3.4.0; CircuitPython 11.0.0-alpha.2-15-gcb5301b6fb-dirty on 2026-10-22\r\n",
+          "second_probe": "CAPACITY_STILL_ALIVE\r\n"
+        },
+        "pico": {
+          "descriptors_sha256": "07135cdd96d8c1375045337720f1153941544bb77e69e2162147d023ff00ed3d",
+          "interfaces": [
+            {
+              "interface": 0,
+              "alternate": 0,
+              "class": 2,
+              "declared_endpoints": 1,
+              "endpoints": [
+                {
+                  "address": 129,
+                  "type": 3
+                }
+              ]
+            },
+            {
+              "interface": 1,
+              "alternate": 0,
+              "class": 10,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 130,
+                  "type": 2
+                },
+                {
+                  "address": 1,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 2,
+              "alternate": 0,
+              "class": 8,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 131,
+                  "type": 2
+                },
+                {
+                  "address": 2,
+                  "type": 2
+                }
+              ]
+            },
+            {
+              "interface": 3,
+              "alternate": 0,
+              "class": 3,
+              "declared_endpoints": 2,
+              "endpoints": [
+                {
+                  "address": 132,
+                  "type": 3
+                },
+                {
+                  "address": 3,
+                  "type": 3
+                }
+              ]
+            }
+          ],
+          "first_error": "TimeoutError(\"waiting for b'raw REPL', got b''\")",
+          "second_error": "TimeoutError(\"waiting for b'raw REPL', got b''\")"
+        }
+      }
+    }
+  ],
+  "limits": [
+    "No live channel-counter or bridge UART capture. CP210x enable-UART control requests timed out independently before the test.",
+    "No per-interface candidate implemented or flashed. Linux probing must be considered when limiting claims.",
+    "Diagnostic job pass denotes completed investigation and cleanup, not a passing simultaneous-console test."
+  ],
+  "later_recovery": {
+    "hub_recovery_job": "eeeffeec-5585-4428-a7fa-c1ea83b5df61",
+    "hub_usb_identities_restored": true,
+    "verification_job": "bd322f9a-2e27-497c-ac39-bf86869c941b",
+    "verification_passed": false,
+    "uart_open_read_passed_before_later_assertion": true,
+    "direct_board_versions_and_idle_radios_passed_before_later_assertion": true,
+    "failure": "Bridge uptime decreased during recovery verification; reset cause unverified",
+    "readonly_final_job": "cf4a4295-6b09-4dd2-adfd-f13c8cd7a861",
+    "final_bridge_uptime_s": 62,
+    "original_downstream_inventory_restored": true,
+    "active_soak_units": [],
+    "usbip_imports": [],
+    "reopened_uart_after_reset": false
+  }
+}

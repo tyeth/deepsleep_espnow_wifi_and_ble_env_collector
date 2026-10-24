@@ -1,0 +1,94 @@
+{
+  "checked_utc": "2026-10-22T16:46:02Z",
+  "note": "Source inspection only, not proof of hardware outcomes. File SHAs are Git blob IDs.",
+  "upstream_commits": {
+    "circuitpython": "d53b2277cfad71589028e5da77c984c045db990d",
+    "zephyr": "8bfd51a5ec69187f630e7717c25c768c89f24f43",
+    "hal_rpi_pico": "2e9dbf14fa56e5907aefb07e8e75010ec5210946",
+    "hal_infineon": "eae914ed1ad0b54af28191d13da9b8e98fb5cb2b"
+  },
+  "files": [
+    {
+      "key": "upstream_cp_version",
+      "url": "https://github.com/adafruit/circuitpython/blob/d53b2277cfad71589028e5da77c984c045db990d/py/version.py",
+      "blob_sha": "7ef2a58762822cfe608fb39285122d3f4c09dbdc"
+    },
+    {
+      "key": "cp_ssl",
+      "url": "https://github.com/adafruit/circuitpython/blob/d53b2277cfad71589028e5da77c984c045db990d/shared-module/ssl/SSLSocket.c",
+      "blob_sha": "6d306c2f0716e0ac8d415023631f970ba298c2d5"
+    },
+    {
+      "key": "cp_ble",
+      "url": "https://github.com/adafruit/circuitpython/blob/d53b2277cfad71589028e5da77c984c045db990d/ports/zephyr-cp/common-hal/_bleio/Adapter.c",
+      "blob_sha": "7819e68676e4742f8e402ede95160f739990c823"
+    },
+    {
+      "key": "z_udc",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/drivers/usb/udc/udc_rpi_pico.c",
+      "blob_sha": "e03a01bfb7e816a8145566638b8a96a1ee2c46fd"
+    },
+    {
+      "key": "z_kconfig",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/drivers/usb/udc/Kconfig.rpi_pico",
+      "blob_sha": "fd194520c72818bcc4b521818a4bbf0e23903125"
+    },
+    {
+      "key": "z_wifi",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/drivers/wifi/infineon/airoc_wifi.c",
+      "blob_sha": "447ab9e90930affac21d68cfebd893eeb730424d"
+    },
+    {
+      "key": "z_scan",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/subsys/bluetooth/host/scan.c",
+      "blob_sha": "9141a7dfbbd397c6532524b6521c33a289063e17"
+    },
+    {
+      "key": "z_nvs",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/subsys/settings/src/settings_nvs.c",
+      "blob_sha": "1a1e8bb02905f2121977802a6958aeabf5668ae5"
+    },
+    {
+      "key": "z_zms",
+      "url": "https://github.com/zephyrproject-rtos/zephyr/blob/8bfd51a5ec69187f630e7717c25c768c89f24f43/subsys/settings/src/settings_zms.c",
+      "blob_sha": "fbb427aa475b5a297555628cd9d88ffc8d09079b"
+    },
+    {
+      "key": "hal_flash",
+      "url": "https://github.com/zephyrproject-rtos/hal_rpi_pico/blob/2e9dbf14fa56e5907aefb07e8e75010ec5210946/src/rp2_common/hardware_flash/flash.c",
+      "blob_sha": "83e1902fd1c1340050aac08802396f45b61e0ece"
+    },
+    {
+      "key": "hal_cybt",
+      "url": "https://github.com/zephyrproject-rtos/hal_rpi_pico/blob/2e9dbf14fa56e5907aefb07e8e75010ec5210946/src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus_driver.c",
+      "blob_sha": "dcfca3a15f85d89b2fd171df456fcb704d8a223b"
+    },
+    {
+      "key": "hal_init",
+      "url": "https://github.com/zephyrproject-rtos/hal_rpi_pico/blob/2e9dbf14fa56e5907aefb07e8e75010ec5210946/src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus.c",
+      "blob_sha": "f256f0e4c69e9123c4186871d63a5bd6a9d5ab91"
+    },
+    {
+      "key": "hal_nvram",
+      "url": "https://github.com/zephyrproject-rtos/hal_infineon/blob/eae914ed1ad0b54af28191d13da9b8e98fb5cb2b/whd-expansion/WHD/COMPONENT_WIFI5/resources/nvram/COMPONENT_43439/COMPONENT_MURATA-1YN/cyfmac43439-1YN.txt",
+      "blob_sha": "579b6e79db9ca748d21633e62c090c1fa655b7b1"
+    }
+  ],
+  "closed": [
+    {
+      "issue": "https://github.com/tyeth/zephyr/issues/5",
+      "upstream_fix": "https://github.com/zephyrproject-rtos/zephyr/commit/c2d5de2a0ac6cb569e014116967aba91501bcfda",
+      "closed_at": "2026-10-22T16:43:08Z"
+    },
+    {
+      "issue": "https://github.com/tyeth/zephyr/issues/7",
+      "upstream_fix": "https://github.com/zephyrproject-rtos/zephyr/commit/2f0bc11264a8e72e214f3db0a3fa221eb022453a",
+      "closed_at": "2026-10-22T16:43:10Z"
+    },
+    {
+      "issue": "https://github.com/tyeth/hal_rpi_pico/issues/7",
+      "upstream_fix": "https://github.com/zephyrproject-rtos/hal_rpi_pico/commit/74cc3dfda63ea8d8323869d6b0bad806cd1e545d",
+      "closed_at": "2026-10-22T16:45:01Z"
+    }
+  ]
+}

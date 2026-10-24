@@ -1,0 +1,524 @@
+{
+  "board": "adafruit_feather_esp32c6_4mbflash_nopsram",
+  "hardware": "bare Feather C6; no display, RTC, sensor or SD card",
+  "circuitpython": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+  "esp_idf": "29d36039e564db6df505d0582b94b230a17e63f3",
+  "image_bytes": 2273408,
+  "image_sha256": "743dec7b10f9c7c96fca82158487df2233e1e83f597ae62ed5bdcdf9ca9bfd32",
+  "reset_orders": [
+    {
+      "delivery_verified": false,
+      "order": "heavy,ap,ble,espnow",
+      "phases": [
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.176,
+          "phase": "baseline",
+          "heap_free": 211804
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.508,
+          "phase": "heavy",
+          "heap_free": 186664
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.833,
+          "phase": "ap",
+          "heap_free": 138920
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.22,
+          "phase": "ble",
+          "heap_free": 124548
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.486,
+          "phase": "espnow",
+          "heap_free": 123588
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.751,
+          "phase": "udp_tcp_bound",
+          "heap_free": 122784
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 7.192,
+          "phase": "100_espnow_broadcast_submissions",
+          "heap_free": 122688
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 9.555,
+          "phase": "ble_scan_with_ap_espnow_sockets",
+          "heap_free": 122544
+        }
+      ],
+      "ble_advertising": true,
+      "cleanup_complete": true,
+      "status": "passed",
+      "broadcast_submissions": 100,
+      "ble_advertisements": 82,
+      "ap_active": true,
+      "case": "cold-1",
+      "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+      "program_sha256": "5625ded93c38ca07a66049c3491aa6a716b615b1f905596cf4a263d38f8da5f4"
+    },
+    {
+      "delivery_verified": false,
+      "order": "ap,heavy,ble,espnow",
+      "phases": [
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.175,
+          "phase": "baseline",
+          "heap_free": 211804
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.354,
+          "phase": "ap",
+          "heap_free": 163724
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.773,
+          "phase": "heavy",
+          "heap_free": 138880
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.155,
+          "phase": "ble",
+          "heap_free": 124396
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.424,
+          "phase": "espnow",
+          "heap_free": 123452
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.698,
+          "phase": "udp_tcp_bound",
+          "heap_free": 122652
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 7.139,
+          "phase": "100_espnow_broadcast_submissions",
+          "heap_free": 122556
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 9.509,
+          "phase": "ble_scan_with_ap_espnow_sockets",
+          "heap_free": 122420
+        }
+      ],
+      "ble_advertising": true,
+      "cleanup_complete": true,
+      "status": "passed",
+      "broadcast_submissions": 100,
+      "ble_advertisements": 87,
+      "ap_active": true,
+      "case": "cold-2",
+      "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+      "program_sha256": "b20b817d73be4bec8bd6e56c692e32c35db2f119bc1b98b798deec0403589a08"
+    },
+    {
+      "delivery_verified": false,
+      "order": "ble,heavy,ap,espnow",
+      "phases": [
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.177,
+          "phase": "baseline",
+          "heap_free": 211804
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.5,
+          "phase": "ble",
+          "heap_free": 198292
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.939,
+          "phase": "heavy",
+          "heap_free": 172272
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.298,
+          "phase": "ap",
+          "heap_free": 124516
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.568,
+          "phase": "espnow",
+          "heap_free": 123496
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.839,
+          "phase": "udp_tcp_bound",
+          "heap_free": 122704
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 7.274,
+          "phase": "100_espnow_broadcast_submissions",
+          "heap_free": 122496
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 9.648,
+          "phase": "ble_scan_with_ap_espnow_sockets",
+          "heap_free": 122488
+        }
+      ],
+      "ble_advertising": true,
+      "cleanup_complete": true,
+      "status": "passed",
+      "broadcast_submissions": 100,
+      "ble_advertisements": 69,
+      "ap_active": true,
+      "case": "cold-3",
+      "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+      "program_sha256": "1b66e1b48122bb2e910be4487e21993bb942a1b68b7bdf14c57992bafcea6d57"
+    },
+    {
+      "delivery_verified": false,
+      "order": "espnow,ap,heavy,ble",
+      "phases": [
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.178,
+          "phase": "baseline",
+          "heap_free": 211804
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.455,
+          "phase": "espnow",
+          "heap_free": 170096
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.779,
+          "phase": "ap",
+          "heap_free": 162848
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.214,
+          "phase": "heavy",
+          "heap_free": 137852
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.617,
+          "phase": "ble",
+          "heap_free": 123552
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.894,
+          "phase": "udp_tcp_bound",
+          "heap_free": 122760
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 7.346,
+          "phase": "100_espnow_broadcast_submissions",
+          "heap_free": 122664
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 9.738,
+          "phase": "ble_scan_with_ap_espnow_sockets",
+          "heap_free": 121948
+        }
+      ],
+      "ble_advertising": true,
+      "cleanup_complete": true,
+      "status": "passed",
+      "broadcast_submissions": 100,
+      "ble_advertisements": 75,
+      "ap_active": true,
+      "case": "cold-4",
+      "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+      "program_sha256": "b408568b20edaeaeb94b1d9da589c925f674d454af41ba8b2faf33a15a56ebf0"
+    },
+    {
+      "delivery_verified": false,
+      "order": "ap,espnow,heavy,ble",
+      "phases": [
+        {
+          "spi_lock_available": true,
+          "uptime_s": 2.178,
+          "phase": "baseline",
+          "heap_free": 211804
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.352,
+          "phase": "ap",
+          "heap_free": 163724
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 3.615,
+          "phase": "espnow",
+          "heap_free": 162704
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.057,
+          "phase": "heavy",
+          "heap_free": 137724
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.443,
+          "phase": "ble",
+          "heap_free": 123432
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 4.712,
+          "phase": "udp_tcp_bound",
+          "heap_free": 122684
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 7.157,
+          "phase": "100_espnow_broadcast_submissions",
+          "heap_free": 122476
+        },
+        {
+          "spi_lock_available": true,
+          "uptime_s": 9.536,
+          "phase": "ble_scan_with_ap_espnow_sockets",
+          "heap_free": 122460
+        }
+      ],
+      "ble_advertising": true,
+      "cleanup_complete": true,
+      "status": "passed",
+      "broadcast_submissions": 100,
+      "ble_advertisements": 72,
+      "ap_active": true,
+      "case": "cold-5",
+      "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23",
+      "program_sha256": "128d6f8417c438e31b9543d7c051aaef5a497d76404898420c5526f3b96a2da5"
+    }
+  ],
+  "reset_method": "software-requested MCU reset before each normal code.py boot, uptime checked below 30 seconds",
+  "ble": {
+    "scope": "Real BlueZ central, NUS transfer, disconnect and adapter toggle; bare C6, heavy imports and softAP/ESPNow resident; no connected WiFi traffic or display hardware",
+    "device_packet_limits": "PACKET_LIMITS [253]\r\n",
+    "unpaced": {
+      "output": "UNPACED_SENT 10240\r\n",
+      "expected_bytes": 10240,
+      "received_bytes": 10240,
+      "expected_sha256": "b5a6278ab4e1876b1217737985a6b13c92b55e2009eea10c0876f706a3286665",
+      "received_sha256": "b5a6278ab4e1876b1217737985a6b13c92b55e2009eea10c0876f706a3286665",
+      "exact": true
+    },
+    "disconnect": {
+      "elapsed": 3.323914,
+      "sent": 12940,
+      "last_write": 0,
+      "connected": false,
+      "central_received_bytes": 9680,
+      "host_return_after_disconnect_s": 2.251739971994539,
+      "burst_running_when_disconnect_requested": true
+    },
+    "reconnect": {
+      "expected_bytes": 1024,
+      "received_bytes": 1024,
+      "exact": true,
+      "no_stale_bytes_before_write": true,
+      "output": "RECONNECT_SENT\r\n"
+    },
+    "post_session_toggle": "DISCONNECT_SETTLE 0.05096436 False\r\nPOST_SESSION_TOGGLE 78 True\r\n",
+    "cleanup": "BLE_SESSION_CLEANUP True\r\n"
+  },
+  "traffic": {
+    "peer": {
+      "send_failure": 7,
+      "espnow_exact_echoes": 93,
+      "http_payload_bytes_each": 1024,
+      "http_exact_payloads": 5,
+      "dhcp_association": true,
+      "espnow_attempts": 100,
+      "missing_sequences": [
+        2,
+        4,
+        29,
+        31,
+        54,
+        79,
+        81
+      ],
+      "send_success": 93
+    },
+    "c6": {
+      "foreign": 0,
+      "ap_active": true,
+      "ble_advertising": true,
+      "ble_advertisements": 13,
+      "http_requests": 5,
+      "send_success": 93,
+      "send_failure": 0,
+      "elapsed": 65.00196,
+      "heap_free": 105796,
+      "unique_rx": 93,
+      "bad_payloads": 0
+    },
+    "delivery_status": "loss_observed",
+    "c6_cleanup": "CLEAN\r\n",
+    "peer_cleanup": "CLEAN\r\r\n"
+  },
+  "edge_tests": {
+    "send_contract": [
+      {
+        "mode": "broadcast_only",
+        "calls": [
+          {
+            "accepted": false,
+            "call": "default_none",
+            "error": "IDFError('ESP-NOW error 0x3069',)"
+          },
+          {
+            "accepted": true,
+            "call": "explicit_0",
+            "result": null
+          },
+          {
+            "accepted": false,
+            "call": "default_none_again",
+            "error": "IDFError('ESP-NOW error 0x3069',)"
+          }
+        ]
+      },
+      {
+        "mode": "unicast_only",
+        "calls": [
+          {
+            "accepted": true,
+            "call": "default_none",
+            "result": null
+          },
+          {
+            "accepted": true,
+            "call": "explicit_0",
+            "result": null
+          },
+          {
+            "accepted": true,
+            "call": "default_none_again",
+            "result": null
+          }
+        ]
+      },
+      {
+        "mode": "mixed",
+        "calls": [
+          {
+            "accepted": true,
+            "call": "default_none",
+            "result": null
+          },
+          {
+            "accepted": true,
+            "call": "explicit_0",
+            "result": null
+          },
+          {
+            "accepted": true,
+            "call": "explicit_1",
+            "result": null
+          },
+          {
+            "accepted": true,
+            "call": "default_none_again",
+            "result": null
+          }
+        ]
+      }
+    ],
+    "heap_free": 137216,
+    "sd": [
+      {
+        "error": "OSError('no SD card',)",
+        "spi_lock_available": true,
+        "cycle": 0
+      },
+      {
+        "error": "OSError('no SD card',)",
+        "spi_lock_available": true,
+        "cycle": 1
+      },
+      {
+        "error": "OSError('no SD card',)",
+        "spi_lock_available": true,
+        "cycle": 2
+      },
+      {
+        "error": "OSError('no SD card',)",
+        "spi_lock_available": true,
+        "cycle": 3
+      },
+      {
+        "error": "OSError('no SD card',)",
+        "spi_lock_available": true,
+        "cycle": 4
+      }
+    ],
+    "version": "3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23"
+  },
+  "corrected_port_power_check": {
+    "status": "failed",
+    "error": "AssertionError('Missing or ambiguous port')",
+    "before_uptime_s": 653.249,
+    "after_uptime_s": 199.09,
+    "verified_off_duration_s": 30.02267821499845,
+    "uptime_reset_observed": true
+  },
+  "preserved_failures": [
+    "Original default-peer broadcast send returned 0x3069; explicit-peer controls passed",
+    "First GATT fixture asserted device disconnect immediately; bounded settle follow-up passed",
+    "Full USB inventory: native console and no-reset ROM probe returned no serial data; identical BLE test passed after other USB leaf ports were switched off",
+    "First traffic run stopped at missing ESP-NOW echo sequence 6; loss-accounting follow-up is not a loss-free pass",
+    "Earlier hub path reported off while MCU uptime continued; user later supplied a corrected path and confirmed physical power-off"
+  ],
+  "limits": [
+    "No original display/RTC/SCD41/shared SD rig",
+    "No deliberate allocation-failure injection",
+    "Device connection max_packet_length was 253; Bleak MTU 23 was a fallback warning, not proof of negotiated MTU 23",
+    "ESP-NOW send acceptance is not delivery; mixed-peer default-send recipients were not captured",
+    "USB-load dependence is observed, but endpoint pressure and earlier path/power discrepancy have no established root cause"
+  ],
+  "subsequent_bridge_settings": {
+    "restore_port_power": false,
+    "enforce_per_port_switching": false,
+    "enum_timeout_ms": 0,
+    "note": "Read after the failed power-on observation; return of other ports to on is not established as a restoration bug"
+  },
+  "bridge_investigation": "https://github.com/tyeth-ai-assisted/esp-usbip-bridge/issues/26",
+  "standalone_idf_followup": {
+    "report": "c6-espnow-idf-contract-2026-10-23.md",
+    "result": "reproduced independently; documentation corrected",
+    "firmware_restored_and_runtime_verified": true
+  }
+}

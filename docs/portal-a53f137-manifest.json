@@ -1,0 +1,64 @@
+{
+  "revision": "a53f1378ef6a9c6a31b83524259200bfc91d12df",
+  "files": [
+    {
+      "name": "index.html",
+      "source": "webapp/index.html",
+      "destination": "/www/index.html",
+      "bytes": 105127,
+      "sha256": "86ec70c822785eef7b12a64f783b100b92fb84c342cab1398b8865dadd57f205"
+    },
+    {
+      "name": "sw.js",
+      "source": "webapp/sw.js",
+      "destination": "/www/sw.js",
+      "bytes": 4260,
+      "sha256": "1eef9f7fb75c5232ecd2d1c401170942e19595ec605ea49aebefb192ec8fed6a"
+    },
+    {
+      "name": "manifest.json",
+      "source": "webapp/manifest.json",
+      "destination": "/www/manifest.json",
+      "bytes": 468,
+      "sha256": "ade05f4d4b6b2b6e1a7caaf4668a66d8647f55853c88214c93a89c8f4a5cd483"
+    },
+    {
+      "name": "icon.svg",
+      "source": "webapp/icon.svg",
+      "destination": "/www/icon.svg",
+      "bytes": 491,
+      "sha256": "8ace37ee6f20990c1ace7464b18e7073ad1243b163c1817ae6c7b9fdff3da8ad"
+    },
+    {
+      "name": "ai_tools.js",
+      "source": "webapp/ai_tools.js",
+      "destination": "/www/ai_tools.js",
+      "bytes": 14054,
+      "sha256": "3923c26a9ae7bfc505012418d33fd69e7a1e3c039795e36a907c77a46a7aa2be"
+    },
+    {
+      "name": "webmcp.js",
+      "source": "webapp/webmcp.js",
+      "destination": "/www/webmcp.js",
+      "bytes": 2199,
+      "sha256": "4ce99170805fc96b529c106b25fd25ae5bb3e8fb845694d27ec935dbbf02d30d"
+    },
+    {
+      "name": "prompt_backend.js",
+      "source": "webapp/prompt_backend.js",
+      "destination": "/www/prompt_backend.js",
+      "bytes": 4510,
+      "sha256": "14f35f66431d4f1e3873fcae5039b32a9a7ef6c02388acd7458016899995692a"
+    },
+    {
+      "name": "certstore.py",
+      "source": "collector/certstore.py",
+      "destination": "/certstore.py",
+      "bytes": 13828,
+      "sha256": "99b03bd476422df9b1d45a91246ae00cccb408cf1ce999278d285421a3992bcb"
+    }
+  ],
+  "requires_tls_out_bytes": 8192,
+  "firmware_manifest": "full-chain-firmware-manifest.json",
+  "note": "Inspect the existing certstore module location before installation; no device has received this release."
+}

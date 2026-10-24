@@ -1,0 +1,47 @@
+{
+  "finished_utc": "2026-10-23T22:14:02.617068+00:00",
+  "firmware_writes": false,
+  "filesystem_writes": false,
+  "nvm_writes": false,
+  "memory_bytes": 4096,
+  "reset_reason": "POWER_ON",
+  "before_memory_sha256": "ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+  "rounds": [
+    {
+      "index": 0,
+      "pattern_sha256": "3817cf0b5f041b51ce9724b5476601b4cfd77a12257e56d991058dafd664a4d8",
+      "vm_globals_cleared": true,
+      "reset_reason_unchanged": true,
+      "all_memory_bytes_preserved": true
+    },
+    {
+      "index": 1,
+      "pattern_sha256": "d5f2732ac6cfb8d4278cedee115c1d2ae0950eae28a436ef2f2c4a6d1907ce30",
+      "vm_globals_cleared": true,
+      "reset_reason_unchanged": true,
+      "all_memory_bytes_preserved": true
+    },
+    {
+      "index": 2,
+      "pattern_sha256": "61507924934296a02623938b8582f8397b67d4f82fee57924a3edab3110fd36a",
+      "vm_globals_cleared": true,
+      "reset_reason_unchanged": true,
+      "all_memory_bytes_preserved": true
+    }
+  ],
+  "sleep_memory_restored": true,
+  "board": "espressif_esp32c5_devkitc_1_n8r8",
+  "firmware": "e46718f34b",
+  "image_sha256": "8f3134d5d5ecc2e428347f1670c182f0b1709366fff04a51f6a2cb1f19b36757",
+  "upstream_fix": "2a15ee1978b9c2fe10a77dcc26433cf1c658c766",
+  "rtc_fast_memory_compiled": true,
+  "test_assertions": "pass",
+  "original_job": "fail",
+  "original_failure": "combined final port/topology/import cleanup assertion",
+  "separate_readonly_cleanup": "pass",
+  "port_off": true,
+  "imports_empty": true,
+  "other_device_inventory_restored": true,
+  "cleanup_failure_cause_established": false,
+  "deep_sleep_tested": false
+}

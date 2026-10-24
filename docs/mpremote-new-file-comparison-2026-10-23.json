@@ -1,0 +1,62 @@
+{
+  "upstream_revision": "b70ae1aca657bb93e2857dac4e2a2d21a3803200",
+  "candidate_revision": "9a9f267b3a2d6af31e2b4045ab8a89bb712c9f4a",
+  "candidate_transport_sha256": "361da8b9f1dacf4fde1a46f2ae4bd643ef94487a9291e414ec9215cb0b032e05",
+  "issue": "https://github.com/micropython/micropython/issues/17752",
+  "draft_pull_request": "https://github.com/tyeth-ai-assisted/circuitpython/pull/1",
+  "test_scope": "Actual pinned copy/transport functions over a custom raw-REPL adapter on a real Feather ESP32 V2; not the full stock CLI transport.",
+  "stock_cli_tested": false,
+  "firmware_writes": false,
+  "filesystem_remounts": false,
+  "host_test_methods": 3,
+  "supported_format_ending_combinations": 40,
+  "physical_attempts": [
+    {
+      "label": "upstream",
+      "job_id": "a38a44da-43d7-4e3c-b13a-ac05462f1b44",
+      "job_result": "pass",
+      "result": {
+        "status": "diagnostic_completed",
+        "reset_requested": false,
+        "remote_file_removed": true,
+        "runtime": "adafruit_feather_esp32_v2 3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23\r\r\nREADONLY False\r\r\n",
+        "new_file_copy": "failed",
+        "new_file_error": "Traceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\nOSError: [Errno 2] No such file/directory\r\r\n",
+        "direct_create": "DIRECT_WRITE 4\r\r\n",
+        "existing_file_copy": "passed",
+        "content_sha256": "5112d9de75960a4ccba1d80185c2c6e624e425308f7bd2c1a1ce4e450f39a361",
+        "finished_utc": "2026-10-23T04:39:13.493913+00:00"
+      }
+    },
+    {
+      "label": "bracket_only_candidate",
+      "job_id": "58492bb7-5c21-4012-aedb-2dbb3ed7d740",
+      "job_result": "fail",
+      "result": {
+        "status": "failed",
+        "reset_requested": false,
+        "remote_file_removed": true,
+        "runtime": "adafruit_feather_esp32_v2 3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23\r\r\nREADONLY False\r\r\n",
+        "new_file_copy": "failed",
+        "new_file_error": "Traceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\nOSError: [Errno 2] No such file/directory\r\r\n",
+        "error": "AssertionError('Candidate still fails new-file creation')",
+        "finished_utc": "2026-10-23T04:43:50.704885+00:00"
+      }
+    },
+    {
+      "label": "final_candidate",
+      "job_id": "ac26a576-feed-41e7-8838-3e8269c9c389",
+      "job_result": "pass",
+      "result": {
+        "status": "diagnostic_completed",
+        "reset_requested": false,
+        "remote_file_removed": true,
+        "runtime": "adafruit_feather_esp32_v2 3.4.0; CircuitPython 11.0.0-alpha.2-16-gea06dcb44e-dirty on 2026-10-23\r\r\nREADONLY False\r\r\n",
+        "new_file_copy": "passed",
+        "existing_file_copy": "passed",
+        "content_sha256": "5112d9de75960a4ccba1d80185c2c6e624e425308f7bd2c1a1ce4e450f39a361",
+        "finished_utc": "2026-10-23T04:45:33.454128+00:00"
+      }
+    }
+  ]
+}

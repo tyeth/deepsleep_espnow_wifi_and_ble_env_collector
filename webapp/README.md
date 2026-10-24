@@ -1,6 +1,6 @@
 # Env Hub Analyzer (static web app)
 
-One self-contained page (`index.html` + `sw.js`) for browsing and analysing
+One static application (`index.html`, its JavaScript helpers, and `sw.js`) for browsing and analysing
 the hub's datasets. It is deliberately hosted **two ways**:
 
 | Hosting | URL | Transport | Offline | web-BLE | Built-in AI |
@@ -34,13 +34,47 @@ by Chrome; state at `chrome://on-device-internals`. See
 
 ## Deploying
 
-* **Device**: copy `index.html` and `sw.js` to the SD card as
+* **Device**: copy the contents of `webapp/` (including `ai_tools.js`,
+  `prompt_backend.js`, `webmcp.js`, `sw.js`, icons and sample files) to the SD card as
   `/sd/www/index.html` (preferred) or to CIRCUITPY as `/www/index.html`.
   The collector serves it at `/` (the tiny built-in dashboard moves to `/mini`).
 * **GitHub Pages**: enable Pages for this repo with the `webapp/` folder
   (or a `docs/` copy) as the source.
 
 ## Features
+
+* **WebMCP**: on a secure origin, browsers with the current
+  [`document.modelContext` API](https://developer.chrome.com/docs/ai/webmcp/imperative-api)
+  get two read-only tools: `envhub_dataset` describes the currently loaded
+  dataset and SQL schema; `envhub_query` uses the same SELECT-only validator,
+  timeout and row limits as Ask. No device writes are exposed. Registration
+  follows the page lifetime through an AbortSignal, including back/forward
+  cache restoration. The status below Ask shows whether registration succeeded.
+  Chrome requires its WebMCP testing flag (`chrome://flags/#enable-webmcp-testing`)
+  or an applicable origin trial; feature availability is detected at runtime.
+  Browsers without WebMCP retain all normal page controls.
+
+* **Optional local model for phones**: select *Enable a local model* and
+  press *enable AI*. Native Prompt API is preferred when available. If absent
+  or reporting `unavailable`, the page can use Google's
+  [Prompt API polyfill](https://github.com/GoogleChromeLabs/web-ai-demos/tree/main/prompt-api-polyfill)
+  1.22.2 with Transformers.js 4.3.0 and
+  [Qwen2.5-0.5B-Instruct](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct).
+  WebGPU uses q4 (approximately 786 MB) with full-precision arithmetic:
+  q4f16 produced incorrect inference on the tested AMD GPU despite advertised
+  shader-f16 support. Without a GPU adapter, WASM uses the smaller q8 export
+  (approximately 512 MB) in a worker so the page and Stop remain responsive.
+  The CPU fallback completed a real query-and-summary test and an immediate
+  retry after Stop. Observed desktop renderer memory was 2.46 GB with q8
+  versus 3.72 GB with q4; these are snapshots, not peak-memory guarantees.
+  This requires HTTPS or localhost, an initial download of hundreds of MB,
+  and sufficient memory. It needs no API key and sends no readings to an AI
+  server. Script/model hosts still receive download requests. The browser may
+  evict or refuse model caching, so offline availability is not guaranteed.
+  A desktop test of this fallback does not establish compatibility or usable
+  performance on every phone. Canned queries remain available when loading fails.
+  Dependency import mappings are pinned in `index.html`; do not deploy just
+  the helper script without those mappings.
 
 * **Datasets**: sync day CSVs from the device over HTTP or BLE
   (`hist <day>` streaming), or drag-drop CSV files straight off the SD
@@ -91,7 +125,7 @@ by Chrome; state at `chrome://on-device-internals`. See
   A **stop** button aborts whatever the model is doing — the one-time
   download, loading it into memory, or a turn of the tool loop — through one
   `AbortController` passed to `LanguageModel.create()` and every `prompt()`.
-  Stopping a download loses nothing: Chrome keeps the part it already has.
+  Stopping abandons the current operation; cached model files may be reused.
 
   The **system prompt is editable** (*system prompt* disclosure under the
   answer): the built-in template is `SYSTEM_TEMPLATE` in `ai_tools.js`, and
@@ -114,17 +148,26 @@ by Chrome; state at `chrome://on-device-internals`. See
   (casual phrasing is interpreted as "how far beyond acceptable, for how
   long").
 
-  **Limits**: desktop Chrome 148+ only; Gemini Nano is small, so questions
+  **Limits**: native availability depends on Chrome and the device; both
+  Gemini Nano and the optional phone model are small, so questions
   should be about one or two metrics/zones at a time; the model may mis-write
-  SQL (the validator refuses and it gets one correction per turn); no
-  function-calling API exists yet, the loop is emulated with structured
-  output. **Android / no model**: the panel falls back to canned questions
+  SQL (the validator refuses and it gets one correction per turn);
+  native Chrome uses structured output. The local polyfill proposes one
+  SELECT, runs it through the same SQL validator, and summarises the returned
+  rows in a fresh session with a separate summary brief. Only the first SQL
+  code fence is extracted if the model continues with unrelated examples;
+  that entire block must still pass single-statement validation. This avoids
+  making a small model imitate a multi-turn JSON tool protocol.
+  WebMCP exposes SQL separately
+  to browser agents. **No usable model**: the panel falls back to canned questions
   (min/mean/max, daily max, worst hours, time above/below thresholds per
   metric, zone and day range) executed through the same sqlite path.
 
   Tests: `node webapp/tests/sql_validator.test.mjs` (validator, reply
   parsing, prompt builder, canned queries) and
   `node webapp/tests/check_inline.mjs` (syntax check of the inline scripts).
+  `node --test webapp/tests/browser_ai.test.mjs` checks WebMCP lifetime,
+  cancellation, native preservation, local opt-in and backend selection.
 
 * **HTTPS cert sync** (*sync cert*): fetches `ssl.combined` + `ssl.key` from
   `gundryconsultancy.com` and pushes them to the hub over HTTPS or BLE. That

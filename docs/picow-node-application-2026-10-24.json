@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "firmware_written": false,
+  "backup_bytes": 520704,
+  "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+  "restored_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+  "restore_verified": true,
+  "original_runtime_verified": true,
+  "stable_id": true,
+  "application_pr11_head": "aed85946600c7ddd1e44fc5055564a00bd0bc95f",
+  "firmware": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "sensor": "simulated",
+  "over_air_reception_verified": false,
+  "pico2_hub_verified": false,
+  "boots": [
+    {
+      "reset_observed": true,
+      "capture_sha256": "d87f8d980b0b8addf616ad7128528cea73c6621d23ada12e2fbc655e4b6dcc7f",
+      "bytes": 1298,
+      "advertisement_cycles": 5,
+      "startup_free": 77616
+    },
+    {
+      "reset_observed": true,
+      "capture_sha256": "d87f8d980b0b8addf616ad7128528cea73c6621d23ada12e2fbc655e4b6dcc7f",
+      "bytes": 1298,
+      "advertisement_cycles": 5,
+      "startup_free": 77616
+    }
+  ]
+}

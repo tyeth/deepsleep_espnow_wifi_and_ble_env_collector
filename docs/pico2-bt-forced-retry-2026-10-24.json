@@ -1,0 +1,145 @@
+{
+  "finished_utc": "2026-10-24T00:43:54.359678+00:00",
+  "status": "passed_and_restored",
+  "board": "Pico 2 W",
+  "pins": {
+    "circuitpython": "0d545efdcf74fdefef66190236f8707ac2b545c5",
+    "zephyr": "c6200e80ea6973b092da3c30c672901cc1951fc2",
+    "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+    "hal_rpi_pico": "de12fc2a0f756d889cc13c129622ddb663025d29"
+  },
+  "artifacts": {
+    "bin": {
+      "bytes": 1204980,
+      "sha256": "5ce862f5dc41150f58fb16f870266fc3e584b79c88160c365d634e5a31b76891"
+    },
+    "elf": {
+      "bytes": 24210572,
+      "sha256": "9935c6eaca7142ba880b598b76a2862c3707359394762c0547735e4ec0589575"
+    },
+    "map": {
+      "bytes": 3098650,
+      "sha256": "a2b0e571451d638293364ad8205d1558fb4202e397a01025a862025dd1b88a69"
+    }
+  },
+  "workflow_configuration": "automatic BLE file/serial services disabled; preprocessed startup bodies empty",
+  "compiler_argv_retained": false,
+  "actual_elf_hooks_verified": [
+    "envhub_bt_fault_arm",
+    "envhub_bt_fault_snapshot",
+    "envhub_bt_fault_words",
+    "envhub_bt_fault_module"
+  ],
+  "initial_state": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    false
+  ],
+  "fault_stages": [
+    3,
+    4,
+    5
+  ],
+  "errno_names": [
+    "EIO",
+    "ETIMEDOUT",
+    "ETIMEDOUT"
+  ],
+  "after_fault_states": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      179,
+      1,
+      0,
+      false
+    ],
+    [
+      2,
+      2,
+      0,
+      4,
+      0,
+      179,
+      1,
+      0,
+      false
+    ],
+    [
+      3,
+      3,
+      0,
+      5,
+      0,
+      179,
+      1,
+      0,
+      false
+    ]
+  ],
+  "wifi_counts_after_errors": [
+    59,
+    62,
+    61
+  ],
+  "retry_state": [
+    4,
+    3,
+    0,
+    5,
+    0,
+    179,
+    1,
+    1,
+    true
+  ],
+  "ble_identity_stable": true,
+  "ble_scan_counts": [
+    79,
+    82,
+    88
+  ],
+  "restored_radio_counts": [
+    [
+      0,
+      54,
+      82
+    ],
+    [
+      1,
+      52,
+      75
+    ],
+    [
+      2,
+      57,
+      80
+    ]
+  ],
+  "backup_bytes": 4194304,
+  "code_write_bytes": 1212416,
+  "whole_expected_flash_verified": true,
+  "whole_flash_matches_pretest": false,
+  "production_code_restored": "9e153ad624",
+  "runtime_data_retained": true,
+  "imports_detached": true,
+  "original_port_state_restored": true,
+  "bridge_reset_observed": false,
+  "recovery_required": false,
+  "limits": [
+    "Forced software returns after successful real hardware work, not electrical faults or natural timeout incidence",
+    "Diagnostic automatic-workflow configuration differs from normal production image",
+    "No end-to-end BLE workflow client transfer qualification",
+    "No new USB MSC or long-soak qualification",
+    "One board/run, not failure-rate measurement"
+  ]
+}

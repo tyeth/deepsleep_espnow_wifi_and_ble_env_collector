@@ -1,0 +1,26 @@
+{
+  "circuitpython": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+  "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+  "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac",
+  "source_pins_verified_before_and_after": true,
+  "CP_VERSION": "",
+  "artifacts": [
+    {
+      "board": "raspberrypi_rpi_pico2_w_zephyr",
+      "bytes": 1209020,
+      "sha256": "75c0057c17f080d76390bf0fd72b45de0ed89d3245239d40502e0060cf983632",
+      "config_sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0",
+      "production_image_physically_installed": true,
+      "physical_qualification": "pico2-station-tls-2026-10-23.json"
+    },
+    {
+      "board": "raspberrypi_rpi_pico_w_zephyr",
+      "bytes": 1252632,
+      "sha256": "c1e390f99928d0b0c1ff76d7af47ad9ce6c2931f0979ffa88d27dcd44c23abc8",
+      "config_sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d",
+      "production_image_physically_installed": true,
+      "physical_qualification": "picow-station-lifecycle-2026-10-23.json"
+    }
+  ]
+}

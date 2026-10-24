@@ -1,0 +1,79 @@
+{
+  "verified_utc": "2026-10-22T19:27:16.898173+00:00",
+  "verification_job": "a34fcf39-6831-4e18-9eaf-de05ded314b5",
+  "circuitpython_revision": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+  "zephyr_revision": "7379648278ab49e391af00f1a62ec73387d4c519",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "image_sha256": "827d391a777aba31bb9d029d5d7ca6ec3e6b9379448a14dbbe3ebce864883ce2",
+  "run_record_sha256": "a119c4a3b5d3114e5445c9d2213674bbdf9e3a801a846d31702613a74b645594",
+  "preflight_sha256": "304a37b0789fdc3201bf76a2d6e73a89493c4f0612f19db587d992aa1d6fce6d",
+  "started_utc": "2026-10-22T17:26:05.307373+00:00",
+  "service": {
+    "MainPID": "0",
+    "Result": "success",
+    "ActiveState": "inactive",
+    "SubState": "dead"
+  },
+  "report": {
+    "evidence_directory": "pico-rx-7d4-twohour-01",
+    "recorder_status": "passed",
+    "evidence_verdict": "consistent",
+    "mode": "wifi_ble_scan",
+    "elapsed_s": 7200.0,
+    "duration_s": 7200.0,
+    "metrics": {
+      "cycles": 240,
+      "seconds": {
+        "samples": 240,
+        "first": 5.819992,
+        "last": 5.770508,
+        "minimum": 5.705568,
+        "maximum": 6.622316,
+        "delta": -0.04948399999999964
+      },
+      "wifi": {
+        "samples": 240,
+        "first": 48,
+        "last": 68,
+        "minimum": 31,
+        "maximum": 80,
+        "delta": 20
+      },
+      "ble": {
+        "samples": 240,
+        "first": 25,
+        "last": 25,
+        "minimum": 23,
+        "maximum": 26,
+        "delta": 0
+      },
+      "gc_allocated": {
+        "samples": 240,
+        "first": 2048,
+        "last": 2032,
+        "minimum": 2032,
+        "maximum": 2208,
+        "delta": -16
+      },
+      "gc_free_estimate": {
+        "samples": 240,
+        "first": 71424,
+        "last": 71440,
+        "minimum": 71264,
+        "maximum": 71440,
+        "delta": 16
+      },
+      "max_cycle_gap_s": 30.77,
+      "memory_note": "GC free is a port estimate, not measured physical free RAM."
+    },
+    "issues": [],
+    "sha256": {
+      "status.json": "f844c7e96e3736318cfd7163e9440503cf74ad0200cdb44ee40a911f882a8747",
+      "cycles.jsonl": "911c62e42c50a86f6413c5cba75baf71de44e1191102c7f2fdb2fe689a9a78ff"
+    },
+    "note": "Live snapshots are provisional. Service shutdown must be checked separately."
+  },
+  "prior_failed_status_sha256": "bafaa2841a50cfc0be9f3acc904bd85cee64ce443925185633c0db1ad3d08434",
+  "previous_failed_evidence_unchanged": true,
+  "scope": "Two-hour Pico W Wi-Fi/BLE scan qualification, not an eight-hour run or Pico 2 W qualification. No claim that the source lock defect caused the earlier physical stall."
+}

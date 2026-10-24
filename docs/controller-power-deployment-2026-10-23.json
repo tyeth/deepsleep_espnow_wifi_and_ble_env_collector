@@ -1,0 +1,29 @@
+{
+  "public_candidate_commit": "6ca2f2dffa7dcc6ea0094744f77433f13e7aa278",
+  "adapter_sha256": "b54450c92231f4cb30a4e7d0200689ab81a5a0581995c5a4b18f8cf2b59cc982",
+  "deployed": true,
+  "same_adapter_as_physical_c6_check": true,
+  "integration": "Reviewed two-file patch applied to exact live revision after isolated validation",
+  "focused_tests_passed": 61,
+  "ruff_passed": true,
+  "mypy_module_passed": true,
+  "cutover_guard_tests_passed": 6,
+  "failed_initial_check": "One API test returned 401 because inherited production settings overrode test defaults; runtime lacked Ruff. Failed logs retained. Retest removed production HIL settings, disabled live topology, and installed lint tools only in the isolated test directory.",
+  "idle_jobs_and_leases_checked_under_admission_lock": true,
+  "remote_soak_gate_passed": true,
+  "service_restarted": true,
+  "readiness": {
+    "status": "ok",
+    "db": "ok"
+  },
+  "fresh_api_job_passed": true,
+  "tracked_checkout_clean": true,
+  "deployment_unit_finished_successfully": true,
+  "rollback_required": false,
+  "not_claimed": [
+    "New physical power-cycle measurement after deployment",
+    "Voltage or current measurement",
+    "Endpoint-capacity scheduling",
+    "Stale USB/IP recovery"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "revision": "a0c1485cf53a1f333a28cd3bb9dd307fd2470f36",
+  "board": "raspberrypi_rpi_pico_w_zephyr",
+  "image_sha256": "a9ed70820f08dec3e9b9180f492dd3fdd44b1ef654ecc7c5378fc32aa80c0ebe",
+  "flash": {
+    "job": "3a9b931d-c287-484e-ba9b-389c2a356db3",
+    "result": "passed",
+    "finished_utc": "2026-10-22T15:49:24.730373+00:00",
+    "backup_bytes": 2097152,
+    "full_readback": true,
+    "untouched_flash_preserved": true
+  },
+  "runtime": {
+    "job": "d2a46060-b7b3-4a4d-a65a-bc7a65a6fd9f",
+    "result": "passed",
+    "finished_utc": "2026-10-22T15:51:02.104048+00:00",
+    "extended_request_rejected": true,
+    "original_scan_adverts": 181,
+    "later_scan_adverts": 214,
+    "ble_identity_retained": true,
+    "tls_and_ble_adverts": 68,
+    "trusted_tls": true,
+    "wrong_hostname_rejected": true
+  },
+  "soak": {
+    "started_utc": "2026-10-22T15:51:33.605949+00:00",
+    "duration_s": 7200,
+    "checked_utc": "2026-10-22T15:54:24.600545+00:00",
+    "status": "running",
+    "cycles": 6,
+    "failures": [],
+    "note": "User-authorized shorter replacement run; not an eight-hour qualification."
+  },
+  "baseline": {
+    "status": "intentionally_interrupted",
+    "cycles": 545,
+    "elapsed_s": 16337.28,
+    "reason": "User authorized repurposing the Pico for new firmware tests."
+  },
+  "limitations": [
+    "Physical failed-open/retry injection not run: SWD probe unavailable.",
+    "Pico 2 W runtime qualification pending.",
+    "Other board variants and remaining eight-hour observers incomplete."
+  ]
+}

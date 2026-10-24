@@ -1,0 +1,143 @@
+{
+  "firmware": "9e153ad624",
+  "finished_utc": "2026-10-23T05:33:11.057777+00:00",
+  "status": "passed",
+  "phases": [
+    {
+      "name": "cdc_only",
+      "elapsed_s": 90.0,
+      "cdc_samples": 90,
+      "valid_cdc_samples": 90,
+      "uncached_storage_reads": 0,
+      "storage_errors": 0,
+      "classes": [
+        {
+          "class": "02",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "0a",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "08",
+          "driver": null
+        },
+        {
+          "class": "03",
+          "driver": null
+        }
+      ]
+    },
+    {
+      "name": "cdc_plus_msc_reads",
+      "elapsed_s": 90.0,
+      "cdc_samples": 90,
+      "valid_cdc_samples": 90,
+      "uncached_storage_reads": 90,
+      "storage_errors": 0,
+      "classes": [
+        {
+          "class": "02",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "0a",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "08",
+          "driver": "usb-storage"
+        },
+        {
+          "class": "03",
+          "driver": null
+        }
+      ]
+    },
+    {
+      "name": "cdc_only_after",
+      "elapsed_s": 90.0,
+      "cdc_samples": 90,
+      "valid_cdc_samples": 90,
+      "uncached_storage_reads": 0,
+      "storage_errors": 0,
+      "classes": [
+        {
+          "class": "02",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "0a",
+          "driver": "cdc_acm"
+        },
+        {
+          "class": "08",
+          "driver": null
+        },
+        {
+          "class": "03",
+          "driver": null
+        }
+      ]
+    }
+  ],
+  "reset_requested": false,
+  "storage_writes": false,
+  "cleanup_errors": [],
+  "driver_bindings_restored": true,
+  "private_raw_evidence_sha256": "04da74f32f74fad5519d75b078d42fc74cd3d776ef4cdf81695080ed9d48507a",
+  "kernel_log_sha256": "a0bc1b093333cadaafd4703c719dd682b8924bf64717bfe3114b6cc824232aa9",
+  "root_cause_established": false,
+  "post_test_power": [
+    {
+      "role": "root_hub",
+      "power/control": "auto",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "0",
+      "power/runtime_active_time": "103069902",
+      "power/runtime_suspended_time": "0"
+    },
+    {
+      "role": "upstream_hub",
+      "power/control": "on",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "-1000",
+      "power/runtime_active_time": "103067895",
+      "power/runtime_suspended_time": "0"
+    },
+    {
+      "role": "direct_hub",
+      "power/control": "on",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "-1000",
+      "power/runtime_active_time": "103067459",
+      "power/runtime_suspended_time": "0"
+    },
+    {
+      "role": "pico_w",
+      "power/control": "on",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "2000",
+      "power/runtime_active_time": "2543199",
+      "power/runtime_suspended_time": "0"
+    },
+    {
+      "role": "feather_uart",
+      "power/control": "on",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "2000",
+      "power/runtime_active_time": "2542739",
+      "power/runtime_suspended_time": "0"
+    },
+    {
+      "role": "bridge_uart",
+      "power/control": "on",
+      "power/runtime_status": "active",
+      "power/autosuspend_delay_ms": "2000",
+      "power/runtime_active_time": "2542378",
+      "power/runtime_suspended_time": "0"
+    }
+  ],
+  "private_power_evidence_sha256": "6de53435e7245e8d9d6cde798d5dd4ab4d4a4dad1ee728caf20df5ed850c477e"
+}

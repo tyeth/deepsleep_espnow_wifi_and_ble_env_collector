@@ -1,0 +1,105 @@
+{
+  "board": "raspberrypi_rpi_pico2_w_zephyr",
+  "revision": "9e153ad624bcd1559211dfad8eb54ef8841f15e9",
+  "peer_board": "adafruit_feather_esp32_v2",
+  "peer_revision": "ea06dcb44e-dirty",
+  "installed_runtime_verified": true,
+  "candidate_sha256": "75c0057c17f080d76390bf0fd72b45de0ed89d3245239d40502e0060cf983632",
+  "whole_flash_verified": true,
+  "lifecycle_finished_utc": "2026-10-23T08:38:54.4917860+00:00",
+  "station_channel": 6,
+  "cycles": [
+    {
+      "cycle": 0,
+      "dhcp_lease": true,
+      "ping_seconds": 0.009,
+      "peer_identity_matches": true,
+      "disconnect_seconds": 0.005004884,
+      "address_cleared": true,
+      "repeated_stop": true,
+      "peer_confirms_departure": true,
+      "started_from_disabled": false
+    },
+    {
+      "cycle": 1,
+      "dhcp_lease": true,
+      "ping_seconds": 0.009,
+      "peer_identity_matches": true,
+      "disconnect_seconds": 0.005004884,
+      "address_cleared": true,
+      "repeated_stop": true,
+      "peer_confirms_departure": true,
+      "started_from_disabled": false
+    },
+    {
+      "cycle": 2,
+      "dhcp_lease": true,
+      "ping_seconds": 0.012,
+      "peer_identity_matches": true,
+      "disconnect_seconds": 0.003990174,
+      "address_cleared": true,
+      "repeated_stop": true,
+      "peer_confirms_departure": true,
+      "started_from_disabled": true
+    }
+  ],
+  "ap_preservation_channel": 11,
+  "ap_preservation_ping_seconds": 0.052,
+  "cleanup_passed": true,
+  "transport_restored": true,
+  "tls": {
+    "status": "passed",
+    "finished_utc": "2026-10-23T09:53:57.708035+00:00",
+    "host_fixture_verified": true,
+    "certificate_dates_checked": false,
+    "body_bytes": 20495,
+    "body_sha256": "8ecf14e6528b553ccc8c7401a4c889f97a8cb41aac4daccb47355077092abd60",
+    "radio_cleanup": true,
+    "fixture_stopped": true,
+    "transport_restored": true,
+    "matching_responses": 2,
+    "ble_advertisements": 316,
+    "rejection_errno": {
+      "wrong_host": -9984,
+      "default_bundle_unknown_issuer": -12288,
+      "unrelated_explicit_ca": -9984
+    },
+    "heap_before": 86432,
+    "heap_after": 84032
+  },
+  "evidence_sha256": {
+    "pico2-station-update-job.json": "9c5aef43ecb255bc1a47202e6d6ec2c1acb17a6c08d68db867c5dc4a0523222e",
+    "pico2-station-lifecycle-job.json": "296cbffabbb532c2523f3c90075176a796aa0495f0226b6a91faef7fad4021de",
+    "pico2-tls-job.json": "c1abe982bf84c9349e33211e5bd9cb2da52e960b78ca9687b1ba98fc63864212",
+    "pico2-tls-failure-diagnostic-job.json": "011759d0031e00b65acb6920bfbf8ef303ce00e14fdeeee7c0350ecf3bbd5abc",
+    "pico2-tls-v2-job.json": "03b3a5cabaae9873567530d8f092b35639d3eb51d089ab76784e93f2dfe48d5d",
+    "pico2-tls-v2-failure-job.json": "d5c0d84d7de4f57ed24175eb945bb6ed3d48f794a1fe78fb665b77df4e56787a",
+    "pico2-tls-v3-tail-job.json": "8a4ff650509ed5960e6a6c80db9a58fd22b8063031b225b05a73a7612bf30c8c",
+    "pico2-tls-v3-failure-job.json": "0d697dc90ff103052140a83dbe03caaafdb3ad5c3ffa9121045f7278b0ef11c6",
+    "pico2-tls-v4-job.json": "5ce0c26dc122b023c18a82b8558b301c2d65d5165629c5c64b117fc604445b27"
+  },
+  "limits": [
+    "Certificate date validity is deliberately unchecked by this build; no expiry/future-date protection is claimed",
+    "Bounded TLS test, not a TLS soak or connected-GATT load test",
+    "No fresh BLE identity comparison",
+    "No physical driver-failure injection, MSC concurrency or storage-boundary qualification",
+    "Prior soaks retain their original firmware revisions"
+  ],
+  "earlier_failed_tls_attempts": [
+    {
+      "attempt": 1,
+      "cause": "Fixture imported unavailable rtc module before device TLS connection",
+      "cleanup_passed": true
+    },
+    {
+      "attempt": 2,
+      "cause": "Fixture used CPython hashlib.sha256 instead of CircuitPython hashlib.new",
+      "cleanup_passed": true
+    },
+    {
+      "attempt": 3,
+      "cause": "Fixture expected -9984 for default trust bundle; pinned callback returns -12288 for unknown issuer",
+      "cleanup_passed": true
+    }
+  ]
+}

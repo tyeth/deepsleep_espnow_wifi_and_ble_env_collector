@@ -1,0 +1,38 @@
+{
+  "verified_utc": "2026-10-23T00:34:13.805656+00:00",
+  "circuitpython": "6b117bdce576abf927554a4946b8610149150aa0",
+  "zephyr": "7379648278ab49e391af00f1a62ec73387d4c519",
+  "hal_infineon": "7f93dc60675126a63358ffa0780648d94fd2d634",
+  "hal_rpi_pico": "725e9e429eab65eda01762a1af9016426dee00ac",
+  "source_pins_and_tracked_cleanliness_verified_before_and_after": true,
+  "CP_VERSION": "",
+  "build_tool_tests_passed": 85,
+  "artifacts": [
+    {
+      "board": "raspberrypi_rpi_pico2_w_zephyr",
+      "bytes": 1208788,
+      "sha256": "7dae24ba1c94a70c19dd1393e08d4bde2e910857e3199ea419c67a2f35d26a98",
+      "config_sha256": "00d9fa6b110f29e22ef59824cee0debc2821df86e65b3a489b129152077618b0",
+      "socket_service_priority": 0,
+      "main_thread_priority": 0,
+      "timeslice_ms": 20,
+      "diagnostic_overrides": false,
+      "production_image_physically_installed": true,
+      "runtime_identity_verified": true,
+      "physical_qualification": "pico2-production-ap-qualification-2026-10-23.json"
+    },
+    {
+      "board": "raspberrypi_rpi_pico_w_zephyr",
+      "bytes": 1252392,
+      "sha256": "75aec10112aea8a5dc4cf1fd9d0b6cb2b0b7c4bd4dad56e3c9575535d7b5eef5",
+      "config_sha256": "1aee70b5999ab53726678a6f5f3d175acc10ecaf653d741fad9abefe180b2d6d",
+      "socket_service_priority": 0,
+      "main_thread_priority": 0,
+      "timeslice_ms": 20,
+      "diagnostic_overrides": false,
+      "production_image_physically_installed": true,
+      "runtime_identity_verified": true,
+      "physical_qualification": "picow-production-ap-qualification-2026-10-23.json"
+    }
+  ]
+}

@@ -34,6 +34,15 @@ slot — RAM-only buffering).
 > **CircuitPython:** use the **latest alpha** build (it contains required
 > BLE fixes). <https://circuitpython.org/downloads>
 
+> **Raspberry Pi Pico W / Pico 2 W** (CircuitPython's Zephyr port): no
+> ESP-NOW, no deep sleep, no user SPI bus, no RTC on the Pico 2 W, and an
+> AP *or* a station but not both. The hub runs on a Pico 2 W over your
+> home WiFi (falling back to a setup AP) + BLE; a Pico W or Pico 2 W node
+> runs `node_lite`, an awake loop that broadcasts readings as BLE
+> advertisements. Every gate is a capability probe that defaults to the
+> ESP32 path. What runs, the RAM numbers (the Pico W is very tight) and
+> the bench plan: [`pico_w_zephyr.md`](pico_w_zephyr.md).
+
 ## Hardware / pins (collector)
 
 eInk Feather Friend #4446 on the shared SPI bus (`board.SPI()`):
@@ -704,7 +713,8 @@ practical ones you need before touching the boards.
 * **`.mpy` beats `.py` for RAM**, materially on the C6 — cross-compile with
   a matching `mpy-cross` (`mpy-cross -o x.mpy x.py`).
 * **On the C6 the hub's `hubmain.mpy` is not optional.** `collector/code.py`
-  is a one-line `import hubmain`, because the *compiled body of code.py* is
+  is a one-line `import hubgate` (a free-heap check, then `import hubmain`),
+  because the *compiled body of code.py* is
   resident before its first statement runs and a 67 KB one denies
   `esp_wifi_init()` the **contiguous** internal RAM its `esf_buf` pool needs
   — the hub died at `import wifi` with `MemoryError: Failed to allocate Wifi
@@ -715,19 +725,22 @@ practical ones you need before touching the boards.
   compile it fails identically, so:
 
   ```sh
+  mpy-cross -o hubgate.mpy collector/hubgate.py
   mpy-cross -o hubmain.mpy collector/hubmain.py
   ```
 
-  and deploy `hubmain.mpy` — **not** `hubmain.py` — alongside the one-line
+  and deploy `hubgate.mpy` and `hubmain.mpy` — **not** the `.py` — alongside the one-line
   `code.py`. A **soft reload (Ctrl-D) boots the source version fine**, so it
   looks like it works; only a hard reset tells the truth. Note that
   `code.py` itself must stay **source**: CircuitPython looks for
   `code.py`/`code.txt`/`main.py`/`main.txt` and never for `code.mpy`, so any
   build step that byte-compiles the whole directory has to copy this one
   through untouched.
-* **The node is built the same way**, `node/code.py` → `import nodemain`:
+* **The node is built the same way**, `node/code.py` → `import nodegate`
+  → `import nodemain` (or `node_lite` on a board without ESP-NOW):
 
   ```sh
+  mpy-cross -o nodegate.mpy node/nodegate.py
   mpy-cross -o nodemain.mpy node/nodemain.py
   ```
 
@@ -832,17 +845,24 @@ practical ones you need before touching the boards.
 ## Repo layout
 
 ```
-collector/   hub firmware (code.py shim -> hubmain.py + modules,
-             config.json, lib/ via circup)
-node/        node firmware (code.py shim -> nodemain.py, node_sensors.py,
+collector/   hub firmware (code.py shim -> hubgate.py -> hubmain.py +
+             modules, config.json, lib/ via circup); net_blescan.py receives
+             BLE-advertised node readings where there is no ESP-NOW
+node/        node firmware (code.py shim -> nodegate.py, which picks
+             nodemain.py -- ESP32: ESP-NOW +
+             deep sleep -- or node_lite.py -- Pico W / Pico 2 W: awake
+             loop, BLE advertisements via net_bleadv.py; node_sensors.py,
              node_portal.py, ...)
              (envproto.py, net_ble.py, calref.py, battery.py and
              extrtc.py are identical copies in both; checked by
-             tools/test_timezone.py, which fails if one drifts)
+             tools/test_timezone.py, which fails if one drifts --
+             caps.py and envadv.py too, by tools/test_envadv.py)
 webapp/      Analyzer web app (device-hosted + GitHub Pages)
 examples/    kept references: deep_sleep.py, displayio_basics.py,
              eink_quad_demo.py, learn_quad_exact.py (panel sanity checks)
-tools/       serial_deploy.py, serve_webapp.py, gen_sample_data.py
+tools/       serial_deploy.py, serve_webapp.py, gen_sample_data.py,
+             board_budget.py (per-board import graph + heap estimate)
+pico_w_zephyr.md           Pico W / Pico 2 W: what runs, numbers, bench plan
 bugs_issues_and_todos.md   upstream-worthy findings + open TODOs
 ```
 

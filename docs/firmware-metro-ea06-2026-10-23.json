@@ -1,0 +1,25 @@
+{
+  "board": "adafruit_metro_esp32s3",
+  "source_commit": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+  "idf_commit": "29d36039e564db6df505d0582b94b230a17e63f3",
+  "build_status": "passed",
+  "installed": true,
+  "files": {
+    "firmware.bin": {
+      "bytes": 2172544,
+      "sha256": "5f8fb1b435e4813ffde4ee4b4231bbf165177637e0bb50f0dd417c3d9aa94f20"
+    },
+    "firmware.uf2": {
+      "bytes": 4214272,
+      "sha256": "710a0b150e3f86d787b76e2887672559b6acc29722f43f6441ae1c9b43b89d80"
+    }
+  },
+  "application_bytes": 2107008,
+  "old_slot_bytes": 2097152,
+  "old_slot_overflow_bytes": 9856,
+  "new_slot_bytes": 3145728,
+  "new_filesystem_offset": 7667712,
+  "new_filesystem_bytes": 9109504,
+  "factory_uf2_offset": 4259840,
+  "installation_evidence": "metro-ea06-migration-2026-10-23.json"
+}

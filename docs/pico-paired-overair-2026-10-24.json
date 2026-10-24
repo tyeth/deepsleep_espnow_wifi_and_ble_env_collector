@@ -1,0 +1,352 @@
+{
+  "date": "2026-10-24",
+  "scope": "Actual Pico W node and normal Pico 2 hub; synthetic sensor data over real BLE. Complete original storage restoration is separate from original radio health.",
+  "node_revision": "9e153ad624",
+  "normal_hub_revision": "3254e272628ea1c08977cd753dda8762e8951ac2",
+  "zephyr_revision": "5bf4230db7fe1e6b27bd866cf1691ff54ac5099d",
+  "test_config": {
+    "sensor": "sim",
+    "interval_s": 10,
+    "ble_adv_s": 9,
+    "wifi_fallback": false
+  },
+  "attempts": [
+    {
+      "version": 2,
+      "job": "be4e58ac-c0a0-4f2c-97ab-7b53bd10889e",
+      "result": "fail",
+      "record_sha256": "da505b5345f24762db6ff076a9efc30349e6e9598f829b140ea4840e65fd88d6",
+      "pair_status": "failed",
+      "hub_passed": false,
+      "node": {
+        "status": "failed",
+        "firmware_written": false,
+        "storage_mutated": true,
+        "backup_bytes": 520704,
+        "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "payload_verified": true,
+        "advertisement_cycles": 0,
+        "boot_bytes": 0,
+        "boot_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "restore_verified": false,
+        "recovery_required": true,
+        "restore_error": "FileNotFoundError(2, 'No such file or directory')"
+      },
+      "pair_error": "AssertionError()"
+    },
+    {
+      "version": 3,
+      "job": "1ac8f76e-0f00-411c-8348-f1bf7f71a2b5",
+      "result": "fail",
+      "record_sha256": "a2fcd0b261d2ec8346a3129b85702142e288ab11fa9bfad48f72c21a464a794e",
+      "pair_status": "failed",
+      "hub_passed": false,
+      "node": {
+        "status": "failed",
+        "firmware_written": false,
+        "storage_mutated": true,
+        "backup_bytes": 520704,
+        "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "payload_verified": true,
+        "reset_observed": true,
+        "startup_free": 77616,
+        "advertisement_cycles": 8,
+        "boot_bytes": 1787,
+        "boot_sha256": "a739161cdc16d82f17fa42f9b8cf8334d75d7bb2703a9e5db57ea33c701af499",
+        "restore_verified": true,
+        "restored_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "original_runtime_verified": true
+      },
+      "pair_error": "RuntimeError('Hub application job failed; retained full evidence')",
+      "hub": {
+        "status": "failed",
+        "candidate_revision": "3254e272628ea1c08977cd753dda8762e8951ac2",
+        "candidate_sha256": "2c6bfb34138e7d9195f495d66fb35dd1ddaf8024e264ea8af165c2715b1cfd89",
+        "candidate_bytes": 1209228,
+        "application_revision": "415710c80b3c02785b4a7860bab71d87a473897e",
+        "storage_mutated": false,
+        "error": "TimeoutError(\"waiting for b'\\\\x04', got b'OK'\")",
+        "production_restored": false,
+        "imports_detached": true,
+        "original_port_state_restored": true,
+        "bridge_reset_observed": false,
+        "recovery_required": false
+      }
+    },
+    {
+      "version": 4,
+      "job": "f92f0391-e566-401f-acd7-1ff9ecd7c7bc",
+      "result": "fail",
+      "record_sha256": "19a5d45fc8bf0968b607449d2eed32db5bcd3753712ac965b6d3bf8cd1a90e74",
+      "pair_status": "failed",
+      "hub_passed": false,
+      "node": {
+        "status": "failed",
+        "firmware_written": false,
+        "storage_mutated": true,
+        "backup_bytes": 520704,
+        "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "payload_verified": true,
+        "reset_observed": true,
+        "startup_free": 77616,
+        "advertisement_cycles": 8,
+        "boot_bytes": 1787,
+        "boot_sha256": "a739161cdc16d82f17fa42f9b8cf8334d75d7bb2703a9e5db57ea33c701af499",
+        "restore_verified": true,
+        "restored_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "original_runtime_verified": true
+      },
+      "pair_error": "RuntimeError('Hub application job failed; retained full evidence')",
+      "hub": {
+        "status": "failed",
+        "candidate_revision": "3254e272628ea1c08977cd753dda8762e8951ac2",
+        "candidate_sha256": "2c6bfb34138e7d9195f495d66fb35dd1ddaf8024e264ea8af165c2715b1cfd89",
+        "candidate_bytes": 1209228,
+        "application_revision": "415710c80b3c02785b4a7860bab71d87a473897e",
+        "storage_mutated": false,
+        "original_current_step": "wifi_import",
+        "error": "TimeoutError(\"waiting for b'\\\\x04', got b'OK'\")",
+        "production_restored": false,
+        "imports_detached": true,
+        "original_port_state_restored": true,
+        "bridge_reset_observed": false,
+        "recovery_required": false
+      }
+    },
+    {
+      "version": 5,
+      "job": "daa9fcab-3d61-4a95-a58d-ba5bc4a68f1b",
+      "result": "pass",
+      "record_sha256": "41ff9f68755438c6e18377a1018d46cce407cdf815928f9947a1619df3bb114d",
+      "pair_status": "passed",
+      "hub_passed": true,
+      "node": {
+        "status": "passed",
+        "firmware_written": false,
+        "storage_mutated": true,
+        "backup_bytes": 520704,
+        "backup_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "payload_verified": true,
+        "reset_observed": true,
+        "startup_free": 77616,
+        "advertisement_cycles": 47,
+        "boot_bytes": 8825,
+        "boot_sha256": "fd55597c01a0732448168aa30844c939e4647e671bd8e4dea8cf087eaf399b32",
+        "restore_verified": true,
+        "restored_sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+        "original_runtime_verified": true
+      },
+      "pair_error": null,
+      "hub": {
+        "status": "passed",
+        "candidate_revision": "3254e272628ea1c08977cd753dda8762e8951ac2",
+        "candidate_sha256": "2c6bfb34138e7d9195f495d66fb35dd1ddaf8024e264ea8af165c2715b1cfd89",
+        "candidate_bytes": 1209228,
+        "application_revision": "415710c80b3c02785b4a7860bab71d87a473897e",
+        "storage_mutated": true,
+        "original_backup_bytes": 4194304,
+        "original_backup_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+        "payload_verified": true,
+        "mcu_reset_observed": true,
+        "boot_markers_verified": true,
+        "http_checks": [
+          {
+            "cycle": 0,
+            "route": "/api/config",
+            "bytes": 1724,
+            "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+          },
+          {
+            "cycle": 0,
+            "route": "/api/latest",
+            "bytes": 485,
+            "sha256": "0d2ebe993ec3aea4bc87f49830eb637ec25180d2ac5c44ff0cbc5fd117caaa52"
+          },
+          {
+            "cycle": 0,
+            "route": "/api/battery",
+            "bytes": 100,
+            "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+          },
+          {
+            "cycle": 0,
+            "route": "/api/cert",
+            "bytes": 185,
+            "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+          },
+          {
+            "cycle": 1,
+            "route": "/api/config",
+            "bytes": 1724,
+            "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+          },
+          {
+            "cycle": 1,
+            "route": "/api/latest",
+            "bytes": 485,
+            "sha256": "1f76ff80620a1f84fcb2c933455b1038249fe1c6b3b515d6e462580b3cf290ec"
+          },
+          {
+            "cycle": 1,
+            "route": "/api/battery",
+            "bytes": 100,
+            "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+          },
+          {
+            "cycle": 1,
+            "route": "/api/cert",
+            "bytes": 185,
+            "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+          },
+          {
+            "cycle": 2,
+            "route": "/api/config",
+            "bytes": 1724,
+            "sha256": "0e19f4f034f8f8726ae7d9c227621708c382930dd1db308c31043eb85e325e58"
+          },
+          {
+            "cycle": 2,
+            "route": "/api/latest",
+            "bytes": 484,
+            "sha256": "92b891119be7e7e836a7711db892006dcc428b481d07528d5e12104781bb23c3"
+          },
+          {
+            "cycle": 2,
+            "route": "/api/battery",
+            "bytes": 100,
+            "sha256": "8214c362016d6b3949be7f1b6665f1e9e55d480a5cb63e875b2bf0fbb85bdebe"
+          },
+          {
+            "cycle": 2,
+            "route": "/api/cert",
+            "bytes": 185,
+            "sha256": "9104756091eb623294deac6d8d62844f77341940bed796cab36d7ead1470d124"
+          }
+        ],
+        "scanner_api_states": [
+          {
+            "ble_rx": 4
+          },
+          {
+            "ble_rx": 5
+          },
+          {
+            "ble_rx": 6
+          }
+        ],
+        "node_readings": [
+          {
+            "matching_sequences": [
+              36
+            ],
+            "metrics": {
+              "voc": 95,
+              "rh": 42.5,
+              "tc": 16.5,
+              "nox": 1,
+              "co2": 575,
+              "pm25": 3.6
+            },
+            "type": "sim",
+            "rssi": -54
+          },
+          {
+            "matching_sequences": [
+              37
+            ],
+            "metrics": {
+              "voc": 100,
+              "rh": 43.1,
+              "tc": 16.4,
+              "nox": 2,
+              "co2": 586,
+              "pm25": 2.5
+            },
+            "type": "sim",
+            "rssi": -56
+          },
+          {
+            "matching_sequences": [
+              38
+            ],
+            "metrics": {
+              "voc": 95,
+              "rh": 43.3,
+              "tc": 16.5,
+              "nox": 1,
+              "co2": 585,
+              "pm25": 2.5
+            },
+            "type": "sim",
+            "rssi": -41
+          }
+        ],
+        "node_readings_verified": true,
+        "application_passed": true,
+        "boot_bytes": 2384,
+        "boot_sha256": "2b48067c3fae0c6532f41995442e2c7aeb5bf998d5f3f7a9eee3b943ddfc20b1",
+        "production_restored": true,
+        "runtime_identity_restored": true,
+        "original_radio_health_verified": false,
+        "restoration_scope": "Exact full flash, original board/version and files; known original wifi-import timeout is not a radio health pass",
+        "network_restored": true,
+        "imports_detached": true,
+        "original_port_state_restored": true,
+        "bridge_reset_observed": false,
+        "recovery_required": false,
+        "restore": {
+          "status": "verified",
+          "bytes": 4194304,
+          "expected_sha256": "7518d00ea8245bd8eb153d57baa277ea7b6da7da670cdc0e8952632631d7f917",
+          "whole_flash_verified": true
+        },
+        "deployed_file_count": 44,
+        "install": {
+          "status": "verified",
+          "whole_flash_verified": true,
+          "expected_sha256": "9ab6725118bb28e457659bd2db2887a72dea33ecdff955a710f20260febc640e"
+        }
+      }
+    }
+  ],
+  "first_attempt_separate_recovery": {
+    "job": "01205730-9eb0-4ada-b841-91b3e455e143",
+    "result": "pass",
+    "record_sha256": "9de499316d66f36bf40c9f044fedabd3ac883cc4d4cbb7acfce22a60451bf2be",
+    "write_attempted": true,
+    "pre_recovery_capture_bytes": 180,
+    "pre_recovery_capture_sha256": "a3cb8256364833c5cd2e65b7ac5bc1e970fb15b531a3006f59ac9ab7730b2deb",
+    "pre_recovery_advertisement_cycles": 1,
+    "before_matches": false,
+    "whole_disk_verified": true,
+    "sha256": "18d471d9170495a7fce4958d1b7103f73231a51533bdc365a4f8fb7957736977",
+    "original_code_verified": true,
+    "recovery_required": false
+  },
+  "no_sender_original_control": {
+    "job": "be9e5792-4b7c-4f9d-bd55-f586302734b1",
+    "result": "fail",
+    "record_sha256": "1680afc6f4175cbd5b2589c490fd526f54818b0d99fa60b18ff3e3cfef28905a",
+    "current_step": "wifi_import",
+    "error": "TimeoutError(\"waiting for b'\\\\x04', got b'OK'\")",
+    "firmware_writes": false,
+    "filesystem_writes": false,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_reset_observed": false,
+    "completed_steps": [
+      "identity"
+    ]
+  },
+  "limits": [
+    "No radio-root-cause claim from original-firmware Wi-Fi import timeout; it also occurs without the sender.",
+    "Earlier failed jobs stay failed despite separate recovery.",
+    "No real sensor, display, SD card, physical phone, multi-sender, outage replay, deep sleep or long-soak qualification from this bounded experiment.",
+    "Pico W normal 3254 image is built but not physically tested here."
+  ],
+  "independent_postflight": {
+    "result": "pass",
+    "read_only": true,
+    "record_sha256": "97b72271995ec0e7a01dec34ea3524cb5ba790fefd9d1cb08f9cb1e131280c2e"
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "size_control": {
+    "status": "size_control_completed",
+    "firmware": "3.4.0; CircuitPython 11.0.0-alpha.2-32-g9e153ad624 on 2026-10-23",
+    "disk_bytes": 2617856,
+    "firmware_writes": false,
+    "filesystem_writes": false,
+    "reads": [
+      {
+        "label": "full-4096-before",
+        "seconds": 6.881316,
+        "bytes": 2617856,
+        "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+        "returncode": 0,
+        "cdc_after": true
+      },
+      {
+        "label": "four-65536",
+        "seconds": 24.307075,
+        "bytes": 262144,
+        "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4",
+        "returncode": 0,
+        "cdc_after": true
+      },
+      {
+        "label": "full-4096-after",
+        "seconds": 6.477851,
+        "bytes": 2617856,
+        "sha256": "8554756db54eb98a74be479d97aa3ae162e20475cb8927f23e4a781b36479535",
+        "returncode": 0,
+        "cdc_after": true
+      }
+    ],
+    "network_timing_by_request_bytes": {
+      "4096": {
+        "count": 1320,
+        "completed": 1320,
+        "status_counts": {
+          "0": 1320
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.005204,
+        "first_reply_delay_max": 0.00643,
+        "reply_delivery_min": 0.000261,
+        "reply_delivery_max": 0.000802
+      },
+      "8192": {
+        "count": 1,
+        "completed": 1,
+        "status_counts": {
+          "0": 1
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.010162,
+        "first_reply_delay_max": 0.010162,
+        "reply_delivery_min": 0.001514,
+        "reply_delivery_max": 0.001514
+      },
+      "65536": {
+        "count": 4,
+        "completed": 4,
+        "status_counts": {
+          "0": 4
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.069872,
+        "first_reply_delay_max": 14.024299,
+        "reply_delivery_min": 0.009206,
+        "reply_delivery_max": 0.01054
+      }
+    },
+    "all_64k_network_timings": [
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 0.069872,
+        "reply_delivery_seconds": 0.00977
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 0.072969,
+        "reply_delivery_seconds": 0.009206
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 10.038891,
+        "reply_delivery_seconds": 0.01054
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.024299,
+        "reply_delivery_seconds": 0.009344
+      }
+    ],
+    "usbmon_sha256": "6de1b18c574d5e5cbb3b767bd9bf94b3bf54f3cce130eba57aa798b5912b6b09",
+    "network_sha256": "b566f2ae43fee3ed7c98bdce2db1e02b9ec8540ed6ba04abdc3f0791efddadcf",
+    "usbmon_packets": 8271,
+    "usbmon_truncated_packets": 0,
+    "capture_kernel_drops": 0,
+    "msc_commands": 1377,
+    "msc_without_csw_count": 0,
+    "pending_urb_count": 1,
+    "hcd_exhaustion_messages": 0,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_restarted": false
+  },
+  "cdc_control": {
+    "status": "cdc_control_completed",
+    "firmware": "3.4.0; CircuitPython 11.0.0-alpha.2-32-g9e153ad624 on 2026-10-23",
+    "disk_bytes": 2617856,
+    "firmware_writes": false,
+    "filesystem_writes": false,
+    "reads": [
+      {
+        "label": "quiet-before",
+        "seconds": 24.310519,
+        "bytes": 262144,
+        "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4",
+        "returncode": 0,
+        "cdc_after": true,
+        "cdc_activity": false,
+        "cdc_activity_errors": [],
+        "cdc_activity_thread_stopped": true,
+        "cdc_activity_completed": 0,
+        "cdc_activity_durations_seconds": []
+      },
+      {
+        "label": "cdc-active",
+        "seconds": 56.259576,
+        "bytes": 262144,
+        "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4",
+        "returncode": 0,
+        "cdc_after": true,
+        "cdc_activity": true,
+        "cdc_activity_errors": [],
+        "cdc_activity_thread_stopped": true,
+        "cdc_activity_completed": 20,
+        "cdc_activity_durations_seconds": [
+          2.863758,
+          2.80312,
+          2.803454,
+          2.804518,
+          1.803186,
+          2.83263,
+          2.799313,
+          2.803712,
+          2.803922,
+          1.806911,
+          2.827285,
+          2.80291,
+          2.803782,
+          2.804029,
+          1.80317,
+          2.831532,
+          2.800445,
+          2.803233,
+          2.803571,
+          1.805818
+        ]
+      },
+      {
+        "label": "quiet-after",
+        "seconds": 56.210091,
+        "bytes": 262144,
+        "sha256": "857526fc9a4e5f1402abad99fc71f81bab72d72da54da7fc19060ed18eab92f4",
+        "returncode": 0,
+        "cdc_after": true,
+        "cdc_activity": false,
+        "cdc_activity_errors": [],
+        "cdc_activity_thread_stopped": true,
+        "cdc_activity_completed": 0,
+        "cdc_activity_durations_seconds": []
+      }
+    ],
+    "network_timing_by_request_bytes": {
+      "4096": {
+        "count": 45,
+        "completed": 45,
+        "status_counts": {
+          "0": 45
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.005295,
+        "first_reply_delay_max": 0.007433,
+        "reply_delivery_min": 0.000266,
+        "reply_delivery_max": 0.001204
+      },
+      "8192": {
+        "count": 1,
+        "completed": 1,
+        "status_counts": {
+          "0": 1
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.009889,
+        "first_reply_delay_max": 0.009889,
+        "reply_delivery_min": 0.001451,
+        "reply_delivery_max": 0.001451
+      },
+      "65536": {
+        "count": 12,
+        "completed": 12,
+        "status_counts": {
+          "0": 12
+        },
+        "actual_length_mismatches": 0,
+        "first_reply_delay_min": 0.069839,
+        "first_reply_delay_max": 14.028349,
+        "reply_delivery_min": 0.008444,
+        "reply_delivery_max": 0.009981
+      }
+    },
+    "all_64k_network_timings": [
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 0.069839,
+        "reply_delivery_seconds": 0.009272
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 0.073248,
+        "reply_delivery_seconds": 0.009736
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 10.038914,
+        "reply_delivery_seconds": 0.009976
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.023906,
+        "reply_delivery_seconds": 0.008758
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.027386,
+        "reply_delivery_seconds": 0.009062
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.027687,
+        "reply_delivery_seconds": 0.009396
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.028349,
+        "reply_delivery_seconds": 0.008444
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.027715,
+        "reply_delivery_seconds": 0.009626
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.023316,
+        "reply_delivery_seconds": 0.009499
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.023548,
+        "reply_delivery_seconds": 0.009373
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.02391,
+        "reply_delivery_seconds": 0.009981
+      },
+      {
+        "requested_bytes": 65536,
+        "actual_bytes": 65536,
+        "status": 0,
+        "first_reply_delay": 14.024132,
+        "reply_delivery_seconds": 0.008695
+      }
+    ],
+    "usbmon_sha256": "fd8201ca58b19ed8c3d1724bdf333e06355534d22f902355c5b3f8fbb4985fea",
+    "network_sha256": "7821582f84e5e85db8c3d1a66d9ea35b60c193f2992cd73bde87159f2d3e9ad6",
+    "usbmon_packets": 306,
+    "usbmon_truncated_packets": 0,
+    "capture_kernel_drops": 0,
+    "msc_commands": 34,
+    "msc_without_csw_count": 0,
+    "pending_urb_count": 1,
+    "hcd_exhaustion_messages": 0,
+    "imports_detached": true,
+    "original_port_state_restored": true,
+    "bridge_restarted": false
+  },
+  "size_capture_boundary_review": {
+    "pending_hub_interrupt_urbs": 1,
+    "successful_csw_without_captured_command": 1,
+    "first_orphan_csw_seconds_after_capture_start": 0.002102,
+    "network_pending_cdc_reads": 16,
+    "error_completions_after_last_disk_read": true
+  },
+  "limits": [
+    "Original 9e153 firmware only for these new controls",
+    "No permanent firmware update or MSC writes",
+    "No direct USB Pico 2 comparison",
+    "No root cause or common-cause claim with Pico W issue42"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "recorded_utc": "2026-10-22T21:45:10.524494+00:00",
+  "migration": {
+    "source_firmware": "CircuitPython 10.3.1 native RP2350 port",
+    "target_firmware": "CircuitPython 11.0.0-alpha.2 Zephyr integration",
+    "verified_full_backup_bytes": 4194304,
+    "preserved_nvm_and_filesystem": true,
+    "firmware_and_settings_programmed_bytes": 1572864,
+    "job": "e5b69327-142d-42ba-adce-9c8c2c876a9f"
+  },
+  "runtime": {
+    "identity_verified": true,
+    "concurrent_wifi_ble_verified": true,
+    "scan_guard_verified": true,
+    "completed_utc": "2026-10-22T21:11:00.695573+00:00"
+  },
+  "soak": {
+    "status": "passed",
+    "verified_utc": "2026-10-22T21:44:39.697847+00:00",
+    "board": "raspberrypi_rpi_pico2_w_zephyr",
+    "version": "3.4.0; CircuitPython 11.0.0-alpha.2-30-g7d4ef1aac7 on 2026-10-22",
+    "revision": "7d4ef1aac72bf322f1bcead966a8d3eac0acb2af",
+    "zephyr_revision": "7379648278ab49e391af00f1a62ec73387d4c519",
+    "image_sha256": "f29892f2a02922090ecde2d4841907ef779ea0c7838590f90d2ea65ec7ad8f52",
+    "started_utc": "2026-10-22T21:14:13.466621+00:00",
+    "finished_utc": "2026-10-22T21:44:13.492251+00:00",
+    "elapsed_s": 1800.0,
+    "cycles": 60,
+    "wifi_range": [
+      16,
+      52
+    ],
+    "ble_range": [
+      22,
+      29
+    ],
+    "scan_seconds_range": [
+      7.923096,
+      8.64075
+    ],
+    "gc_allocated_range": [
+      2032,
+      2112
+    ],
+    "service": {
+      "MainPID": "0",
+      "Result": "success",
+      "ExecMainStatus": "0",
+      "ActiveState": "inactive",
+      "SubState": "dead"
+    },
+    "sha256": {
+      "status.json": "1ebb3ad0e3d529f3378e6609ef95ee57d28dd6bfaf7b539f9973e874c17f7742",
+      "cycles.jsonl": "1cd1eda10ad29740b5c8d13f4e3138ebcca871b5a4e20247312fb3c83df6d3d9"
+    }
+  },
+  "limits": [
+    "Thirty-minute radio soak, not an overnight result.",
+    "No physical Pico 2 W TLS qualification claimed.",
+    "Earlier Pico W stall and failed Feather follow-up remain preserved."
+  ]
+}

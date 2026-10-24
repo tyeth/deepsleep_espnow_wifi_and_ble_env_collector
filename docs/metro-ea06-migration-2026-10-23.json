@@ -1,0 +1,118 @@
+{
+  "source_commit": "ea06dcb44e3b953e3b750b28e2e60538d9904fa7",
+  "firmware_installed": true,
+  "installation_finished_utc": "2026-10-23T07:48:08.076983+00:00",
+  "runtime_finished_utc": "2026-10-23T07:54:18.554625+00:00",
+  "recovery": {
+    "private_files_recovered": 2,
+    "single_cluster_extractions": true,
+    "long_filename_checksum_and_sequence_valid": true,
+    "configuration_json_valid": true,
+    "boot_identity_matches_prior_usb_read_after_crlf_normalization": true,
+    "complete_original_filesystem_recovery": false,
+    "original_backup_unchanged": true
+  },
+  "migration": {
+    "backup_sha256": "72803aa16d14e356b7cdd49c48bd0880bfa2b69092aadb395b2c7519250e8671",
+    "candidate_sha256": "5f8fb1b435e4813ffde4ee4b4231bbf165177637e0bb50f0dd417c3d9aa94f20",
+    "expected_sha256": "5bfc69d30bd3289b39f414ac53a3b773f6da0b2be97589c09243c79b11c41a92",
+    "write_ranges": [
+      {
+        "offset": 0,
+        "length": 36864
+      },
+      {
+        "offset": 65536,
+        "length": 2109440
+      }
+    ],
+    "planner_sha256": "eb9d94b1e93dd3c8a329ff60279c54def611184696b51ea1d9d08dd5f28b9e08"
+  },
+  "fresh_backup_verified_bytes": 16777216,
+  "fresh_backup_changed_chunks": [],
+  "whole_flash_verified_before_boot": true,
+  "post_boot_firmware_and_protected_regions_verified": true,
+  "post_boot_changed_64k_offsets": [
+    7667712
+  ],
+  "post_boot_snapshot_sha256": "432fa70f05e2207a9e605e72427fd4e6cd228e124e8ba793424d87e3db087605",
+  "runtime": {
+    "identity_verified": true,
+    "version": "11.0.0-alpha.2-16-gea06dcb44e-dirty",
+    "overlapping_radio_cycles": [
+      {
+        "wifi": 2,
+        "cycle": 1,
+        "ble": 25,
+        "gc_free": 8262480
+      },
+      {
+        "wifi": 2,
+        "cycle": 2,
+        "ble": 26,
+        "gc_free": 8262480
+      },
+      {
+        "wifi": 2,
+        "cycle": 3,
+        "ble": 23,
+        "gc_free": 8262480
+      }
+    ],
+    "filesystem_statvfs": [
+      2048,
+      2048,
+      5969,
+      5963,
+      5963,
+      0,
+      0,
+      0,
+      0,
+      255
+    ]
+  },
+  "extended_filesystem": {
+    "device_access": false,
+    "flash_writes": false,
+    "mapping": "user_fs followed by inactive ota_1",
+    "logical_bytes": 12255232,
+    "fat_offset": 0,
+    "fat_bytes": 12255232,
+    "bpb_total_sectors": 23936,
+    "bpb_sectors_per_cluster": 4,
+    "checks": {
+      "fsck": {
+        "returncode": 1,
+        "log_sha256": "88adc2d7e794dfb9259f900daa8187118dd080e2e7b64e3af9b89b181077cd73"
+      },
+      "mdir": {
+        "returncode": 0,
+        "log_sha256": "632436268cb0e0b7daa18e39d4b7991ab71f1c75d2d3605b030fc7d4375622cf"
+      }
+    },
+    "input_unchanged": true,
+    "snapshot_unchanged": true,
+    "contents_printed": false
+  },
+  "fsck_warning": "Boot sector has no label; root directory contains CIRCUITPY. Read-only checker left image unchanged; no allocation errors reported.",
+  "failed_attempts_preserved": [
+    "No-reset ROM connection received no serial data",
+    "Strict pre-boot digest check rejected expected first-boot filesystem changes"
+  ],
+  "original_port_state_restored": true,
+  "active_soak_interrupted": false,
+  "limits": [
+    "Original malformed Wipper FAT cause unresolved",
+    "No new Metro soak, TLS, connected GATT, external sensor/display or filesystem boundary-write qualification",
+    "Extended storage reuses inactive OTA slot; old filesystem prefix is not reserved against future writes",
+    "Old private configuration recovered locally; not installed as active CircuitPython configuration"
+  ],
+  "private_evidence_sha256": {
+    "file_validation": "b0bcd3e33cb60588799c503baa660d2a4a871eff7030ce60aa6091ed67f0d830",
+    "plan": "2ee8b77f0faf07a3cf2ba78e864f2adda080218b2ff8f9a4d63357c2649a7780",
+    "installation": "a353acc09cbc3c4e426ed4671a25201d14e631727fc1769d2ac7de823967efd7",
+    "runtime": "74b4ecd40699ad3a4ef950a2275b9122463ad761e768cade2501a99824b96f7f",
+    "extended_filesystem": "003cbb42b650d5866206166e1a6f904f86c3c648f16b34580a41b01b4b83b9f6"
+  }
+}

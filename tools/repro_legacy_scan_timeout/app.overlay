@@ -1,0 +1,9 @@
+&pio0_spi0 {
+ airoc-wifi@0 {
+  cyw43_bt_hci: cyw43_bt_hci {
+   compatible = "infineon,cyw43-bt-hci";
+   status = "okay";
+  };
+ };
+};
+/ { chosen { zephyr,bt-hci = &cyw43_bt_hci; }; };
